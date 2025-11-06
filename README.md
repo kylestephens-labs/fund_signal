@@ -120,6 +120,26 @@ RESEND_API_KEY=""
 
 ***
 
+## Day 1: Exa Discovery Pipeline
+
+- Add `EXA_API_KEY` to `.env` (keep `LOG_LEVEL=INFO`, `ENVIRONMENT=development` by default).
+- (Optional) Start Postgres for inserts: `docker compose up -d db`.
+- Seed discovery data: `python -m pipelines.day1.exa_discovery --days_min=60 --days_max=90 --limit=80`.
+- Inspect output: open `leads/exa_seed.json` or run `python -m tools.peek leads/exa_seed.json | head -n 50`.
+- Verify parsing rules with `pytest -k test_exa_discovery`.
+
+***
+
+## Day 1: You.com Verification Pipeline
+
+- Add `YOUCOM_API_KEY` to `.env` (keep API keys out of logs).
+- Ensure Exa seed exists at `leads/exa_seed.json`.
+- Run verification: `python -m pipelines.day1.youcom_verify --input=leads/exa_seed.json --min_articles=2`.
+- Inspect results: `python -m tools.peek leads/youcom_verified.json | head -n 50`.
+- Run the targeted tests: `pytest -k test_youcom_verify`.
+
+***
+
 ## Day 1–7 MVP Roadmap
 
 | Day | Goal                              | Deliverable                                  |
@@ -176,6 +196,71 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ***
 
-This README combines project-specific details, MVP delivery clarity, and actionable usage steps—all mapped to your FundSignal goals and technical approach.
+Your README is already comprehensive and well-structured for onboarding, deployment, and MVP delivery[1]. For optimal developer and operator experience, consider adding these additional sections:
 
-Sources
+***
+
+### 1. **Troubleshooting & Common Issues**
+
+Add a section to guide new developers on typical errors (such as Python version mismatches, `.env` formatting issues, or database connection errors).
+```markdown
+## Troubleshooting
+
+- **Python Version Error:** Ensure `.python-version` is set to 3.12.0 for compatibility with all dependencies.
+- **Env Parsing Errors:** Check `.env` for correct formatting—especially bracket syntax in `CORS_ORIGINS`.
+- **Database Connection Issues:** Verify DATABASE_URL uses the `postgresql+asyncpg://` prefix for proper async support.
+- **Render Deploy Fails:** Review Render logs under Events and Logs tabs for precise error output. Most issues trace to Python version, environment variable formatting, or missing secrets.
+```
+
+***
+
+### 2. **Links to Documentation**
+
+Provide helpful links for third-party services (especially for API setup), e.g. Supabase, Render, Exa, Tavily, Twitter, Resend, Stripe.
+
+```markdown
+## Service Documentation Links
+
+- [Supabase Docs](https://supabase.com/docs)
+- [Render Deployment Guide](https://render.com/docs/deploy-fastapi)
+- [OpenAI API Reference](https://platform.openai.com/docs)
+- [Resend API](https://resend.com/docs)
+```
+
+***
+
+### 3. **Directory Structure**
+
+Show a quick view of your repo’s major folders and their purpose.
+```markdown
+## Directory Structure
+
+```
+fund_signal/
+├── app/               # FastAPI source code
+├── tests/             # Pytest test cases
+├── .env.example       # Environment variable template
+├── requirements.txt   # Python dependencies
+├── docker-compose.yml # Local/testing compose setup
+├── .python-version    # Pin Python for Render
+├── README.md          # Project documentation
+```
+```
+
+***
+
+### 4. **Release Checklist**
+
+Document each Day 1 deliverable for future audits/releases.
+```markdown
+## Day 1 Release Checklist
+
+- [x] Repo cloned, .env configured, DB connected
+- [x] Local app runs and passes `/health`
+- [x] Production (Render) deploy live, `/health` endpoint verified
+- [x] Troubleshooting notes added to README
+```
+
+***
+
+

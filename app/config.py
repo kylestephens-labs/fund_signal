@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Database
     database_url: str | None = None
 
+    # Providers
+    exa_api_key: str | None = None
+    youcom_api_key: str | None = None
+
     # Security
     secret_key: str = ""  # Will be generated if empty
     cors_origins: list[str] = []  # Empty by default for security
