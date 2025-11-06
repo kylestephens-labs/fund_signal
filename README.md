@@ -1,244 +1,181 @@
-# FastAPI Production Starter Template v2.0.0
+Here's an optimized README for FundSignal, fully reconstructed using your FundSignal context and blending in relevant technical sections and tooling notes from your original FastAPI template README. This version emphasizes project-specific details, end-to-end setup, deployment, and usage instructions while surfacing only the most useful content from the template.
 
-[![CI](https://github.com/armanshirzad/fastapi-production-template/actions/workflows/ci.yml/badge.svg)](https://github.com/armanshirzad/fastapi-production-template/actions/workflows/ci.yml)
-[![Release](https://github.com/armanshirzad/fastapi-production-template/actions/workflows/release.yml/badge.svg)](https://github.com/armanshirzad/fastapi-production-template/actions/workflows/release.yml)
-[![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Farmanshirzad%2Ffastapi--production--template-blue.svg)](https://github.com/armanshirzad/fastapi-production-template/pkgs/container/fastapi-production-template)
+***
 
-A production-ready FastAPI template with Docker, CI/CD, observability, and one-click deployment to Render or Koyeb. **Now with UV package management for faster, more reliable builds!**
+# FundSignal
+
+[
+[
+[
+
+**AI-Verified Funding Signal Delivery for SaaS Sales Teams**
+
+***
+
+## Overview
+
+FundSignal delivers curated, explainable lists of B2B SaaS companies recently funded (within their prime buying window), verified by multiple public sources and ranked by an AI scoring system. Results are sent directly to sales teams via Slack and email—eliminating 10+ hours/week of manual research, and ensuring your prospecting effort is always directed at the most actionable targets.
+
+**Ideal User:** B2B SaaS Account Executives at Series A–C companies.
+
+***
 
 ## Features
 
-- **FastAPI** with Python 3.12
-- **UV Package Management** for lightning-fast dependency resolution
-- **Docker** multi-stage build for production
-- **Prometheus** metrics integration
-- **Sentry** error tracking
-- **PostgreSQL** support (optional)
-- **Health checks** for monitoring
-- **One-click deploy** to Render or Koyeb
-- **GitHub Actions** CI/CD
-- **GitHub Container Registry** publishing
-- **Testing** with pytest
-- **Code quality** with ruff
+- **AI-Scored Funding Signals:** Multi-source verification (Exa, Tavily, Twitter) and OpenAI explainability.
+- **Automated Delivery:** Curated signals sent via Slack, email, and CSV—no dashboard logins.
+- **Zero Friction:** No AWS/N8N; relies on production-ready Python, lightweight hosting, and modern scheduling.
+- **One-Click Deploy:** Render.com integration for instant deployment.
+- **Subscription Ready:** Stripe-powered billing, tiered pricing, and early adopter promo.
+- **Agile Database:** Supabase PostgreSQL backend, with explainable JSON scoring and proof links.
 
-## Quick Deploy
+***
 
-### Deploy to Render
+## Tech Stack
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/armanshirzad/fastapi-production-template)
+| Layer        | Technology           |
+|--------------|---------------------|
+| Backend      | FastAPI (Python 3.12) |
+| Database     | Supabase (PostgreSQL) |
+| Hosting      | Render.com           |
+| Scheduling   | GitHub Actions (cron) |
+| Data Sources | Exa API, Tavily API, Twitter API |
+| AI           | OpenAI GPT-4         |
+| Delivery     | Slack SDK, Resend (email) |
+| Payments     | Stripe               |
 
-1. Fork this repository
-2. Connect your GitHub account to Render
-3. Click "Deploy to Render" button above
-4. Configure environment variables
-5. Deploy!
-
-### Deploy to Koyeb
-
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/armanshirzad/fastapi-production-template:latest)
-
-1. Fork this repository
-2. Create account at [Koyeb](https://app.koyeb.com)
-3. Click "Deploy to Koyeb" button above
-4. Configure environment variables
-5. Deploy!
-
-## CI/CD Overview
-
-- **Workflow files:** `.github/workflows/ci.yml` runs lint and tests; `.github/workflows/release.yml` builds the Docker image and pushes to GHCR on tag pushes (guarded to run only on this repository, not forks).
-- **Registry:** pushes to `ghcr.io/armanshirzad/fastapi-production-template`.
-- **Branch strategy:** run CI on `main` and `develop`, require tags `v*` for releases.
-- **Publishing guard:** image publishing only runs on this repository owner (`github.repository_owner == 'ArmanShirzad'`) so forks don't attempt to push.
+***
 
 ## Quick Start
 
+### 1. Clone & Setup
+
 ```bash
-# Clone and setup (replace with your repo URL)
-git clone https://github.com/armanshirzad/fastapi-production-template.git
-cd fastapi-production-template
-cp .env.example .env
-
-# Install dependencies with UV (recommended)
-uv sync
-
-# Run locally (no database)
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Or with PostgreSQL
-make docker-compose-up
+git clone https://github.com/kylestephens-labs/fund_signal.git
+cd fund_signal
+cp .env.example .env  # Fill in Supabase URL, secret keys, and API tokens
 ```
 
-### Alternative: Traditional pip setup
+### 2. Install Dependencies
 
 ```bash
-# If you prefer pip (legacy support)
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+### 3. Local Development
+
+```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+curl http://localhost:8000/health     # Ensure you see a 200 response
 ```
 
-## Architecture
+### 4. Deployment (Render.com)
 
-```
-┌─────────┐      ┌──────────────┐      ┌──────────┐
-│ Client  │─────>│   FastAPI    │─────>│ Database │
-└─────────┘      │   + Metrics  │      │(optional)│
-                 │   + Sentry   │      └──────────┘
-                 └──────────────┘
-                        │
-                        v
-                 ┌──────────────┐
-                 │  Prometheus  │
-                 │   /metrics   │
-                 └──────────────┘
-```
+- Connect your GitHub repo to Render
+- Environment:
+    - Set all required `.env` variables (especially `DATABASE_URL`)
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health Check Path: `/health`
+- Instance Type: Starter ($7/mo)
 
-## Configuration
+***
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_NAME` | Application name | FastAPI Template |
-| `APP_VERSION` | Application version | 0.1.0 |
-| `ENVIRONMENT` | Environment (dev/staging/prod) | development |
-| `DEBUG` | Debug mode | True |
-| `LOG_LEVEL` | Logging level | INFO |
-| `DATABASE_URL` | Database connection string | (optional) |
-| `SECRET_KEY` | Secret key for security | (generated if not provided) |
-| `CORS_ORIGINS` | CORS allowed origins | (empty for security) |
-| `SENTRY_DSN` | Sentry DSN for error tracking | (optional) |
-| `HOST` | Server host | 0.0.0.0 |
-| `PORT` | Server port | 8000 |
+## Database Schema
 
-## Secret Configuration
+**Run in Supabase SQL editor:**
 
-The template runs out of the box with no secrets. You can optionally add these for production:
-
-- **`SECRET_KEY`** — Secret used by the application for signing and security. If not provided, a random key is generated at startup in development/test.
-- **`DATABASE_URL`** — PostgreSQL connection string. When set, the app uses PostgreSQL; when unset, the app runs without a database and the readiness endpoint will report "not configured" for the database.
-- **`SENTRY_DSN`** — When set, Sentry SDK is initialized in the application for error reporting; when empty, Sentry is skipped.
-
-Notes:
-
-- **Workflows do not require any secrets.** CI always runs on pushes and pull requests. The release workflow uses the built‑in `GITHUB_TOKEN` and only pushes images from this repository (guarded by repository owner check). Forks will automatically skip the publishing step.
-
-## Database Options
-
-### Without Database (Minimal)
-Leave `DATABASE_URL` empty in `.env` for a minimal API without database dependencies. The app will operate without persistence; `/health/ready` will still return 200 with `database: "not configured"`.
-
-### With PostgreSQL
-Set `DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname` in `.env`.
-
-## Development
-
-```bash
-# Install dependencies with UV (recommended)
-uv sync
-
-# Run development server
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run tests
-uv run pytest tests/ -v --cov=app --cov-report=html --cov-report=term
-
-# Lint code
-uv run ruff check app/ tests/
-uv run ruff format --check app/ tests/
-
-# Format code
-uv run ruff format app/ tests/
-
-# Build Docker image
-make docker-build
-
-# Run with Docker Compose (includes PostgreSQL)
-make docker-compose-up
+```sql
+-- Companies, user deliveries, feedback, users tables (see /schema/ in repo for full DDL)
+-- Core: companies (id, name, funding, confidence, AI score, signals, verified_by, source_urls, timestamps), user_deliveries, feedback, users
 ```
 
-### Legacy pip commands (still supported)
+See [schema.sql](schema.sql) for the exact definitions.
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+***
 
-# Run development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+## Environment Variable Reference
 
-# Run tests
-pytest tests/ -v --cov=app --cov-report=html --cov-report=term
-
-# Lint code
-ruff check app/ tests/
-ruff format --check app/ tests/
+```env
+APP_NAME="FundSignal"
+APP_VERSION="0.1.0"
+ENVIRONMENT="development"
+DEBUG="true"
+LOG_LEVEL="INFO"
+DATABASE_URL="postgresql://postgres:<password>@<host>.supabase.co:5432/postgres"
+SECRET_KEY="your_secret"
+CORS_ORIGINS='["http://localhost:3000","http://localhost:8000"]'
+SENTRY_DSN=""
+HOST="0.0.0.0"
+PORT="8000"
+EXA_API_KEY=""
+TAVILY_API_KEY=""
+TWITTER_API_KEY=""
+OPENAI_API_KEY=""
+SLACK_BOT_TOKEN=""
+RESEND_API_KEY=""
 ```
 
-## Observability
+***
 
-### Prometheus Metrics
-- Endpoint: `/metrics`
-- Metrics: HTTP requests, duration, status codes
-- Integration: `prometheus-fastapi-instrumentator`
+## Day 1–7 MVP Roadmap
 
-### Sentry Integration
-- Automatic error tracking when `SENTRY_DSN` is provided
-- Performance monitoring
-- Skipped automatically when `SENTRY_DSN` is empty
+| Day | Goal                              | Deliverable                                  |
+|-----|-----------------------------------|----------------------------------------------|
+| 1   | Baseline setup                    | FastAPI live locally/on Render, DB connected |
+| 2   | Data pipeline                     | Exa/Tavily/Twitter integrations, DB storage  |
+| 3   | AI scoring                        | OpenAI scores & explainability               |
+| 4   | Delivery channels                 | Slack, Email, CSV export automation          |
+| 5   | Feedback loop                     | Feedback endpoints, per-lead forms           |
+| 6   | Payments & landing                | Stripe integration, landing page, sample     |
+| 7   | Beta launch                       | User onboarding, feedback round              |
 
-### Health Checks
-- `/health` - Basic health check
-- `/health/ready` - Readiness check; reports database status and succeeds whether the database is configured or not
+***
 
-## Project Structure
+## Pricing Model
 
-```
-app/
-├── __init__.py
-├── main.py              # FastAPI application
-├── config.py            # Configuration settings
-├── api/
-│   ├── __init__.py
-│   └── routes/
-│       ├── __init__.py
-│       ├── health.py    # Health check endpoints
-│       └── example.py   # Example CRUD endpoints
-├── core/
-│   ├── __init__.py
-│   ├── database.py      # Database configuration
-│   └── metrics.py       # Prometheus metrics
-├── models/              # SQLAlchemy models (optional)
-└── services/            # Business logic layer
-tests/
-├── __init__.py
-├── conftest.py
-└── test_health.py
-```
+| Tier     | Price   | Details                                                   |
+|----------|---------|-----------------------------------------------------------|
+| Starter  | $149/mo | 25 verified/week, Slack+Email                             |
+| Pro      | $247/mo | 75/week, enrichment, Airtable sync                        |
+| Team     | $499/mo | Unlimited, CRM/API, dedicated support                     |
 
-## Security
+**Early Adopter:** $49/mo for first 50 users (lifetime).
 
-This template includes several security features:
+***
 
-- **CORS Protection**: Empty origins by default (configure via `CORS_ORIGINS`)
-- **Trusted Host Middleware**: Prevents host header attacks in production
-- **Non-root Docker User**: Runs as `appuser` instead of root
-- **Security Headers**: Basic security middleware included
-- **Dependency Scanning**: Dependabot for automated security updates
-- **Code Analysis**: CodeQL security scanning
-- **Safe Defaults**: App runs without secrets by default; production deployments should set `SECRET_KEY` and configure `CORS_ORIGINS` explicitly.
+## Development, Testing & CI
 
-For security vulnerabilities, please see [SECURITY.md](SECURITY.md).
+- **Trunk-based:** Only use the `main` branch.
+- **CI:** GitHub Actions checks on push; release workflow for Docker builds.
+- **Tests/Lint:** Run `pytest` and `ruff` as in template for code quality.
+- **Metrics:** `/metrics` for Prometheus integration (optional).
+- **Observability:** Sentry error tracking via `SENTRY_DSN` (optional).
+
+***
+
+## Security & Best Practices
+
+- CORS protection, Secret key configuration, Trusted host middleware
+- Minimal Docker context, non-root run by default
+- Update all secrets for production
+
+***
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Run `make test` and `make lint`
-6. Submit a pull request
+Open to PRs, bug reports, and feature requests. Please submit tests and pass CI before merging.
+
+***
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License. See [LICENSE](LICENSE) for details.
+
+***
+
+This README combines project-specific details, MVP delivery clarity, and actionable usage steps—all mapped to your FundSignal goals and technical approach.
+
+Sources
