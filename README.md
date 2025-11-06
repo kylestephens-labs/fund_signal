@@ -140,6 +140,17 @@ RESEND_API_KEY=""
 
 ***
 
+## Day 1: Tavily Confirmation Pipeline
+
+- Add `TAVILY_API_KEY` to `.env`.
+- Ensure You.com results exist at `leads/youcom_verified.json`.
+- Run cross-confirmation: `python -m pipelines.day1.tavily_confirm --input=leads/youcom_verified.json --min_confirmations=2`.
+- Inspect proof links: `python -m tools.peek leads/tavily_confirmed.json | head -n 50`.
+- Run the targeted tests: `pytest -k test_tavily_confirm`.
+- Proof-link strategy: dedupe by domain, keep the top confirming URLs, store them in `proof_links` for UX transparency.
+
+***
+
 ## Day 1–7 MVP Roadmap
 
 | Day | Goal                              | Deliverable                                  |
@@ -262,5 +273,4 @@ Document each Day 1 deliverable for future audits/releases.
 ```
 
 ***
-
 

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Providers
     exa_api_key: str | None = None
     youcom_api_key: str | None = None
+    tavily_api_key: str | None = None
 
     # Security
     secret_key: str = ""  # Will be generated if empty
