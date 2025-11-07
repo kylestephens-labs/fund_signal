@@ -55,6 +55,9 @@ clean: ## Clean up temporary files
 	rm -rf .coverage
 	rm -rf .ruff_cache/
 
+sync-fixtures: ## Download, verify, and install the latest fixture bundle
+	uv run python -m tools.sync_fixtures
+
 # Legacy pip commands (for reference)
 install-pip: ## Install dependencies with pip (legacy)
 	pip install -r requirements.txt

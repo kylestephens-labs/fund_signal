@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
   "bundle_id": "bundle-sample",
-  "bundle_prefix": "fixtures/sample/bundle-sample",
+  "bundle_prefix": "bundle-sample",
   "generated_at": "2025-11-06T00:00:00Z"
 }
