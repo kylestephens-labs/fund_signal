@@ -77,7 +77,8 @@ curl http://localhost:8000/health     # Ensure you see a 200 response
 |---------|---------|---------|
 | `FUND_SIGNAL_MODE` | `fixture` | `fixture` keeps runs offline; set to `online` only on the capture host. |
 | `FUND_SIGNAL_SOURCE` | `local` | Where fixtures are read from (`local` directory or `supabase`). |
-| `FUND_SIGNAL_FIXTURE_DIR` | `fixtures/sample` | Local path that stores captured artifacts for fixture mode. |
+| `FUND_SIGNAL_FIXTURE_ROOT` | `fixtures/latest` | Directory that holds `latest.json` and bundle contents. |
+| `FUND_SIGNAL_FIXTURE_DIR` | `fixtures/sample` | Internal use; auto-set to `<bundle>/fixtures` in fixture mode. |
 | `FUND_SIGNAL_SUPABASE_BASE_URL` | _empty_ | Supabase storage endpoint (fixture fetch). |
 | `FUND_SIGNAL_SUPABASE_SERVICE_KEY` | _empty_ | Service key used by fixture sync tooling. |
 
@@ -109,6 +110,16 @@ python -m tools.verify_bundle --manifest artifacts/YYYY/MM/DD/bundle-<timestamp>
 ```
 
 This enforces freshness, checksums, and optional signature validation.
+
+### Fixture Sync (Sandbox)
+
+To hydrate `./fixtures/latest` with a local (or downloaded) bundle:
+
+```bash
+python -m tools.sync_fixtures --source fixtures/sample/bundle-sample --dest-root fixtures/latest
+```
+
+This copies the bundle, validates it, and updates `fixtures/latest/latest.json`. Pipelines running in fixture mode automatically resolve this pointer, enforce freshness/integrity, and log the bundle ID/age before processing.
 
 ### 4. Deployment (Render.com)
 

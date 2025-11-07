@@ -1,0 +1,24 @@
+[
+  {
+    "company": "Acme SaaS",
+    "funding_amount": 12000000,
+    "funding_stage": "Series A",
+    "funding_date": "2025-09-02",
+    "source_url": "https://example.com/acme",
+    "exa_found": true,
+    "discovered_at": "2025-11-06T00:00:00Z",
+    "youcom_verified": true,
+    "youcom_verified_at": "2025-11-06T00:00:00Z",
+    "news_sources": ["TechCrunch", "BusinessWire"],
+    "press_articles": ["https://techcrunch.com/acme", "https://businesswire.com/acme"],
+    "tavily_verified": true,
+    "tavily_verified_at": "2025-11-06T00:00:00Z",
+    "tavily_reason": null,
+    "proof_links": ["https://analystreports.com/acme", "https://blog.example.com/acme"],
+    "confidence": "VERIFIED",
+    "verified_by": ["Exa", "You.com", "Tavily"],
+    "last_checked_at": "2025-11-06T00:00:00Z",
+    "freshness_watermark": "Verified by: Exa, You.com, Tavily • Last checked: Nov 06, 2025 • Confidence: HIGH",
+    "ingest_version": 1
+  }
+]

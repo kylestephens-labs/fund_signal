@@ -16,7 +16,8 @@ from urllib.parse import urlparse
 
 from app.clients.tavily import TavilyError, TavilyNotFoundError, TavilyRateLimitError, TavilyTimeoutError
 from app.models.lead import CompanyFunding
-from pipelines.news_client import TavilyClientProtocol, get_runtime_config, get_tavily_client
+from pipelines.io.fixture_reader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.news_client import RuntimeMode, TavilyClientProtocol, get_runtime_config, get_tavily_client
 from scripts.backoff import exponential_backoff
 
 logger = logging.getLogger("pipelines.day1.tavily_confirm")
@@ -261,6 +262,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+DEFAULT_INPUT = Path("leads/youcom_verified.json")
+DEFAULT_OUTPUT = Path("leads/tavily_confirmed.json")
+
+
 def run_pipeline(
     *,
     input_path: Path,
@@ -270,13 +275,23 @@ def run_pipeline(
     client: TavilyClientProtocol | None = None,
 ) -> list[CompanyFunding]:
     """Run the Tavily confirmation pipeline."""
-    leads = load_leads(input_path)
-    logger.info("Loaded %s leads from %s.", len(leads), input_path)
+    config = get_runtime_config()
+    bundle: BundleInfo | None = None
+    resolved_input = input_path
+    resolved_output = output_path
+    if config.mode is RuntimeMode.FIXTURE:
+        bundle = ensure_bundle(config.mode)
+        log_bundle(bundle)
+        if input_path == DEFAULT_INPUT:
+            resolved_input = bundle.leads_dir / "youcom_verified.json"
+        if output_path == DEFAULT_OUTPUT:
+            resolved_output = bundle.leads_dir / "tavily_confirmed.json"
+    leads = load_leads(resolved_input)
+    logger.info("Loaded %s leads from %s.", len(leads), resolved_input)
 
     close_fn = None
     if client is None:
-        runtime_config = get_runtime_config()
-        client = get_tavily_client(runtime_config)
+        client = get_tavily_client(config)
         close_fn = getattr(client, "close", None)
 
     try:
@@ -290,8 +305,8 @@ def run_pipeline(
         if close_fn:
             close_fn()
 
-    persist_leads(leads, output_path)
-    logger.info("Persisted %s leads to %s.", len(leads), output_path)
+    persist_leads(leads, resolved_output)
+    logger.info("Persisted %s leads to %s.", len(leads), resolved_output)
     return leads
 
 

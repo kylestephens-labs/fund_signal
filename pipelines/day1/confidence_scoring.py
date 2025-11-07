@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from app.models.lead import CompanyFunding
+from pipelines.io.fixture_reader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.news_client import RuntimeMode, get_runtime_config
 
 logger = logging.getLogger("pipelines.day1.confidence_scoring")
 
@@ -29,6 +31,8 @@ CONFIDENCE_DISPLAY = {
     "EXCLUDE": "LOW",
 }
 EXPORTABLE_LABELS = {"VERIFIED", "LIKELY"}
+DEFAULT_INPUT = Path("leads/tavily_confirmed.json")
+DEFAULT_OUTPUT = Path("leads/day1_output.json")
 
 SourcePredicate = Callable[[CompanyFunding], bool]
 SOURCE_PREDICATES: tuple[tuple[str, SourcePredicate], ...] = (
@@ -114,9 +118,9 @@ def enrich_lead(lead: CompanyFunding, *, timestamp: datetime) -> CompanyFunding:
     return lead
 
 
-def score_leads(leads: list[CompanyFunding]) -> list[CompanyFunding]:
+def score_leads(leads: list[CompanyFunding], timestamp: datetime | None = None) -> list[CompanyFunding]:
     """Apply confidence scoring to loaded leads."""
-    timestamp = datetime.now(tz=timezone.utc)
+    timestamp = timestamp or datetime.now(tz=timezone.utc)
     scored: list[CompanyFunding] = []
     for lead in leads:
         try:
@@ -156,13 +160,27 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
     """Run the confidence scoring pipeline end-to-end."""
-    leads = load_leads(input_path)
-    logger.info("Loaded %s leads from %s.", len(leads), input_path)
-    scored = score_leads(leads)
+    config = get_runtime_config()
+    bundle: BundleInfo | None = None
+    resolved_input = input_path
+    resolved_output = output_path
+    scoring_timestamp: datetime | None = None
+    if config.mode is RuntimeMode.FIXTURE:
+        bundle = ensure_bundle(config.mode)
+        log_bundle(bundle)
+        if input_path == DEFAULT_INPUT:
+            resolved_input = bundle.leads_dir / "tavily_confirmed.json"
+        if output_path == DEFAULT_OUTPUT:
+            resolved_output = bundle.leads_dir / "day1_output.json"
+        scoring_timestamp = bundle.captured_at
+
+    leads = load_leads(resolved_input)
+    logger.info("Loaded %s leads from %s.", len(leads), resolved_input)
+    scored = score_leads(leads, timestamp=scoring_timestamp)
     summarize(scored)
     exportable = filter_exportable(scored)
-    logger.info("Exporting %s leads (VERIFIED/LIKELY) to %s.", len(exportable), output_path)
-    persist_leads(exportable, output_path)
+    logger.info("Exporting %s leads (VERIFIED/LIKELY) to %s.", len(exportable), resolved_output)
+    persist_leads(exportable, resolved_output)
     return exportable
 
 
