@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
+import hmac
 import json
 import logging
 import os
 import random
-from contextlib import ExitStack
+import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
+from contextlib import ExitStack
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
@@ -32,6 +35,7 @@ from pipelines.normalize import ensure_dir, serialize_lead, slugify_company
 logger = logging.getLogger("tools.capture_pipeline")
 
 ProviderFn = Callable[[], list[dict]]
+TOOL_VERSION = "1.0.0"
 
 
 class RateLimiter:
@@ -352,12 +356,67 @@ def write_manifest(bundle_dir: Path, args: argparse.Namespace, youcom_stats: Pro
         "bundle_id": bundle_dir.name,
         "captured_at": datetime.now(tz=timezone.utc).isoformat(),
         "expiry_days": args.expiry_days,
+        "git_commit": get_git_commit(),
+        "tool_version": TOOL_VERSION,
         "providers": [
             youcom_stats.to_dict(),
             tavily_stats.to_dict(),
         ],
+        "files": gather_file_metadata(bundle_dir),
     }
+    manifest_no_sig = dict(manifest)
+    signature = sign_manifest(manifest_no_sig)
+    manifest["signature"] = signature
     (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def gather_file_metadata(bundle_dir: Path) -> list[dict]:
+    """Return relative path, size, and checksum for bundle files."""
+    entries: list[dict] = []
+    for file_path in sorted(bundle_dir.rglob("*")):
+        if not file_path.is_file():
+            continue
+        rel_path = file_path.relative_to(bundle_dir).as_posix()
+        if rel_path == "manifest.json":
+            continue
+        entries.append(
+            {
+                "path": rel_path,
+                "size": file_path.stat().st_size,
+                "checksum": sha256_file(file_path),
+            }
+        )
+    return entries
+
+
+def sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as infile:
+        for chunk in iter(lambda: infile.read(1024 * 64), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def get_git_commit() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return None
+    return result.stdout.strip()
+
+
+def sign_manifest(manifest: dict, key: str | None = None) -> str | None:
+    secret = key or os.getenv("BUNDLE_HMAC_KEY")
+    if not secret:
+        return None
+    payload = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    return digest
 
 
 def main(argv: Sequence[str] | None = None) -> int:

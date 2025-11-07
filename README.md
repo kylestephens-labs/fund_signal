@@ -102,6 +102,14 @@ python -m tools.promote_latest --prefix artifacts/YYYY/MM/DD/bundle-<timestamp>
 
 This writes/updates `latest.json` (atomic) so consumers only see fully published bundles. See `docs/data_pipelines.md/storage_layout.md` for the bucket layout and promotion flow.
 
+Before consuming a bundle, run:
+
+```bash
+python -m tools.verify_bundle --manifest artifacts/YYYY/MM/DD/bundle-<timestamp>/manifest.json
+```
+
+This enforces freshness, checksums, and optional signature validation.
+
 ### 4. Deployment (Render.com)
 
 - Connect your GitHub repo to Render

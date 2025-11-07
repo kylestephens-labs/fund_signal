@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "bundle_id": "bundle-sample",
+  "captured_at": "2025-11-06T00:00:00Z",
+  "expiry_days": 7,
+  "git_commit": "abcdef1",
+  "tool_version": "1.0.0",
+  "providers": [
+    {"name": "youcom", "requests": 2, "successes": 2, "rate_limits": 0, "errors": 0, "dedup_ratio": 0.5},
+    {"name": "tavily", "requests": 2, "successes": 2, "rate_limits": 0, "errors": 0, "dedup_ratio": 0.5}
+  ],
+  "files": [
+    {"path": "fixtures/youcom/articles.json", "size": 532, "checksum": "ed69c82dfde4fb2463f8310454c90bc039806ef6662952a52b9c95b73e632c51"},
+    {"path": "fixtures/tavily/articles.json", "size": 451, "checksum": "6c312ca564ea7c1f5098b8c45641f59c654ff349540163b2825d45f8656a5691"}
+  ],
+  "signature": null
+}
