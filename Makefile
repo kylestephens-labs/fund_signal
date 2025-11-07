@@ -1,5 +1,8 @@
 .PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration
 
+PYTEST ?= uv run pytest
+RUFF ?= uv run ruff
+
 # Default target
 help: ## Show this help message
 	@echo "Available commands:"
@@ -12,13 +15,13 @@ dev: ## Run development server with uv
 	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 test: ## Run tests with coverage using uv
-	uv run pytest tests/ -v --cov=app --cov-report=html --cov-report=term
+	$(PYTEST) tests/ -v --cov=app --cov-report=html --cov-report=term
 
 test-integration: ## Run integration tests (expects DATABASE_URL); skips cleanly if not set
 	@if [ -z "$$DATABASE_URL" ]; then \
 		echo "Skipping integration tests: DATABASE_URL is not set."; \
 	else \
-		uv run pytest tests/ -v -m integration --cov=app --cov-report=term; \
+		$(PYTEST) tests/ -v -m integration --cov=app --cov-report=term; \
 		rc=$$?; \
 		if [ $$rc -eq 5 ]; then \
 			echo "No integration tests collected; treating as success."; \
@@ -29,11 +32,11 @@ test-integration: ## Run integration tests (expects DATABASE_URL); skips cleanly
 	fi
 
 lint: ## Run linting with uv
-	uv run ruff check app/ tests/
-	uv run ruff format --check app/ tests/
+	$(RUFF) check app/ tests/
+	$(RUFF) format --check app/ tests/
 
 format: ## Format code with uv
-	uv run ruff format app/ tests/
+	$(RUFF) format app/ tests/
 
 docker-build: ## Build Docker image
 	docker build -t fastapi-template .
@@ -59,13 +62,13 @@ sync-fixtures: ## Download, verify, and install the latest fixture bundle
 	uv run python -m tools.sync_fixtures
 
 verify-fixtures: ## Run Day-1 pipelines against local fixtures
-	FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local uv run pytest -k "verify_fixtures" -q
+	FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local $(PYTEST) tests/test_verify_fixtures.py -q
 
 check-freshness: ## Enforce freshness/integrity gates for fixtures
-	uv run pytest -k "freshness_gate or verify_bundle" -q
+	$(PYTEST) -k "freshness_gate or verify_bundle" -q
 
 online-contract-test: ## Minimal live API contract test (requires provider keys)
-	FUND_SIGNAL_MODE=online uv run pytest -k online_contract -m contract -q
+	FUND_SIGNAL_MODE=online $(PYTEST) tests/test_online_contract.py -m contract -q
 
 # Legacy pip commands (for reference)
 install-pip: ## Install dependencies with pip (legacy)

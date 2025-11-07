@@ -6,8 +6,11 @@ on:
   pull_request:
 
 jobs:
-  verify-fixtures:
+  ci-guards:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [verify-fixtures, check-freshness]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,27 +23,6 @@ jobs:
       - name: Sync sample fixtures
         run: |
           python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
-      - name: Verify fixtures offline
-        env:
-          FUND_SIGNAL_MODE: fixture
-          FUND_SIGNAL_SOURCE: local
+      - name: Run ${{ matrix.task }}
         run: |
-          make verify-fixtures
-
-  check-freshness:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip uv
-          uv pip install -r requirements.txt
-      - name: Sync sample fixtures
-        run: |
-          python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
-      - name: Enforce freshness/integrity gates
-        run: |
-          make check-freshness
+          make ${{ matrix.task }}

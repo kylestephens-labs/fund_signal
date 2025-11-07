@@ -39,13 +39,18 @@ def build_manifest(tmp_path: Path, *, age_days: float) -> Path:
     return manifest_path
 
 
-def test_fresh_bundle_passes(tmp_path: Path):
-    manifest = build_manifest(tmp_path, age_days=1)
-    verify_manifest(manifest)
-
-
-def test_expired_bundle_fails(tmp_path: Path):
-    manifest = build_manifest(tmp_path, age_days=10)
-    with pytest.raises(VerificationError) as excinfo:
+@pytest.mark.parametrize(
+    ("age_days", "expected_error"),
+    (
+        (1, None),
+        (10, "E_BUNDLE_EXPIRED"),
+    ),
+)
+def test_manifest_freshness_gate(tmp_path: Path, age_days: float, expected_error: str | None):
+    manifest = build_manifest(tmp_path, age_days=age_days)
+    if expected_error:
+        with pytest.raises(VerificationError) as excinfo:
+            verify_manifest(manifest)
+        assert excinfo.value.code == expected_error
+    else:
         verify_manifest(manifest)
-    assert excinfo.value.code == "E_BUNDLE_EXPIRED"
