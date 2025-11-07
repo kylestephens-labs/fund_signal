@@ -78,8 +78,21 @@ curl http://localhost:8000/health     # Ensure you see a 200 response
 | `FUND_SIGNAL_MODE` | `fixture` | `fixture` keeps runs offline; set to `online` only on the capture host. |
 | `FUND_SIGNAL_SOURCE` | `local` | Where fixtures are read from (`local` directory or `supabase`). |
 | `FUND_SIGNAL_FIXTURE_DIR` | `fixtures/sample` | Local path that stores captured artifacts for fixture mode. |
+| `FUND_SIGNAL_SUPABASE_BASE_URL` | _empty_ | Supabase storage endpoint (fixture fetch). |
+| `FUND_SIGNAL_SUPABASE_SERVICE_KEY` | _empty_ | Service key used by fixture sync tooling. |
 
 In sandbox/CI, keep the defaults so no outbound network occurs. The capture job (GitHub Actions/runner) switches to `FUND_SIGNAL_MODE=online` and uploads new fixtures to Supabase before developers sync them down.
+
+### Capture Pipeline (Networked)
+
+Run `python -m tools.capture_pipeline --input leads/exa_seed.json --out artifacts --concurrency 8 --qps-youcom 2 --qps-tavily 2` on a network-enabled runner. The CLI:
+
+1. Fetches You.com and Tavily data concurrently with QPS limits/retries.
+2. Stores raw JSONL plus derived fixtures in a date-stamped bundle (`artifacts/YYYY/MM/DD/bundle-...`).
+3. Runs the Day‑1 pipelines in fixture mode to produce `leads/youcom_verified.json` and `leads/tavily_confirmed.json`.
+4. Writes `manifest.json` with provider stats (`requests`, `rate_limits`, `dedup_ratio`) and `captured_at`.
+
+Use `--resume --bundle <path>` to continue a partially completed bundle without re-requesting finished companies.
 
 ### 4. Deployment (Render.com)
 

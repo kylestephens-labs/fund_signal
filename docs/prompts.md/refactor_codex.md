@@ -17,6 +17,7 @@ Apply only to the listed files.
 
 CRITICAL: Read this before code reviewing and refactoring:
  • docs/mvp.md
+ • docs/data_pipelines.md/faster_solution.md
 
 Code to review and refactor:
 
