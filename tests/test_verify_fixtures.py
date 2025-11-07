@@ -15,11 +15,11 @@ class PipelineArtifacts:
     tavily: Path
     confidence: Path
 
-    def read(self) -> tuple[list[dict], list[dict], list[dict]]:
+    def read(self) -> tuple[list[dict], list[dict], dict]:
         youcom_records = _load_json_array(self.youcom)
         tavily_records = _load_json_array(self.tavily)
-        confidence_records = _load_json_array(self.confidence)
-        return youcom_records, tavily_records, confidence_records
+        confidence_payload = json.loads(self.confidence.read_text(encoding="utf-8"))
+        return youcom_records, tavily_records, confidence_payload
 
 
 def _prepare_bundle_fixture(tmp_path: Path) -> Path:
@@ -55,13 +55,14 @@ def _load_manifest(bundle_root: Path) -> dict:
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
-def _assert_confidence_fields(confidence_records: list[dict], manifest: dict) -> None:
-    for record in confidence_records:
-        assert record["freshness_watermark"]
-        last_checked = record["last_checked_at"]
-        assert isinstance(last_checked, str) and last_checked, "last_checked_at missing"
+def _assert_confidence_fields(confidence_payload: dict, manifest: dict) -> None:
+    leads = confidence_payload["leads"]
+    assert confidence_payload["bundle_id"] == manifest["bundle_id"]
+    assert confidence_payload["captured_at"] == manifest["captured_at"]
+    for record in leads:
+        assert record["captured_at"] == manifest["captured_at"]
         assert record["verified_by"]
-        assert record["confidence"] in {"VERIFIED", "LIKELY"}
+        assert record["confidence"] in {"VERIFIED", "LIKELY", "EXCLUDE"}
 
 
 def test_pipelines_run_offline_with_fixtures(fixture_env, tmp_path):
@@ -86,11 +87,12 @@ def test_pipelines_run_offline_with_fixtures(fixture_env, tmp_path):
         min_confirmations=2,
         max_results=4,
     )
-    confidence_scoring.run_pipeline(input_path=artifacts.tavily, output_path=artifacts.confidence)
+    bundle_root = fixture_env / "bundle-sample"
+    confidence_scoring.run_pipeline(input_path=bundle_root, output_path=artifacts.confidence)
 
-    youcom_records, tavily_records, confidence_records = artifacts.read()
+    youcom_records, tavily_records, confidence_payload = artifacts.read()
     manifest = _load_manifest(fixture_env)
 
     assert all(record["youcom_verified"] for record in youcom_records)
     assert all(record["tavily_verified"] or record["tavily_reason"] for record in tavily_records)
-    _assert_confidence_fields(confidence_records, manifest)
+    _assert_confidence_fields(confidence_payload, manifest)

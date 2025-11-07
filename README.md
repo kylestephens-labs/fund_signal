@@ -230,12 +230,13 @@ RESEND_API_KEY=""
 
 ***
 
-## Day 1: Confidence Scoring & Freshness
+## Deterministic Confidence Scoring
 
-- Input: `leads/tavily_confirmed.json`; run `python -m pipelines.day1.confidence_scoring --input=... --output=leads/day1_output.json`.
-- Scoring rules: 3 sources (Exa, You.com, Tavily) → `VERIFIED`, 2 sources → `LIKELY`, otherwise `EXCLUDE`.
-- Export includes only VERIFIED/LIKELY rows plus `verified_by`, `last_checked_at` (UTC ISO8601), and `freshness_watermark` (`Verified by: … • Last checked: … • Confidence: HIGH/MEDIUM/LOW`).
-- Tests: `pytest -k test_confidence_scoring`.
+- Set `FUND_SIGNAL_MODE=fixture` and `FUND_SIGNAL_SOURCE=local` to stay fully offline, then point the pipeline at a canonical bundle root: `python -m pipelines.day1.confidence_scoring --input ./fixtures/latest --output leads/day1_output.json`.
+- Required artifacts (auto-read from the bundle): `leads/youcom_verified.json`, `leads/tavily_confirmed.json`, and optional `exa_seed.json` (looked up in `leads/` first, then `raw/`).
+- Confidence tiers are deterministic and source-counted: ≥3 sources → `VERIFIED`, 2 sources → `LIKELY`, else `EXCLUDE`. Proof links are deduped by publisher+URL, sanitized to drop any `*key` query params, and sorted for reproducibility.
+- The export is a stable JSON object: `{schema_version, bundle_id, captured_at, leads:[{company, confidence, verified_by, proof_links, captured_at}]}` sorted alphabetically by company. The pipeline logs bundle metadata, tier counts, runtime, and the SHA256 hash of the output. Use `--ignore-expiry` only when you intentionally want to bypass expired fixtures.
+- Tests: `pytest -k "test_confidence_scoring or test_determinism"`. Determinism can also be verified manually via `sha256sum leads/day1_output.json`.
 
 ***
 

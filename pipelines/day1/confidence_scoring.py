@@ -1,178 +1,100 @@
-"""Confidence scoring pipeline for Day 1 lead consolidation."""
+"""Deterministic confidence scoring from canonical bundle artifacts."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
 from collections import Counter
-from datetime import datetime, timezone
-from operator import attrgetter
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from app.models.lead import CompanyFunding
-from pipelines.io.fixture_loader import BundleInfo, FixtureArtifactSpec, resolve_bundle_context
-from pipelines.io.manifest_loader import build_freshness_metadata
+from pipelines.io.canonical_reader import (
+    CanonicalBundle,
+    CanonicalReaderError,
+    from_bundle_info,
+    from_path as load_bundle_from_path,
+    load_sources,
+)
+from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
 from pipelines.news_client import get_runtime_config
 
 logger = logging.getLogger("pipelines.day1.confidence_scoring")
 
-
-CONFIDENCE_LEVELS = {
+CONFIDENCE_MAP = {
     3: "VERIFIED",
     2: "LIKELY",
-    1: "EXCLUDE",
-    0: "EXCLUDE",
 }
-CONFIDENCE_DISPLAY = {
-    "VERIFIED": "HIGH",
-    "LIKELY": "MEDIUM",
-    "EXCLUDE": "LOW",
-}
-EXPORTABLE_LABELS = {"VERIFIED", "LIKELY"}
+SOURCE_ORDER = ("exa", "youcom", "tavily")
+OUTPUT_SCHEMA_VERSION = 1
 DEFAULT_INPUT = Path("leads/tavily_confirmed.json")
 DEFAULT_OUTPUT = Path("leads/day1_output.json")
 CONFIDENCE_INPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_INPUT, location="leads_dir")
 CONFIDENCE_OUTPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_OUTPUT, location="leads_dir")
-
-SourcePredicate = Callable[[CompanyFunding], bool]
-SOURCE_PREDICATES: tuple[tuple[str, SourcePredicate], ...] = (
-    ("Exa", attrgetter("exa_found")),
-    ("You.com", attrgetter("youcom_verified")),
-    ("Tavily", attrgetter("tavily_verified")),
-)
+SENSITIVE_TOKENS = ("key",)
 
 
 class ConfidenceError(RuntimeError):
-    """Domain error for scoring pipeline."""
+    """Domain error for deterministic scoring."""
 
     def __init__(self, message: str, code: str = "CONF_ERROR") -> None:
         super().__init__(message)
         self.code = code
 
 
-def load_leads(path: Path) -> list[CompanyFunding]:
-    """Load funding leads from JSON."""
-    if not path.exists():
-        raise ConfidenceError(f"Input file does not exist: {path}", code="CONF_INPUT_ERR")
-    with path.open("r", encoding="utf-8") as infile:
-        payload = json.load(infile)
-    if not isinstance(payload, list):
-        raise ConfidenceError("Input JSON must be a list.", code="CONF_INPUT_ERR")
-    try:
-        leads = [CompanyFunding.model_validate(item) for item in payload]
-    except Exception as exc:  # pragma: no cover - validation safety
-        raise ConfidenceError(f"Failed to parse input records: {exc}", code="CONF_INPUT_ERR") from exc
-    return leads
+@dataclass(frozen=True)
+class ConfidenceRecord:
+    """Export-ready confidence payload for a single company."""
 
+    company: str
+    confidence: str
+    verified_by: list[str]
+    proof_links: list[str]
+    captured_at: str
 
-def persist_leads(leads: list[CompanyFunding], path: Path) -> None:
-    """Persist leads to JSON."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as outfile:
-            json.dump([lead.model_dump(mode="json") for lead in leads], outfile, indent=2)
-            outfile.write("\n")
-    except Exception as exc:  # pragma: no cover - I/O safety
-        raise ConfidenceError(f"Failed to write output file: {exc}", code="CONF_EXPORT_ERR") from exc
-
-
-def compute_verified_by(lead: CompanyFunding) -> list[str]:
-    """Return the list of sources that verified the lead."""
-    return [
-        label
-        for label, predicate in SOURCE_PREDICATES
-        if predicate(lead)
-    ]
-
-
-def compute_confidence(num_sources: int) -> str:
-    """Compute confidence label based on number of confirming sources."""
-    return CONFIDENCE_LEVELS.get(num_sources, "EXCLUDE")
-
-
-def build_watermark(lead: CompanyFunding, *, now: datetime | None = None) -> str:
-    """Construct the freshness watermark string."""
-    verified_by = ", ".join(lead.verified_by) if lead.verified_by else "None"
-    confidence_label = lead.confidence or "EXCLUDE"
-    confidence_desc = CONFIDENCE_DISPLAY.get(confidence_label, "LOW")
-    last_checked_dt = lead.last_checked_at or now or datetime.now(tz=timezone.utc)
-    last_checked = last_checked_dt.astimezone(timezone.utc).strftime("%b %d, %Y")
-    return f"Verified by: {verified_by} • Last checked: {last_checked} • Confidence: {confidence_desc}"
-
-
-def enrich_lead(lead: CompanyFunding, *, timestamp: datetime) -> CompanyFunding:
-    """Populate confidence metadata on the lead."""
-    if lead is None:
-        raise ConfidenceError("Lead is None.", code="CONF_INPUT_ERR")
-    verified_by = compute_verified_by(lead)
-    if not verified_by:
-        raise ConfidenceError(
-            f"No verification sources present for {lead.company}.",
-            code="CONF_INPUT_ERR",
-        )
-
-    lead.verified_by = verified_by
-    lead.confidence = compute_confidence(len(verified_by))
-    lead.last_checked_at = timestamp
-    lead.freshness_watermark = build_watermark(lead, now=timestamp)
-    return lead
-
-
-def score_leads(leads: list[CompanyFunding], timestamp: datetime | None = None) -> list[CompanyFunding]:
-    """Apply confidence scoring to loaded leads."""
-    timestamp = timestamp or datetime.now(tz=timezone.utc)
-    scored: list[CompanyFunding] = []
-    for lead in leads:
-        try:
-            enriched = enrich_lead(lead, timestamp=timestamp)
-        except ConfidenceError as exc:
-            logger.error("Skipping lead due to error: %s (code=%s)", exc, exc.code)
-            continue
-        scored.append(enriched)
-    return scored
-
-
-def filter_exportable(leads: Sequence[CompanyFunding]) -> list[CompanyFunding]:
-    """Return only VERIFIED or LIKELY leads."""
-    return [lead for lead in leads if lead.confidence in EXPORTABLE_LABELS]
-
-
-def summarize(leads: Iterable[CompanyFunding]) -> None:
-    """Emit summary counts for observability."""
-    counter = Counter(
-        (lead.confidence or "EXCLUDE") for lead in leads
-    )
-    logger.info(
-        "Confidence summary: VERIFIED=%s LIKELY=%s EXCLUDE=%s",
-        counter.get("VERIFIED", 0),
-        counter.get("LIKELY", 0),
-        counter.get("EXCLUDE", 0),
-    )
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "company": self.company,
+            "confidence": self.confidence,
+            "verified_by": self.verified_by,
+            "proof_links": self.proof_links,
+            "captured_at": self.captured_at,
+        }
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(description="Score Day 1 leads for confidence and freshness.")
-    parser.add_argument("--input", type=Path, default=Path("leads/tavily_confirmed.json"), help="Input JSON file.")
-    parser.add_argument("--output", type=Path, default=Path("leads/day1_output.json"), help="Output JSON file.")
+    """Parse CLI arguments for the deterministic scoring pipeline."""
+    parser = argparse.ArgumentParser(
+        description="Compute deterministic confidence scores from canonical artifacts.",
+    )
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=DEFAULT_INPUT,
+        help="Path to canonical bundle root (or legacy tavily_confirmed.json).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Destination for leads/day1_output.json.",
+    )
+    parser.add_argument(
+        "--ignore-expiry",
+        action="store_true",
+        help="Allow runs even when the bundle exceeds expiry_days.",
+    )
     return parser.parse_args(argv)
 
 
-def _apply_bundle_freshness(leads: Sequence[CompanyFunding], bundle: BundleInfo) -> None:
-    freshness = build_freshness_metadata(bundle.bundle_id, bundle.captured_at, bundle.expiry_days)
-    logger.info("Freshness watermark: %s", freshness.watermark)
-    if freshness.warning:
-        logger.warning("⚠️ Bundle nearing expiry (age %.2fd / %sd).", freshness.age_days, bundle.expiry_days)
-    for lead in leads:
-        lead.last_checked_at = freshness.captured_at
-        lead.freshness_watermark = freshness.watermark
-
-
-def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
-    """Run the confidence scoring pipeline end-to-end."""
+def run_pipeline(input_path: Path, output_path: Path, *, ignore_expiry: bool = False) -> list[ConfidenceRecord]:
+    """Run deterministic scoring and persist day1_output.json."""
+    start = datetime.now(timezone.utc)
     config = get_runtime_config()
     context = resolve_bundle_context(
         config,
@@ -182,32 +104,260 @@ def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
         output_spec=CONFIDENCE_OUTPUT_SPEC,
     )
 
-    leads = load_leads(context.input_path)
-    logger.info("Loaded %s leads from %s.", len(leads), context.input_path)
-    scored = score_leads(leads, timestamp=context.scoring_timestamp)
-    summarize(scored)
-    exportable = filter_exportable(scored)
+    bundle = _resolve_bundle(context, context.input_path)
+    _enforce_expiry(bundle, ignore_expiry=ignore_expiry)
+    logger.info(
+        "Confidence scoring start. bundle=%s captured_at=%s input=%s",
+        bundle.bundle_id,
+        bundle.captured_at.isoformat(),
+        bundle.root,
+    )
+
+    youcom, tavily, exa = _load_canonical_sources(bundle)
+    records = _score_companies(bundle, youcom=youcom, tavily=tavily, exa=exa)
+    payload = _build_output_payload(bundle, records)
+    output_path = context.output_path
+    sha = _persist_output(payload, output_path)
+    _log_summary(records, start=start, output_path=output_path, bundle=bundle, sha=sha)
+    return records
+
+
+def _resolve_bundle(context, resolved_input: Path) -> CanonicalBundle:
     if context.bundle:
-        _apply_bundle_freshness(exportable, context.bundle)
-    logger.info("Exporting %s leads (VERIFIED/LIKELY) to %s.", len(exportable), context.output_path)
-    persist_leads(exportable, context.output_path)
-    return exportable
+        return from_bundle_info(context.bundle)
+    try:
+        return load_bundle_from_path(resolved_input)
+    except CanonicalReaderError as exc:
+        raise ConfidenceError(f"Unable to load canonical bundle: {exc}", code=exc.code) from exc
+
+
+def _load_canonical_sources(bundle: CanonicalBundle) -> tuple[list[dict], list[dict], list[dict]]:
+    try:
+        return load_sources(bundle)
+    except CanonicalReaderError as exc:
+        raise ConfidenceError(f"Failed to load canonical artifacts: {exc}", code=exc.code) from exc
+
+
+def _enforce_expiry(bundle: CanonicalBundle, *, ignore_expiry: bool) -> None:
+    if not bundle.expiry_days:
+        return
+    expires_at = bundle.captured_at + timedelta(days=bundle.expiry_days)
+    now = datetime.now(timezone.utc)
+    if now <= expires_at:
+        return
+    if ignore_expiry:
+        logger.warning(
+            "Bundle %s expired on %s; continuing due to --ignore-expiry.",
+            bundle.bundle_id,
+            expires_at.isoformat(),
+        )
+        return
+    raise ConfidenceError(
+        f"Bundle {bundle.bundle_id} expired on {expires_at.isoformat()}",
+        code="E_BUNDLE_EXPIRED",
+    )
+
+
+def _score_companies(
+    bundle: CanonicalBundle,
+    *,
+    youcom: Iterable[dict],
+    tavily: Iterable[dict],
+    exa: Iterable[dict],
+) -> list[ConfidenceRecord]:
+    captured_at = _format_timestamp(bundle.captured_at)
+    company_sources = _index_sources(youcom=youcom, tavily=tavily, exa=exa)
+    records: list[ConfidenceRecord] = []
+    for company in sorted(company_sources):
+        record = _build_confidence_record(
+            company=company,
+            sources=company_sources[company],
+            captured_at=captured_at,
+        )
+        records.append(record)
+    return records
+
+
+def _index_sources(
+    *,
+    youcom: Iterable[Mapping[str, object]],
+    tavily: Iterable[Mapping[str, object]],
+    exa: Iterable[Mapping[str, object]],
+) -> dict[str, dict[str, Mapping[str, object]]]:
+    indexed: dict[str, dict[str, Mapping[str, object]]] = {}
+
+    def register(source: str, records: Iterable[Mapping[str, object]]) -> None:
+        for record in records:
+            company = _normalize_company(record.get("company"))
+            indexed.setdefault(company, {})[source] = record
+
+    register("youcom", youcom)
+    register("tavily", tavily)
+    register("exa", exa)
+    return indexed
+
+
+def _build_confidence_record(
+    *,
+    company: str,
+    sources: Mapping[str, Mapping[str, object]],
+    captured_at: str,
+) -> ConfidenceRecord:
+    proof_links, verified_by = _collect_proof_links(sources)
+    source_count = len(verified_by)
+    confidence = CONFIDENCE_MAP.get(source_count, "EXCLUDE")
+    return ConfidenceRecord(
+        company=company,
+        confidence=confidence,
+        verified_by=verified_by,
+        proof_links=proof_links,
+        captured_at=captured_at,
+    )
+
+
+def _collect_proof_links(sources: Mapping[str, Mapping[str, object]]) -> tuple[list[str], list[str]]:
+    proof_links: list[str] = []
+    contributors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add_links(source_name: str, pairs: Iterable[tuple[str | None, str | None]]) -> None:
+        added = False
+        for publisher, raw_url in pairs:
+            sanitized = _sanitize_url(raw_url)
+            if not sanitized:
+                continue
+            key = ((publisher or "").strip().lower(), sanitized)
+            if key in seen:
+                continue
+            seen.add(key)
+            proof_links.append(sanitized)
+            added = True
+        if added:
+            contributors.append(source_name)
+
+    if (record := sources.get("youcom")) and record.get("youcom_verified"):
+        articles = record.get("press_articles") or []
+        publishers = record.get("news_sources") or []
+        pairs = []
+        for idx, url in enumerate(articles):
+            publisher = _publisher_from_index(publishers, idx) or "youcom"
+            pairs.append((publisher, url))
+        add_links("youcom", pairs)
+    if (record := sources.get("tavily")) and record.get("tavily_verified"):
+        links = record.get("proof_links") or []
+        pairs = [(_publisher_from_url(url), url) for url in links]
+        add_links("tavily", pairs)
+    if (record := sources.get("exa")) and record.get("source_url"):
+        add_links("exa", [("exa", record.get("source_url"))])
+
+    ordered_contributors = [source for source in SOURCE_ORDER if source in contributors]
+    return proof_links, ordered_contributors
+
+
+def _publisher_from_index(publishers: list[str], index: int) -> str | None:
+    if not publishers:
+        return None
+    if 0 <= index < len(publishers):
+        return publishers[index]
+    return publishers[-1]
+
+
+def _publisher_from_url(url: str | None) -> str:
+    if not url:
+        return ""
+    netloc = urlparse(url).netloc.lower()
+    if ":" in netloc:
+        netloc = netloc.split(":", 1)[0]
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    return netloc
+
+
+def _sanitize_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url.strip())
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    filtered_query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not any(token in key.lower() for token in SENSITIVE_TOKENS)
+    ]
+    sanitized = parsed._replace(query=urlencode(filtered_query, doseq=True))
+    return urlunparse(sanitized)
+
+
+def _build_output_payload(bundle: CanonicalBundle, records: list[ConfidenceRecord]) -> dict[str, object]:
+    return {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
+        "bundle_id": bundle.bundle_id,
+        "captured_at": _format_timestamp(bundle.captured_at),
+        "leads": [record.as_dict() for record in records],
+    }
+
+
+def _persist_output(payload: dict[str, object], output_path: Path) -> str:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as outfile:
+        json.dump(payload, outfile, indent=2, sort_keys=True)
+        outfile.write("\n")
+    digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
+    return digest
+
+
+def _log_summary(
+    records: Sequence[ConfidenceRecord],
+    *,
+    start: datetime,
+    output_path: Path,
+    bundle: CanonicalBundle,
+    sha: str,
+) -> None:
+    counts = Counter(record.confidence for record in records)
+    duration = datetime.now(timezone.utc) - start
+    logger.info(
+        "Confidence summary bundle=%s VERIFIED=%s LIKELY=%s EXCLUDE=%s",
+        bundle.bundle_id,
+        counts.get("VERIFIED", 0),
+        counts.get("LIKELY", 0),
+        counts.get("EXCLUDE", 0),
+    )
+    logger.info(
+        "Confidence scoring completed in %.2fs. output=%s sha256=%s",
+        duration.total_seconds(),
+        output_path,
+        sha,
+    )
+
+
+def _normalize_company(value) -> str:
+    if value is None:
+        return "Unknown"
+    return str(value).strip()
+
+
+def _format_timestamp(value: datetime) -> str:
+    value = value.astimezone(timezone.utc)
+    return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entrypoint for confidence scoring."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
     args = parse_args(argv or sys.argv[1:])
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
     try:
-        run_pipeline(args.input, args.output)
+        run_pipeline(args.input, args.output, ignore_expiry=args.ignore_expiry)
     except ConfidenceError as exc:
         logger.error("Confidence scoring failed: %s (code=%s)", exc, exc.code)
         return 1
     except Exception as exc:  # pragma: no cover - safeguard
-        logger.exception("Unexpected error during confidence scoring: %s", exc)
+        logger.exception("Unexpected confidence scoring failure: %s", exc)
         return 1
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
