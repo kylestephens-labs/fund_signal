@@ -1,0 +1,114 @@
+name: Nightly Capture
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force capture even if recent bundle exists"
+        required: false
+        default: "false"
+
+jobs:
+  capture:
+    runs-on: [self-hosted, linux, x64, network-enabled]
+    timeout-minutes: 60
+    env:
+      EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+      YOUCOM_API_KEY: ${{ secrets.YOUCOM_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+      BUNDLE_HMAC_KEY: ${{ secrets.BUNDLE_HMAC_KEY }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+
+      - name: Run capture pipeline
+        run: |
+          python -m tools.capture_pipeline \
+            --input leads/exa_seed.json \
+            --out artifacts \
+            --concurrency 8 \
+            --qps-youcom 2 \
+            --qps-tavily 2 \
+            --resume
+
+      - name: Determine bundle paths
+        id: bundle
+        run: |
+          python - <<'PY'
+          import pathlib, json
+          repo_root = pathlib.Path('.').resolve()
+          manifests = sorted(pathlib.Path('artifacts').glob('**/manifest.json'))
+          if not manifests:
+              raise SystemExit('No manifest produced by capture pipeline.')
+          manifest = manifests[-1]
+          bundle_dir = manifest.parent.resolve()
+          try:
+              rel = bundle_dir.relative_to(repo_root).as_posix()
+          except ValueError:
+              rel = bundle_dir.as_posix()
+          with open(manifest) as fh:
+              data = json.load(fh)
+          with open('$GITHUB_OUTPUT', 'a') as fh:
+              fh.write(f"bundle_dir={bundle_dir}\n")
+              fh.write(f"manifest_path={manifest.resolve()}\n")
+              fh.write(f"remote_prefix={rel}\n")
+              fh.write(f"bundle_id={data.get('bundle_id', bundle_dir.name)}\n")
+              fh.write(f"captured_at={data.get('captured_at','unknown')}\n")
+          PY
+
+      - name: Verify bundle integrity & freshness
+        run: |
+          python -m tools.verify_bundle --manifest "${{ steps.bundle.outputs.manifest_path }}"
+
+      - name: Publish bundle to Supabase
+        run: |
+          python -m tools.publish_bundle \
+            --bundle "${{ steps.bundle.outputs.bundle_dir }}" \
+            --remote-prefix "${{ steps.bundle.outputs.remote_prefix }}" \
+            --pointer-path "artifacts/latest.json"
+
+      - name: Summarize capture
+        run: |
+          python - <<'PY'
+          import json, os
+          manifest_path = os.environ['MANIFEST_PATH']
+          with open(manifest_path) as fh:
+              data = json.load(fh)
+          notice = f"Bundle {data.get('bundle_id')} captured_at={data.get('captured_at')} providers={len(data.get('providers', []))}"
+          print(f"::notice::{notice}")
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"## Nightly Capture\n\n- Bundle: {data.get('bundle_id')}\n- Captured at: {data.get('captured_at')}\n- Expiry (days): {data.get('expiry_days')}\n")
+          PY
+        env:
+          MANIFEST_PATH: ${{ steps.bundle.outputs.manifest_path }}
+
+      - name: Alert on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Nightly capture failed (${context.runId})`;
+            const body = `Nightly capture workflow failed. [View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['capture', 'alert']
+            });

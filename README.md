@@ -111,6 +111,14 @@ python -m tools.verify_bundle --manifest artifacts/YYYY/MM/DD/bundle-<timestamp>
 
 This enforces freshness, checksums, and optional signature validation.
 
+### Nightly Capture Workflow
+
+- Automated GitHub Actions workflow (`nightly-capture.yml`) runs every day at 03:00 UTC on a network-enabled runner.
+- Steps: checkout → install → `tools.capture_pipeline` (with retries/QPS limits) → `tools.verify_bundle` → `tools.publish_bundle` (uploads to Supabase and updates `artifacts/latest.json`).
+- Secrets required (configured in repository settings): `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, `BUNDLE_HMAC_KEY` (optional).
+- Failures raise GitHub Issues (labelled `capture`). Bundles are only promoted after verification, so consumers never see partial runs.
+- See `docs/network_modes.md` for the full runbook (runner requirements, SLA, rollback).
+
 ### Fixture Sync (Sandbox)
 
 To hydrate `./fixtures/latest` with a local (or downloaded) bundle:
