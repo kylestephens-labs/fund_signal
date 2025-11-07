@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from pipelines.io import fixture_loader
+from pipelines.io.manifest_loader import build_freshness_metadata, WARNING_THRESHOLD
 from pipelines.news_client import RuntimeMode, get_runtime_config
 from tools.verify_bundle import VerificationError
 
@@ -76,3 +77,25 @@ def test_resolve_root_defaults_supabase(monkeypatch):
     config = get_runtime_config()
     root = fixture_loader.resolve_fixture_root(config)
     assert root == Path("fixtures/latest")
+
+
+def test_build_freshness_metadata_allows_injected_clock():
+    captured_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    fake_now = captured_at + timedelta(days=2)
+
+    metadata = build_freshness_metadata("bundle-sample", captured_at, expiry_days=10, now=fake_now)
+
+    assert metadata.expires_in_days == pytest.approx(8)
+    assert metadata.warning is False
+    assert "Expires in 8 days" in metadata.watermark
+
+
+def test_build_freshness_metadata_sets_warning_near_expiry():
+    captured_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    threshold_days = 10 * WARNING_THRESHOLD
+    fake_now = captured_at + timedelta(days=threshold_days)
+
+    metadata = build_freshness_metadata("bundle-sample", captured_at, expiry_days=10, now=fake_now)
+
+    assert metadata.warning is True
+    assert metadata.age_days == pytest.approx(threshold_days)

@@ -59,3 +59,7 @@ def test_pipelines_run_offline_with_fixtures(fixture_env, tmp_path):
 
     for path in (youcom_out, tavily_out, confidence_out):
         _assert_non_empty_json(path)
+    confidence_payload = json.loads(confidence_out.read_text(encoding="utf-8"))
+    manifest = json.loads((fixture_env / "bundle-sample" / "manifest.json").read_text(encoding="utf-8"))
+    assert confidence_payload[0]["freshness_watermark"]
+    assert confidence_payload[0]["last_checked_at"] == manifest["captured_at"]

@@ -7,6 +7,7 @@ import json
 import logging
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from operator import attrgetter
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Callable, Iterable, Sequence
 
 from app.models.lead import CompanyFunding
 from pipelines.io.fixture_loader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.io.manifest_loader import build_freshness_metadata
 from pipelines.news_client import RuntimeMode, get_runtime_config
 
 logger = logging.getLogger("pipelines.day1.confidence_scoring")
@@ -40,6 +42,20 @@ SOURCE_PREDICATES: tuple[tuple[str, SourcePredicate], ...] = (
     ("You.com", attrgetter("youcom_verified")),
     ("Tavily", attrgetter("tavily_verified")),
 )
+
+
+@dataclass(frozen=True)
+class PipelineContext:
+    """Resolved runtime-specific paths and metadata."""
+
+    input_path: Path
+    output_path: Path
+    scoring_timestamp: datetime | None
+    bundle: BundleInfo | None = None
+
+    @property
+    def has_bundle(self) -> bool:
+        return self.bundle is not None
 
 
 class ConfidenceError(RuntimeError):
@@ -158,32 +174,57 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
-    """Run the confidence scoring pipeline end-to-end."""
-    config = get_runtime_config()
+def _should_use_bundle(mode: RuntimeMode, input_path: Path, output_path: Path) -> bool:
+    return mode is RuntimeMode.FIXTURE and (input_path == DEFAULT_INPUT or output_path == DEFAULT_OUTPUT)
+
+
+def _resolve_pipeline_context(input_path: Path, output_path: Path, config) -> PipelineContext:
     bundle: BundleInfo | None = None
     resolved_input = input_path
     resolved_output = output_path
     scoring_timestamp: datetime | None = None
-    needs_bundle = config.mode is RuntimeMode.FIXTURE and (
-        input_path == DEFAULT_INPUT or output_path == DEFAULT_OUTPUT
-    )
-    if needs_bundle:
+
+    if _should_use_bundle(config.mode, input_path, output_path):
         bundle = ensure_bundle(config.mode)
         log_bundle(bundle)
         if input_path == DEFAULT_INPUT:
-            resolved_input = bundle.leads_dir / "tavily_confirmed.json"
+            resolved_input = bundle.leads_dir / DEFAULT_INPUT.name
         if output_path == DEFAULT_OUTPUT:
-            resolved_output = bundle.leads_dir / "day1_output.json"
+            resolved_output = bundle.leads_dir / DEFAULT_OUTPUT.name
         scoring_timestamp = bundle.captured_at
 
-    leads = load_leads(resolved_input)
-    logger.info("Loaded %s leads from %s.", len(leads), resolved_input)
-    scored = score_leads(leads, timestamp=scoring_timestamp)
+    return PipelineContext(
+        input_path=resolved_input,
+        output_path=resolved_output,
+        scoring_timestamp=scoring_timestamp,
+        bundle=bundle,
+    )
+
+
+def _apply_bundle_freshness(leads: Sequence[CompanyFunding], bundle: BundleInfo) -> None:
+    freshness = build_freshness_metadata(bundle.bundle_id, bundle.captured_at, bundle.expiry_days)
+    logger.info("Freshness watermark: %s", freshness.watermark)
+    if freshness.warning:
+        logger.warning("⚠️ Bundle nearing expiry (age %.2fd / %sd).", freshness.age_days, bundle.expiry_days)
+    for lead in leads:
+        lead.last_checked_at = freshness.captured_at
+        lead.freshness_watermark = freshness.watermark
+
+
+def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
+    """Run the confidence scoring pipeline end-to-end."""
+    config = get_runtime_config()
+    context = _resolve_pipeline_context(input_path, output_path, config)
+
+    leads = load_leads(context.input_path)
+    logger.info("Loaded %s leads from %s.", len(leads), context.input_path)
+    scored = score_leads(leads, timestamp=context.scoring_timestamp)
     summarize(scored)
     exportable = filter_exportable(scored)
-    logger.info("Exporting %s leads (VERIFIED/LIKELY) to %s.", len(exportable), resolved_output)
-    persist_leads(exportable, resolved_output)
+    if context.bundle:
+        _apply_bundle_freshness(exportable, context.bundle)
+    logger.info("Exporting %s leads (VERIFIED/LIKELY) to %s.", len(exportable), context.output_path)
+    persist_leads(exportable, context.output_path)
     return exportable
 
 
