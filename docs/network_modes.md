@@ -1,36 +1,53 @@
 # Network Modes & Fixture Workflow
 
-## Modes
+## 1. Modes at a Glance
 
-- **Online (Capture Runner)**: Network-enabled GitHub Actions runner executes `tools.capture_pipeline`, talks to Exa/You.com/Tavily, uploads bundles to Supabase, and updates `artifacts/latest.json`.
-- **Fixture (Sandbox/CI)**: Default mode (`FUND_SIGNAL_MODE=fixture`). Pipelines never call external APIs; they read `./fixtures/latest` populated via `make sync-fixtures`.
+| Mode | Purpose | Traffic | Commands |
+| --- | --- | --- | --- |
+| **Online (Capture Runner)** | Gather new leads nightly | Exa, You.com, Tavily, Supabase | `python -m tools.capture_pipeline` (invoked by GH Actions) |
+| **Fixture (Sandbox / CI)** | Consume last published bundle | No outbound network | `make sync-fixtures`, then run pipelines |
 
-## Nightly Capture Workflow
+`FUND_SIGNAL_MODE` defaults to `fixture`; set to `online` only inside the scheduled capture workflow.
 
-1. Scheduled GitHub Actions job (`.github/workflows/nightly-capture.yml`) runs at 03:00 UTC.
-2. Steps: checkout → install deps → capture → verify manifest → publish to Supabase → update pointer → summary/alerts.
-3. Secrets required (GitHub Secrets): `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, `BUNDLE_HMAC_KEY` (optional).
-4. Runner requirements: network access only to Exa, You.com, Tavily, and Supabase; no secrets persisted on disk.
+## 2. Nightly Capture (03:00 UTC)
 
-## Local/Sandbox Workflow
+1. `.github/workflows/nightly-capture.yml` runs on a network-enabled runner.
+2. Sequence: checkout → install deps → `capture_pipeline` → `verify_bundle` → `publish_bundle` → alert/summarize.
+3. Required GitHub secrets  
+   `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, optional `BUNDLE_HMAC_KEY`.
+4. Runner hygiene: scoped network egress, no secrets persisted, logs scrubbed for API responses.
 
-1. Run `make sync-fixtures` (uses `tools.sync_fixtures.py`) to fetch the pointer/bundle into `./fixtures/latest`.
-2. Pipelines automatically resolve bundle metadata (`ensure_bundle`) and verify freshness/integrity before executing.
-3. If sync fails with `E_BUNDLE_EXPIRED` or `E_BUNDLE_TAMPERED`, rerun sync; if remote bundle is stale, investigate capture workflow.
+## 3. Local / Sandbox Consumption
 
-## Freshness SLA
+1. Run `make sync-fixtures` (wrapper around `tools.sync_fixtures.py`) to download `latest.json` + bundle to `./fixtures/latest`.
+2. Pipelines call `ensure_bundle` which verifies manifest freshness/integrity before wiring input/output paths.
+3. Troubleshooting  
+   - `E_BUNDLE_EXPIRED`: nightly capture is stale → investigate workflow.  
+   - `E_BUNDLE_TAMPERED` / checksum mismatch: rerun sync, then inspect Supabase history.
 
-- Bundles expire **7 days** after `captured_at`; warning triggered after 48h (observed via logs/alerts), hard fail after SLA breach.
-- Confidence scoring uses `captured_at` for the “Freshness Watermark” displayed to users.
+## 4. Freshness, Retention & Watermarks
 
-## Manual Promotion / Rollback
+- Bundles expire **7 days** after `captured_at`; alerts trigger after 48 h, CI fails after the SLA breach.
+- Confidence scoring uses `captured_at` for “Freshness Watermark” messaging surfaced to users.
+- Retain at least 30 days of bundles in `artifacts/YYYY/MM/DD/bundle-*` for rollback/audits.
 
-- Re-run `python -m tools.promote_latest --prefix artifacts/YYYY/MM/DD/bundle-<id>` locally to point `latest.json` at any existing bundle, then publish pointer via `python -m tools.publish_bundle --bundle ... --remote-prefix ...` if needed.
+## 5. Manual Promotion & Rollback
 
-## CI Gates
+1. Promote locally: `python -m tools.promote_latest --prefix artifacts/YYYY/MM/DD/bundle-<id>`.
+2. Push pointer remotely (if needed):  
+   `python -m tools.publish_bundle --bundle ... --remote-prefix ... --pointer-path artifacts/latest.json`.
+3. Sync affected sandboxes: rerun `make sync-fixtures`.
 
-- **verify-fixtures (CI workflow):** pulls fixtures via `make sync-fixtures --source local` and runs the Day‑1 pipelines entirely offline.
-- **check-freshness (CI workflow):** executes `make check-freshness`, which wraps `tools.verify_bundle` and freshness-specific tests.
-- **weekly-online-contract (scheduled):** runs `make online-contract-test` with provider keys once a week (04:00 UTC Monday) to detect upstream API drift early.
+## 6. CI / QA Guards
 
-All CI jobs must keep `FUND_SIGNAL_MODE=fixture` (except the weekly contract job) to ensure no accidental outbound traffic.
+- `make verify-fixtures` → runs Day‑1 pipelines entirely offline (invoked by `.github/workflows/ci.yml`).
+- `make check-freshness` → executes `tools.verify_bundle` + freshness unit tests (`tests/test_freshness_gate.py`).
+- `make online-contract-test` (weekly workflow) → hits Exa/You.com/Tavily with low QPS to detect upstream schema drift.
+
+> Except for the weekly contract test, _all_ CI jobs must keep `FUND_SIGNAL_MODE=fixture` to avoid accidental outbound calls.
+
+## 7. Key Management Notes
+
+- Store provider credentials exclusively in GitHub Secrets; never check them into `.env`.
+- Rotate Supabase service keys monthly; revoke immediately if a runner is compromised.
+- The optional `BUNDLE_HMAC_KEY` signs manifests/pointers—keep it separate from the service key.
