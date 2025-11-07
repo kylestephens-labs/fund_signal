@@ -16,8 +16,8 @@ from urllib.parse import urlparse
 
 from app.clients.tavily import TavilyError, TavilyNotFoundError, TavilyRateLimitError, TavilyTimeoutError
 from app.models.lead import CompanyFunding
-from pipelines.io.fixture_loader import BundleInfo, ensure_bundle, log_bundle
-from pipelines.news_client import RuntimeMode, TavilyClientProtocol, get_runtime_config, get_tavily_client
+from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
+from pipelines.news_client import TavilyClientProtocol, get_runtime_config, get_tavily_client
 from scripts.backoff import exponential_backoff
 
 logger = logging.getLogger("pipelines.day1.tavily_confirm")
@@ -264,6 +264,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 DEFAULT_INPUT = Path("leads/youcom_verified.json")
 DEFAULT_OUTPUT = Path("leads/tavily_confirmed.json")
+TAVILY_INPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_INPUT, location="leads_dir")
+TAVILY_OUTPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_OUTPUT, location="leads_dir")
 
 
 def run_pipeline(
@@ -276,18 +278,15 @@ def run_pipeline(
 ) -> list[CompanyFunding]:
     """Run the Tavily confirmation pipeline."""
     config = get_runtime_config()
-    bundle: BundleInfo | None = None
-    resolved_input = input_path
-    resolved_output = output_path
-    if config.mode is RuntimeMode.FIXTURE:
-        bundle = ensure_bundle(config.mode)
-        log_bundle(bundle)
-        if input_path == DEFAULT_INPUT:
-            resolved_input = bundle.leads_dir / "youcom_verified.json"
-        if output_path == DEFAULT_OUTPUT:
-            resolved_output = bundle.leads_dir / "tavily_confirmed.json"
-    leads = load_leads(resolved_input)
-    logger.info("Loaded %s leads from %s.", len(leads), resolved_input)
+    context = resolve_bundle_context(
+        config,
+        input_path=input_path,
+        output_path=output_path,
+        input_spec=TAVILY_INPUT_SPEC,
+        output_spec=TAVILY_OUTPUT_SPEC,
+    )
+    leads = load_leads(context.input_path)
+    logger.info("Loaded %s leads from %s.", len(leads), context.input_path)
 
     close_fn = None
     if client is None:
@@ -305,8 +304,8 @@ def run_pipeline(
         if close_fn:
             close_fn()
 
-    persist_leads(leads, resolved_output)
-    logger.info("Persisted %s leads to %s.", len(leads), resolved_output)
+    persist_leads(leads, context.output_path)
+    logger.info("Persisted %s leads to %s.", len(leads), context.output_path)
     return leads
 
 

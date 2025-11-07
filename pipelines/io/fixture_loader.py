@@ -9,8 +9,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pipelines.news_client import FixtureSource, FIXTURE_DIR_ENV, RuntimeMode, get_runtime_config
+from pipelines.news_client import (
+    FixtureSource,
+    FIXTURE_DIR_ENV,
+    RuntimeMode,
+    RuntimeConfig,
+    get_runtime_config,
+)
 from tools import verify_bundle
 from tools.verify_bundle import VerificationError
 
@@ -51,6 +58,40 @@ class BundleInfo:
     @property
     def raw_dir(self) -> Path:
         return self.path / "raw"
+
+
+BundleDir = Literal["fixtures_dir", "leads_dir", "raw_dir"]
+
+
+@dataclass(frozen=True)
+class FixtureArtifactSpec:
+    """Defines how to swap a CLI path with the bundle artifact."""
+
+    default_path: Path
+    location: BundleDir
+    filename: str | None = None
+
+    def matches(self, path: Path) -> bool:
+        return path == self.default_path
+
+    def resolve(self, bundle: BundleInfo) -> Path:
+        base_dir = getattr(bundle, self.location)
+        target_name = self.filename or self.default_path.name
+        return base_dir / target_name
+
+
+@dataclass(frozen=True)
+class BundleContext:
+    """Resolved bundle metadata plus any swapped paths."""
+
+    input_path: Path
+    output_path: Path
+    bundle: BundleInfo | None = None
+    scoring_timestamp: datetime | None = None
+
+    @property
+    def has_bundle(self) -> bool:
+        return self.bundle is not None
 
 
 def ensure_bundle(runtime_mode: RuntimeMode | None = None) -> BundleInfo:
@@ -131,6 +172,44 @@ def _load_bundle(bundle_path: Path) -> BundleInfo:
 def clear_bundle_cache() -> None:
     """Testing helper to clear cached bundle metadata."""
     _load_bundle.cache_clear()
+
+
+def resolve_bundle_context(
+    config: RuntimeConfig,
+    *,
+    input_path: Path,
+    output_path: Path,
+    input_spec: FixtureArtifactSpec | None = None,
+    output_spec: FixtureArtifactSpec | None = None,
+    log: bool = True,
+) -> BundleContext:
+    """Return resolved I/O paths plus bundle metadata when defaults are used."""
+    if config.mode is not RuntimeMode.FIXTURE:
+        return BundleContext(input_path=input_path, output_path=output_path, bundle=None, scoring_timestamp=None)
+
+    needs_bundle = any(
+        spec and spec.matches(path)
+        for spec, path in (
+            (input_spec, input_path),
+            (output_spec, output_path),
+        )
+    )
+    if not needs_bundle:
+        return BundleContext(input_path=input_path, output_path=output_path, bundle=None, scoring_timestamp=None)
+
+    bundle = ensure_bundle(config.mode)
+    if log:
+        log_bundle(bundle)
+
+    resolved_input = input_spec.resolve(bundle) if input_spec and input_spec.matches(input_path) else input_path
+    resolved_output = output_spec.resolve(bundle) if output_spec and output_spec.matches(output_path) else output_path
+
+    return BundleContext(
+        input_path=resolved_input,
+        output_path=resolved_output,
+        bundle=bundle,
+        scoring_timestamp=bundle.captured_at,
+    )
 
 
 def resolve_fixture_root(config) -> Path:

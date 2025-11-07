@@ -6,7 +6,7 @@ import pytest
 
 from pipelines.io import fixture_loader
 from pipelines.io.manifest_loader import build_freshness_metadata, WARNING_THRESHOLD
-from pipelines.news_client import RuntimeMode, get_runtime_config
+from pipelines.news_client import FixtureSource, RuntimeConfig, RuntimeMode, get_runtime_config
 from tools.verify_bundle import VerificationError
 
 
@@ -99,3 +99,38 @@ def test_build_freshness_metadata_sets_warning_near_expiry():
 
     assert metadata.warning is True
     assert metadata.age_days == pytest.approx(threshold_days)
+
+
+def test_resolve_bundle_context_noop_when_not_fixture(tmp_path):
+    config = RuntimeConfig(mode=RuntimeMode.ONLINE, source=FixtureSource.LOCAL)
+    spec = fixture_loader.FixtureArtifactSpec(default_path=Path("input.json"), location="leads_dir")
+
+    context = fixture_loader.resolve_bundle_context(
+        config,
+        input_path=Path("custom.json"),
+        output_path=Path("out.json"),
+        input_spec=spec,
+    )
+
+    assert context.bundle is None
+    assert context.input_path == Path("custom.json")
+    assert context.output_path == Path("out.json")
+
+
+def test_resolve_bundle_context_swaps_defaults(monkeypatch, tmp_path):
+    root = create_bundle(tmp_path)
+    monkeypatch.setenv(fixture_loader.FIXTURE_ROOT_ENV, str(root))
+    config = RuntimeConfig(mode=RuntimeMode.FIXTURE, source=FixtureSource.LOCAL)
+    input_default = Path("leads/youcom_verified.json")
+    spec = fixture_loader.FixtureArtifactSpec(default_path=input_default, location="leads_dir")
+
+    context = fixture_loader.resolve_bundle_context(
+        config,
+        input_path=input_default,
+        output_path=Path("custom.json"),
+        input_spec=spec,
+    )
+
+    assert context.bundle is not None
+    assert context.input_path == context.bundle.leads_dir / "youcom_verified.json"
+    assert context.output_path == Path("custom.json")
