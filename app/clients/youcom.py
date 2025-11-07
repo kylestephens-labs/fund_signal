@@ -121,6 +121,12 @@ class YoucomClient:
 
         results = data.get("results")
         if not isinstance(results, list):
+            for key in ("news", "data"):
+                alt = data.get(key)
+                if isinstance(alt, list):
+                    results = alt
+                    break
+        if not isinstance(results, list):
             raise YoucomSchemaError("`results` missing from You.com response.")
         if not all(isinstance(entry, dict) for entry in results):
             raise YoucomSchemaError("Entries in `results` must be JSON objects.")

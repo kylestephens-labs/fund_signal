@@ -165,7 +165,10 @@ def run_pipeline(input_path: Path, output_path: Path) -> list[CompanyFunding]:
     resolved_input = input_path
     resolved_output = output_path
     scoring_timestamp: datetime | None = None
-    if config.mode is RuntimeMode.FIXTURE:
+    needs_bundle = config.mode is RuntimeMode.FIXTURE and (
+        input_path == DEFAULT_INPUT or output_path == DEFAULT_OUTPUT
+    )
+    if needs_bundle:
         bundle = ensure_bundle(config.mode)
         log_bundle(bundle)
         if input_path == DEFAULT_INPUT:

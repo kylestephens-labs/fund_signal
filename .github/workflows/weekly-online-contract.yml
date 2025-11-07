@@ -1,0 +1,28 @@
+name: Weekly Online Contract Test
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  online-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FUND_SIGNAL_MODE: online
+      EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+      YOUCOM_API_KEY: ${{ secrets.YOUCOM_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+      - name: Run online contract smoke test
+        run: |
+          make online-contract-test

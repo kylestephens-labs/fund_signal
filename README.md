@@ -129,6 +129,21 @@ python -m tools.sync_fixtures --source fixtures/sample/bundle-sample --dest-root
 
 This copies the bundle, validates it, and updates `fixtures/latest/latest.json`. Pipelines running in fixture mode automatically resolve this pointer, enforce freshness/integrity, and log the bundle ID/age before processing.
 
+### CI Guards
+
+- `.github/workflows/ci.yml` runs on every push/PR and includes:
+  - **verify-fixtures:** syncs sample fixtures (`python -m tools.sync_fixtures --source local ...`) and runs the Day‑1 pipelines entirely offline to guarantee deterministic outputs.
+  - **check-freshness:** validates `fixtures/latest/manifest.json` via `tools.verify_bundle` and fails when bundles are expired or tampered.
+- `.github/workflows/weekly-online-contract.yml` runs every Monday 04:00 UTC, executes a tiny live smoke test (marked `@pytest.mark.contract`) with provider keys, and alerts if Exa/You.com/Tavily responses diverge from the expected schema.
+
+Helpful commands:
+
+```bash
+make verify-fixtures       # Offline pipelines using fixtures
+make check-freshness       # Freshness/integrity gate
+make online-contract-test  # Minimal live smoke (requires provider keys)
+```
+
 ### 4. Deployment (Render.com)
 
 - Connect your GitHub repo to Render

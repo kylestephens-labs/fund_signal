@@ -58,6 +58,15 @@ clean: ## Clean up temporary files
 sync-fixtures: ## Download, verify, and install the latest fixture bundle
 	uv run python -m tools.sync_fixtures
 
+verify-fixtures: ## Run Day-1 pipelines against local fixtures
+	FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local uv run pytest -k "verify_fixtures" -q
+
+check-freshness: ## Enforce freshness/integrity gates for fixtures
+	uv run pytest -k "freshness_gate or verify_bundle" -q
+
+online-contract-test: ## Minimal live API contract test (requires provider keys)
+	FUND_SIGNAL_MODE=online uv run pytest -k online_contract -m contract -q
+
 # Legacy pip commands (for reference)
 install-pip: ## Install dependencies with pip (legacy)
 	pip install -r requirements.txt

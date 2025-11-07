@@ -1,0 +1,16 @@
+{
+  "exa": {
+    "query": "B2B SaaS companies funding announcement",
+    "days_min": 30,
+    "days_max": 120,
+    "limit": 1
+  },
+  "youcom": {
+    "query": "B2B SaaS raises Series A funding",
+    "limit": 2
+  },
+  "tavily": {
+    "query": "B2B SaaS company raised funding",
+    "max_results": 2
+  }
+}

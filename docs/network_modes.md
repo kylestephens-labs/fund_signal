@@ -26,3 +26,11 @@
 ## Manual Promotion / Rollback
 
 - Re-run `python -m tools.promote_latest --prefix artifacts/YYYY/MM/DD/bundle-<id>` locally to point `latest.json` at any existing bundle, then publish pointer via `python -m tools.publish_bundle --bundle ... --remote-prefix ...` if needed.
+
+## CI Gates
+
+- **verify-fixtures (CI workflow):** pulls fixtures via `make sync-fixtures --source local` and runs the Day‑1 pipelines entirely offline.
+- **check-freshness (CI workflow):** executes `make check-freshness`, which wraps `tools.verify_bundle` and freshness-specific tests.
+- **weekly-online-contract (scheduled):** runs `make online-contract-test` with provider keys once a week (04:00 UTC Monday) to detect upstream API drift early.
+
+All CI jobs must keep `FUND_SIGNAL_MODE=fixture` (except the weekly contract job) to ensure no accidental outbound traffic.

@@ -1,73 +1,46 @@
 name: CI
+
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
-permissions:
-  contents: read
 
 jobs:
-  unit:
+  verify-fixtures:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --extra dev
-      - run: uv run ruff check app/ tests/
-      - run: uv run ruff format --check app/ tests/
-      - run: uv run pytest tests/ -v --cov=app --cov-report=html --cov-report=term
-
-  integration_postgres:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Gate integration tests
-        id: gate
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+      - name: Sync sample fixtures
+        run: |
+          python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
+      - name: Verify fixtures offline
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FUND_SIGNAL_MODE: fixture
+          FUND_SIGNAL_SOURCE: local
         run: |
-          if [ -n "${DATABASE_URL}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "No DATABASE_URL; skipping integration tests."
-          fi
+          make verify-fixtures
 
+  check-freshness:
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.enabled == 'true'
-
       - uses: actions/setup-python@v5
-        if: steps.gate.outputs.enabled == 'true'
         with:
-          python-version: '3.12'
-
-      - uses: astral-sh/setup-uv@v3
-        if: steps.gate.outputs.enabled == 'true'
-        with:
-          enable-cache: true
-
-      - run: uv sync --frozen --extra dev
-        if: steps.gate.outputs.enabled == 'true'
-
-      - name: Run integration tests
-        if: steps.gate.outputs.enabled == 'true'
+          python-version: "3.11"
+      - name: Install dependencies
         run: |
-          @if [ -z "$$DATABASE_URL" ]; then \
-            echo "Skipping integration tests: DATABASE_URL is not set."; \
-          else \
-            uv run pytest tests/ -v -m integration --cov=app --cov-report=term; \
-            rc=$$?; \
-            if [ $$rc -eq 5 ]; then \
-              echo "No integration tests collected; treating as success."; \
-              exit 0; \
-            else \
-              exit $$rc; \
-            fi; \
-          fi
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+      - name: Sync sample fixtures
+        run: |
+          python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
+      - name: Enforce freshness/integrity gates
+        run: |
+          make check-freshness

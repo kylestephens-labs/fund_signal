@@ -10,8 +10,11 @@
     {"name": "tavily", "requests": 2, "successes": 2, "rate_limits": 0, "errors": 0, "dedup_ratio": 0.5}
   ],
   "files": [
+    {"path": "fixtures/tavily/articles.json", "size": 451, "checksum": "6c312ca564ea7c1f5098b8c45641f59c654ff349540163b2825d45f8656a5691"},
     {"path": "fixtures/youcom/articles.json", "size": 532, "checksum": "ed69c82dfde4fb2463f8310454c90bc039806ef6662952a52b9c95b73e632c51"},
-    {"path": "fixtures/tavily/articles.json", "size": 451, "checksum": "6c312ca564ea7c1f5098b8c45641f59c654ff349540163b2825d45f8656a5691"}
+    {"path": "leads/tavily_confirmed.json", "size": 933, "checksum": "28948680f16326be930bba50a43b412b89fd0ff3781c52151b11c40cc43051e6"},
+    {"path": "leads/youcom_verified.json", "size": 690, "checksum": "abb9e57dbab88b7aaa4300b28ae77c28b95a0bedbcd7cd49cdb61b7286287627"},
+    {"path": "raw/exa_seed.json", "size": 277, "checksum": "457ed4b1cf0f8362e91606cc40109ebd7efbb9c30bd3e970e77e9cefa2d0ca17"}
   ],
   "signature": null
 }
