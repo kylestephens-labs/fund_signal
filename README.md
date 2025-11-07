@@ -94,6 +94,14 @@ Run `python -m tools.capture_pipeline --input leads/exa_seed.json --out artifact
 
 Use `--resume --bundle <path>` to continue a partially completed bundle without re-requesting finished companies.
 
+After uploading a completed bundle, finalize the pointer with:
+
+```bash
+python -m tools.promote_latest --prefix artifacts/YYYY/MM/DD/bundle-<timestamp>
+```
+
+This writes/updates `latest.json` (atomic) so consumers only see fully published bundles. See `docs/data_pipelines.md/storage_layout.md` for the bucket layout and promotion flow.
+
 ### 4. Deployment (Render.com)
 
 - Connect your GitHub repo to Render
