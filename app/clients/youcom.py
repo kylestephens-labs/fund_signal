@@ -51,7 +51,7 @@ class YoucomClient:
         self,
         api_key: str,
         *,
-        base_url: str = "https://api.you.com/v1",
+        base_url: str = "https://api.ydc-index.io",
         timeout: float = 10.0,
         http_client: httpx.Client | None = None,
     ) -> None:
@@ -83,20 +83,17 @@ class YoucomClient:
         if limit <= 0:
             raise ValueError("limit must be a positive integer.")
 
-        payload = {
+        params = {
             "query": query,
             "num_results": limit,
-            "type": "news",
         }
         if time_filter:
-            payload["time_filter"] = time_filter
+            params["time_filter"] = time_filter
 
-        headers = {
-            "X-API-Key": self._api_key,
-        }
+        headers = {"X-API-Key": self._api_key}
 
         try:
-            response = self._http.post("/search", json=payload, headers=headers)
+            response = self._http.get("/livenews", params=params, headers=headers)
         except httpx.TimeoutException as exc:  # pragma: no cover - network failure
             raise YoucomTimeoutError() from exc
         except httpx.HTTPError as exc:  # pragma: no cover - network failure

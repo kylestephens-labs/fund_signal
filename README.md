@@ -71,6 +71,16 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health     # Ensure you see a 200 response
 ```
 
+### Runtime Modes (Day 1 Pipelines)
+
+| Env Var | Default | Purpose |
+|---------|---------|---------|
+| `FUND_SIGNAL_MODE` | `fixture` | `fixture` keeps runs offline; set to `online` only on the capture host. |
+| `FUND_SIGNAL_SOURCE` | `local` | Where fixtures are read from (`local` directory or `supabase`). |
+| `FUND_SIGNAL_FIXTURE_DIR` | `fixtures/sample` | Local path that stores captured artifacts for fixture mode. |
+
+In sandbox/CI, keep the defaults so no outbound network occurs. The capture job (GitHub Actions/runner) switches to `FUND_SIGNAL_MODE=online` and uploads new fixtures to Supabase before developers sync them down.
+
 ### 4. Deployment (Render.com)
 
 - Connect your GitHub repo to Render

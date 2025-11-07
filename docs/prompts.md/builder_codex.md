@@ -11,5 +11,5 @@ Guidelines:
 
 Do not refactor, over-abstract, or tighten architecture — that’s for Refactorer Codex.
 
-My task is:
+Your task is:
 [👉 Insert your specific feature spec or ticket here]

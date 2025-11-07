@@ -14,14 +14,9 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import urlparse
 
-from app.clients.tavily import (
-    TavilyClient,
-    TavilyError,
-    TavilyNotFoundError,
-    TavilyRateLimitError,
-    TavilyTimeoutError,
-)
+from app.clients.tavily import TavilyError, TavilyNotFoundError, TavilyRateLimitError, TavilyTimeoutError
 from app.models.lead import CompanyFunding
+from pipelines.news_client import TavilyClientProtocol, get_runtime_config, get_tavily_client
 from scripts.backoff import exponential_backoff
 
 logger = logging.getLogger("pipelines.day1.tavily_confirm")
@@ -128,7 +123,7 @@ def format_amount_tokens(amount: int) -> set[str]:
 
 
 def discover_with_retries(
-    client: TavilyClient,
+    client: TavilyClientProtocol,
     *,
     query: str,
     max_results: int,
@@ -163,7 +158,7 @@ def discover_with_retries(
 def run_confirmation(
     leads: list[CompanyFunding],
     *,
-    client: TavilyClient,
+    client: TavilyClientProtocol,
     min_confirmations: int,
     max_results: int,
     sleep: SleepFn | None = None,
@@ -272,19 +267,17 @@ def run_pipeline(
     output_path: Path,
     min_confirmations: int,
     max_results: int,
-    client: TavilyClient | None = None,
+    client: TavilyClientProtocol | None = None,
 ) -> list[CompanyFunding]:
     """Run the Tavily confirmation pipeline."""
     leads = load_leads(input_path)
     logger.info("Loaded %s leads from %s.", len(leads), input_path)
 
-    client_owned = False
+    close_fn = None
     if client is None:
-        try:
-            client = TavilyClient.from_env()
-        except ValueError as exc:
-            raise TavilyError(str(exc)) from exc
-        client_owned = True
+        runtime_config = get_runtime_config()
+        client = get_tavily_client(runtime_config)
+        close_fn = getattr(client, "close", None)
 
     try:
         run_confirmation(
@@ -294,8 +287,8 @@ def run_pipeline(
             max_results=max_results,
         )
     finally:
-        if client_owned and client is not None:
-            client.close()
+        if close_fn:
+            close_fn()
 
     persist_leads(leads, output_path)
     logger.info("Persisted %s leads to %s.", len(leads), output_path)

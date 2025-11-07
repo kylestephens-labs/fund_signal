@@ -14,14 +14,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app.clients.youcom import (
-    YoucomClient,
-    YoucomError,
-    YoucomNotFoundError,
-    YoucomRateLimitError,
-    YoucomTimeoutError,
-)
+from app.clients.youcom import YoucomError, YoucomNotFoundError, YoucomRateLimitError, YoucomTimeoutError
 from app.models.lead import CompanyFunding
+from pipelines.news_client import YoucomClientProtocol, get_runtime_config, get_youcom_client
 from scripts.backoff import exponential_backoff
 
 logger = logging.getLogger("pipelines.day1.youcom_verify")
@@ -139,7 +134,7 @@ def normalize_youcom_results(raw_results: Sequence[YoucomResult]) -> list[Articl
 
 
 def discover_with_retries(
-    client: YoucomClient,
+    client: YoucomClientProtocol,
     *,
     query: str,
     limit: int,
@@ -211,7 +206,7 @@ def select_confirming_articles(
 def verify_leads(
     leads: list[CompanyFunding],
     *,
-    client: YoucomClient,
+    client: YoucomClientProtocol,
     min_articles: int,
     max_results: int,
     sleep: SleepFn | None = None,
@@ -319,19 +314,17 @@ def run_pipeline(
     output_path: Path,
     min_articles: int,
     max_results: int,
-    client: YoucomClient | None = None,
+    client: YoucomClientProtocol | None = None,
 ) -> list[CompanyFunding]:
     """Run the You.com verification pipeline end-to-end."""
     leads = load_leads(input_path)
     logger.info("Loaded %s Exa candidates from %s.", len(leads), input_path)
 
-    client_owned = False
+    close_fn = None
     if client is None:
-        try:
-            client = YoucomClient.from_env()
-        except ValueError as exc:
-            raise YoucomError(str(exc)) from exc
-        client_owned = True
+        runtime_config = get_runtime_config()
+        client = get_youcom_client(runtime_config)
+        close_fn = getattr(client, "close", None)
 
     try:
         verify_leads(
@@ -341,8 +334,8 @@ def run_pipeline(
             max_results=max_results,
         )
     finally:
-        if client_owned and client is not None:
-            client.close()
+        if close_fn:
+            close_fn()
 
     persist_leads(leads, output_path)
     logger.info("Persisted %s leads to %s.", len(leads), output_path)

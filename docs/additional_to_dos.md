@@ -1,7 +1,6 @@
 ## Outstanding Items (Day 1 Tasks D1-01 → D1-03)
 
-- **You.com API key acquisition is blocked.** Automatic verification cannot run until the platform allows key generation or support manually provisions one.
-- **Rerun You.com verification once key exists.** Execute `python -m pipelines.day1.youcom_verify --input=leads/exa_seed.json --min_articles=2` to produce `leads/youcom_verified.json`.
-- **Trigger Tavily confirmation after You.com completes.** With the You.com output in place, run `python -m pipelines.day1.tavily_confirm --input=leads/youcom_verified.json --min_confirmations=2` to generate proof links.
-- **Spot-check JSON outputs.** Use `python -m tools.peek leads/exa_seed.json | head`, `... youcom_verified.json`, and `... tavily_confirmed.json` to validate record counts and fields.
-- **Optional: log blockers.** Note in project tracker that D1-02/D1-03 are code-complete pending You.com API access, so downstream teams are aware of the dependency.
+- **You.com DNS issue:** Calls to `https://api.you.com/v1/search` fail with `nodename nor servname provided` even after exporting the API key. Need confirmation from You.com on the correct News endpoint or updated hostname.
+- **Once the endpoint resolves:** Re-run `python -m pipelines.day1.youcom_verify --input=leads/exa_seed.json --min_articles=2` to regenerate `leads/youcom_verified.json` with populated `news_sources`/`press_articles`.
+- **Unblock Tavily + confidence exports:** After a successful You.com pass, rerun `python -m pipelines.day1.tavily_confirm --input=leads/youcom_verified.json --min_confirmations=2` followed by `python -m pipelines.day1.confidence_scoring --input=leads/tavily_confirmed.json --output=leads/day1_output.json`.
+- **Validate artifacts:** Inspect each stage with `python -m tools.peek …` (or `jq`) to ensure counts and freshness metadata look correct before handing off to Day 2.
