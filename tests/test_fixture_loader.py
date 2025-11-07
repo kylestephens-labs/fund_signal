@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from pipelines.io import fixture_reader
-from pipelines.news_client import RuntimeMode
+from pipelines.io import fixture_loader
+from pipelines.news_client import RuntimeMode, get_runtime_config
 from tools.verify_bundle import VerificationError
 
 
@@ -39,22 +39,40 @@ def create_bundle(tmp_path: Path, age_days: int = 0) -> Path:
 
 @pytest.fixture(autouse=True)
 def reset_bundle_cache():
-    fixture_reader.clear_bundle_cache()
+    fixture_loader.clear_bundle_cache()
     yield
-    fixture_reader.clear_bundle_cache()
+    fixture_loader.clear_bundle_cache()
 
 
 def test_ensure_bundle_success(monkeypatch, tmp_path: Path):
     root = create_bundle(tmp_path)
-    monkeypatch.setenv(fixture_reader.FIXTURE_ROOT_ENV, str(root))
-    bundle = fixture_reader.ensure_bundle(RuntimeMode.FIXTURE)
+    monkeypatch.setenv(fixture_loader.FIXTURE_ROOT_ENV, str(root))
+    bundle = fixture_loader.ensure_bundle(RuntimeMode.FIXTURE)
     assert bundle.bundle_id == "bundle-sample"
     assert bundle.fixtures_dir.exists()
 
 
 def test_ensure_bundle_expired(monkeypatch, tmp_path: Path):
     root = create_bundle(tmp_path, age_days=10)
-    monkeypatch.setenv(fixture_reader.FIXTURE_ROOT_ENV, str(root))
-    with pytest.raises(fixture_reader.FixtureError) as excinfo:
-        fixture_reader.ensure_bundle(RuntimeMode.FIXTURE)
+    monkeypatch.setenv(fixture_loader.FIXTURE_ROOT_ENV, str(root))
+    with pytest.raises(fixture_loader.FixtureError) as excinfo:
+        fixture_loader.ensure_bundle(RuntimeMode.FIXTURE)
     assert excinfo.value.code == "E_BUNDLE_EXPIRED"
+
+
+def test_resolve_root_defaults_local(monkeypatch):
+    monkeypatch.delenv(fixture_loader.FIXTURE_ROOT_ENV, raising=False)
+    monkeypatch.setenv("FUND_SIGNAL_MODE", "fixture")
+    monkeypatch.setenv("FUND_SIGNAL_SOURCE", "local")
+    config = get_runtime_config()
+    root = fixture_loader.resolve_fixture_root(config)
+    assert root == Path("fixtures/sample")
+
+
+def test_resolve_root_defaults_supabase(monkeypatch):
+    monkeypatch.delenv(fixture_loader.FIXTURE_ROOT_ENV, raising=False)
+    monkeypatch.setenv("FUND_SIGNAL_MODE", "fixture")
+    monkeypatch.setenv("FUND_SIGNAL_SOURCE", "supabase")
+    config = get_runtime_config()
+    root = fixture_loader.resolve_fixture_root(config)
+    assert root == Path("fixtures/latest")

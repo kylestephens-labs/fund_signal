@@ -129,6 +129,11 @@ python -m tools.sync_fixtures --source fixtures/sample/bundle-sample --dest-root
 
 This copies the bundle, validates it, and updates `fixtures/latest/latest.json`. Pipelines running in fixture mode automatically resolve this pointer, enforce freshness/integrity, and log the bundle ID/age before processing.
 
+**Fixture storage policy**
+
+- `fixtures/sample/`: small anonymized fixtures checked into Git for CI/unit tests (≤5 fake companies). Default when `FUND_SIGNAL_SOURCE=local`.
+- `fixtures/latest/`: real nightly bundles pulled from Supabase via `make sync-fixtures` (ignored by Git). Used when `FUND_SIGNAL_SOURCE=supabase`.
+
 ### CI Guards
 
 - `.github/workflows/ci.yml` runs on every push/PR and includes:

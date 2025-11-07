@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from app.clients.tavily import TavilyError, TavilyNotFoundError, TavilyRateLimitError, TavilyTimeoutError
 from app.models.lead import CompanyFunding
-from pipelines.io.fixture_reader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.io.fixture_loader import BundleInfo, ensure_bundle, log_bundle
 from pipelines.news_client import RuntimeMode, TavilyClientProtocol, get_runtime_config, get_tavily_client
 from scripts.backoff import exponential_backoff
 

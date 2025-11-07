@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from app.models.lead import CompanyFunding
-from pipelines.io.fixture_reader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.io.fixture_loader import BundleInfo, ensure_bundle, log_bundle
 from pipelines.news_client import RuntimeMode, get_runtime_config
 
 logger = logging.getLogger("pipelines.day1.confidence_scoring")

@@ -10,13 +10,15 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-from pipelines.news_client import FIXTURE_DIR_ENV, RuntimeMode, get_runtime_config
+from pipelines.news_client import FixtureSource, FIXTURE_DIR_ENV, RuntimeMode, get_runtime_config
 from tools import verify_bundle
 from tools.verify_bundle import VerificationError
 
 logger = logging.getLogger("pipelines.fixture_reader")
 
 FIXTURE_ROOT_ENV = "FUND_SIGNAL_FIXTURE_ROOT"
+LOCAL_SAMPLE_ROOT = Path("fixtures/sample")
+SUPABASE_ROOT = Path("fixtures/latest")
 LATEST_FILENAME = "latest.json"
 
 
@@ -53,11 +55,12 @@ class BundleInfo:
 
 def ensure_bundle(runtime_mode: RuntimeMode | None = None) -> BundleInfo:
     """Resolve and verify the current bundle (fixture mode only)."""
-    config_mode = runtime_mode or get_runtime_config().mode
+    config = get_runtime_config()
+    config_mode = runtime_mode or config.mode
     if config_mode is not RuntimeMode.FIXTURE:
         raise FixtureError("E_MODE_UNSUPPORTED", "Bundle resolution requires fixture mode.")
 
-    root = Path(os.getenv(FIXTURE_ROOT_ENV, "fixtures")).expanduser()
+    root = resolve_fixture_root(config)
     latest_path = root / LATEST_FILENAME
     pointer = _load_latest_pointer(latest_path)
     bundle_path = _resolve_bundle_path(pointer, latest_path.parent)
@@ -128,3 +131,14 @@ def _load_bundle(bundle_path: Path) -> BundleInfo:
 def clear_bundle_cache() -> None:
     """Testing helper to clear cached bundle metadata."""
     _load_bundle.cache_clear()
+
+
+def resolve_fixture_root(config) -> Path:
+    explicit = os.getenv(FIXTURE_ROOT_ENV)
+    if explicit:
+        return Path(explicit).expanduser()
+    if config.source is FixtureSource.LOCAL:
+        return LOCAL_SAMPLE_ROOT
+    if config.source is FixtureSource.SUPABASE:
+        return SUPABASE_ROOT
+    return SUPABASE_ROOT

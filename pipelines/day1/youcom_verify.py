@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from app.clients.youcom import YoucomError, YoucomNotFoundError, YoucomRateLimitError, YoucomTimeoutError
 from app.models.lead import CompanyFunding
-from pipelines.io.fixture_reader import BundleInfo, ensure_bundle, log_bundle
+from pipelines.io.fixture_loader import BundleInfo, ensure_bundle, log_bundle
 from pipelines.news_client import RuntimeMode, YoucomClientProtocol, get_runtime_config, get_youcom_client
 from scripts.backoff import exponential_backoff
 
