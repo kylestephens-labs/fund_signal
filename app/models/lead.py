@@ -25,6 +25,10 @@ class CompanyFunding(BaseModel):
     tavily_verified_at: datetime | None = None
     tavily_reason: str | None = Field(default=None, description="Explanation when Tavily verification fails.")
     proof_links: list[str] = Field(default_factory=list)
+    confidence: str | None = Field(default=None, description="Confidence label (VERIFIED/LIKELY/EXCLUDE).")
+    verified_by: list[str] = Field(default_factory=list)
+    last_checked_at: datetime | None = None
+    freshness_watermark: str | None = None
     ingest_version: int = Field(default=1, description="Pipeline schema version.")
 
     model_config = {"from_attributes": True}

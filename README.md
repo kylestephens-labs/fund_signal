@@ -151,6 +151,15 @@ RESEND_API_KEY=""
 
 ***
 
+## Day 1: Confidence Scoring & Freshness
+
+- Input: `leads/tavily_confirmed.json`; run `python -m pipelines.day1.confidence_scoring --input=... --output=leads/day1_output.json`.
+- Scoring rules: 3 sources (Exa, You.com, Tavily) → `VERIFIED`, 2 sources → `LIKELY`, otherwise `EXCLUDE`.
+- Export includes only VERIFIED/LIKELY rows plus `verified_by`, `last_checked_at` (UTC ISO8601), and `freshness_watermark` (`Verified by: … • Last checked: … • Confidence: HIGH/MEDIUM/LOW`).
+- Tests: `pytest -k test_confidence_scoring`.
+
+***
+
 ## Day 1–7 MVP Roadmap
 
 | Day | Goal                              | Deliverable                                  |
@@ -273,4 +282,3 @@ Document each Day 1 deliverable for future audits/releases.
 ```
 
 ***
-
