@@ -114,7 +114,8 @@ This enforces freshness, checksums, and optional signature validation.
 ### Nightly Capture Workflow
 
 - Automated GitHub Actions workflow (`nightly-capture.yml`) runs every day at 03:00 UTC on a network-enabled runner.
-- Steps: checkout → install → `tools.capture_pipeline` (with retries/QPS limits) → `tools.verify_bundle` → `tools.publish_bundle` (uploads to Supabase and updates `artifacts/latest.json`).
+- Steps: checkout → install via `uv sync --all-extras` → `uv run tools.capture_pipeline` (with retries/QPS limits) → `uv run tools.verify_bundle` → `uv run tools.publish_bundle` (uploads to Supabase and atomically updates `artifacts/latest.json`).
+- `tools.publish_bundle` re-validates every manifest plus pointer metadata before uploading files and strips leading slashes from remote prefixes to prevent accidental bucket root overwrites.
 - Secrets required (configured in repository settings): `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, `BUNDLE_HMAC_KEY` (optional).
 - Failures raise GitHub Issues (labelled `capture`). Bundles are only promoted after verification, so consumers never see partial runs.
 - See `docs/network_modes.md` for the full runbook (runner requirements, SLA, rollback).

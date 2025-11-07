@@ -10,6 +10,14 @@ on:
         required: false
         default: "false"
 
+permissions:
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   capture:
     runs-on: [self-hosted, linux, x64, network-enabled]
@@ -23,6 +31,7 @@ jobs:
       SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
       BUNDLE_HMAC_KEY: ${{ secrets.BUNDLE_HMAC_KEY }}
       PYTHONUNBUFFERED: "1"
+      POINTER_PATH: artifacts/latest.json
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,11 +44,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip uv
-          uv pip install -r requirements.txt
+          uv sync --all-extras
 
       - name: Run capture pipeline
         run: |
-          python -m tools.capture_pipeline \
+          uv run python -m tools.capture_pipeline \
             --input leads/exa_seed.json \
             --out artifacts \
             --concurrency 8 \
@@ -74,14 +83,14 @@ jobs:
 
       - name: Verify bundle integrity & freshness
         run: |
-          python -m tools.verify_bundle --manifest "${{ steps.bundle.outputs.manifest_path }}"
+          uv run python -m tools.verify_bundle --manifest "${{ steps.bundle.outputs.manifest_path }}"
 
       - name: Publish bundle to Supabase
         run: |
-          python -m tools.publish_bundle \
+          uv run python -m tools.publish_bundle \
             --bundle "${{ steps.bundle.outputs.bundle_dir }}" \
             --remote-prefix "${{ steps.bundle.outputs.remote_prefix }}" \
-            --pointer-path "artifacts/latest.json"
+            --pointer-path "${{ env.POINTER_PATH }}"
 
       - name: Summarize capture
         run: |
@@ -93,7 +102,12 @@ jobs:
           notice = f"Bundle {data.get('bundle_id')} captured_at={data.get('captured_at')} providers={len(data.get('providers', []))}"
           print(f"::notice::{notice}")
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write(f"## Nightly Capture\n\n- Bundle: {data.get('bundle_id')}\n- Captured at: {data.get('captured_at')}\n- Expiry (days): {data.get('expiry_days')}\n")
+              summary.write(
+                  "## Nightly Capture\n\n"
+                  f"- Bundle: {data.get('bundle_id')}\n"
+                  f"- Captured at: {data.get('captured_at')}\n"
+                  f"- Expiry (days): {data.get('expiry_days')}\n"
+              )
           PY
         env:
           MANIFEST_PATH: ${{ steps.bundle.outputs.manifest_path }}

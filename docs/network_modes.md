@@ -12,10 +12,11 @@
 ## 2. Nightly Capture (03:00 UTC)
 
 1. `.github/workflows/nightly-capture.yml` runs on a network-enabled runner.
-2. Sequence: checkout → install deps → `capture_pipeline` → `verify_bundle` → `publish_bundle` → alert/summarize.
-3. Required GitHub secrets  
+2. Sequence: checkout → `uv sync --all-extras` (installs prod + tooling deps) → `uv run capture_pipeline` → `uv run verify_bundle` → `uv run publish_bundle` → alert/summarize.
+3. `publish_bundle` re-checks the manifest and normalizes remote prefixes before writing to Supabase, so a malformed pointer can’t clobber unrelated paths.
+4. Required GitHub secrets  
    `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, optional `BUNDLE_HMAC_KEY`.
-4. Runner hygiene: scoped network egress, no secrets persisted, logs scrubbed for API responses.
+5. Runner hygiene: scoped network egress, no secrets persisted, logs scrubbed for API responses.
 
 ## 3. Local / Sandbox Consumption
 
