@@ -273,6 +273,7 @@ RESEND_API_KEY=""
 - **Tests/Lint:** Run `pytest` and `ruff` as in template for code quality.
 - **Metrics:** `/metrics` for Prometheus integration (optional).
 - **Observability:** Sentry error tracking via `SENTRY_DSN` (optional).
+- **uv cache:** Set `UV_CACHE_DIR=$(pwd)/.uv-cache` (Makefile exports this automatically) to keep uv’s cache inside the repo and avoid permission issues on locked-down runners.
 
 ***
 

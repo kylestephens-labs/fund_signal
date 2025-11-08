@@ -1,5 +1,6 @@
 .PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration
 
+export UV_CACHE_DIR ?= $(abspath .uv-cache)
 PYTEST ?= uv run pytest
 RUFF ?= uv run ruff
 

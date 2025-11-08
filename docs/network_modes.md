@@ -18,6 +18,13 @@
    `EXA_API_KEY`, `YOUCOM_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET`, optional `BUNDLE_HMAC_KEY`.
 5. Runner hygiene: scoped network egress, no secrets persisted, logs scrubbed for API responses.
 
+### Runner Security Hardening
+
+- **Egress allowlist** – Only `api.ydc-index.io`, `api.tavily.com`, `api.exa.ai`, and the Supabase bucket host are reachable. The workflow executes `python -m tools.check_egress` before capture; any unexpected success to a denied host raises `E_EGRESS_DENIED` and the job aborts.
+- **Secrets at runtime** – Keys are injected from GitHub Secrets, masked via the “Log secret sources” step, and never written to disk. Missing values raise `E_SECRET_MISSING`.
+- **Rotation & expiry** – `python -m tools.rotate_keys --provider all --state-file security/rotation_state.json --check-only` runs nightly. Values older than 90 days raise `E_SECRET_EXPIRED`. To rotate manually: `python -m tools.rotate_keys --provider youcom --state-file security/rotation_state.json --force`.
+- **Alerting** – Any egress or rotation failure bubbles up through the workflow’s final “Alert on failure” step, creating an issue in `#capture`. Extendable to Slack via webhook if needed.
+
 ## 3. Local / Sandbox Consumption
 
 1. Run `make sync-fixtures` (wrapper around `tools.sync_fixtures.py`) to download `latest.json` + bundle to `./fixtures/latest`.

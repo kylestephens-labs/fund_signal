@@ -46,6 +46,48 @@ jobs:
           python -m pip install --upgrade pip uv
           uv sync --all-extras
 
+      - name: Log secret sources
+        run: |
+          python - <<'PY'
+          import os
+          secrets = {
+              "EXA_API_KEY": "GitHub Secrets",
+              "YOUCOM_API_KEY": "GitHub Secrets",
+              "TAVILY_API_KEY": "GitHub Secrets",
+              "SUPABASE_SERVICE_KEY": "GitHub Secrets",
+              "SUPABASE_URL": "GitHub Secrets",
+              "BUNDLE_HMAC_KEY": "GitHub Secrets",
+          }
+          for key, source in secrets.items():
+              value = os.getenv(key)
+              mask = "[MASKED]" if value else "[MISSING]"
+              print(f"{key} = {mask} (source: {source})")
+          PY
+
+      - name: Validate egress allowlist
+        run: |
+          SUPABASE_HOST=$(python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          url = os.environ.get("SUPABASE_URL", "")
+          host = urlparse(url).netloc or "supabase.co"
+          print(host)
+          PY
+          )
+          uv run python -m tools.check_egress \
+            --allow api.ydc-index.io \
+            --allow api.tavily.com \
+            --allow api.exa.ai \
+            --allow "$SUPABASE_HOST"
+
+      - name: Check secret rotation window
+        run: |
+          uv run python -m tools.rotate_keys \
+            --provider all \
+            --state-file security/rotation_state.json \
+            --max-age-days 90 \
+            --check-only
+
       - name: Run capture pipeline
         run: |
           uv run python -m tools.capture_pipeline \

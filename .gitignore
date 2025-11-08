@@ -179,3 +179,4 @@ Thumbs.db
 # Fixture bundles and artifacts
 fixtures/latest/
 artifacts/
+.uv-cache/
