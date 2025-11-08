@@ -238,6 +238,13 @@ RESEND_API_KEY=""
 - The export is a stable JSON object: `{schema_version, bundle_id, captured_at, leads:[{company, confidence, verified_by, proof_links, captured_at}]}` sorted alphabetically by company. The pipeline logs bundle metadata, tier counts, runtime, and the SHA256 hash of the output. Use `--ignore-expiry` only when you intentionally want to bypass expired fixtures.
 - Tests: `pytest -k "test_confidence_scoring or test_determinism"`. Determinism can also be verified manually via `sha256sum leads/day1_output.json`.
 
+## Retention & Compression Policy
+
+- **Compression:** Every capture bundle writes raw payloads under `<bundle>/raw/`. Run `python -m tools.compress_raw_data --input <bundle_dir>` (automated in the nightly workflow) to convert any `.json`/`.jsonl` into `.jsonl.gz`, removing the originals once the stream is safely written.
+- **Local retention:** Enforce the 30-day raw / 90-day canonical SLA with `python -m tools.enforce_retention --path artifacts --dry-run` to review and `--delete --report retention-report.json --raw-days 30 --canonical-days 90` to apply. The CLI records deleted paths, bytes reclaimed, and any permission issues, and validates that retention windows are always positive.
+- **Bucket lifecycle:** Mirror the same policy in Supabase/S3 via `python -m tools.apply_bucket_lifecycle --bucket fundsignal-artifacts --raw-days 30 --canonical-days 90 --output bucket-lifecycle.json` (add `--dry-run` to preview), then apply the generated JSON through your storage console or API.
+- **Config:** Override retention windows via `RETENTION_RAW_DAYS` and `RETENTION_CANONICAL_DAYS` (see `.env.example`). Defaults are 30/90 days; the nightly workflow now exports the same env vars so local runs, CI, and retention automation stay aligned.
+
 ***
 
 ## Day 1–7 MVP Roadmap

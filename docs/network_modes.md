@@ -25,6 +25,13 @@
 - **Rotation & expiry** – `python -m tools.rotate_keys --provider all --state-file security/rotation_state.json --check-only` runs nightly. Values older than 90 days raise `E_SECRET_EXPIRED`. To rotate manually: `python -m tools.rotate_keys --provider youcom --state-file security/rotation_state.json --force`.
 - **Alerting** – Any egress or rotation failure bubbles up through the workflow’s final “Alert on failure” step, creating an issue in `#capture`. Extendable to Slack via webhook if needed.
 
+### Retention & Licensing Policy
+
+- **Compression gate** – Immediately after each capture the workflow runs `python -m tools.compress_raw_data --input <bundle>` so every vendor payload in `raw/` is stored as `.jsonl.gz`. Corrupt streams raise `E_COMPRESSION_FAILED` and block promotion.
+- **Local cleanup** – `python -m tools.enforce_retention --path artifacts --delete --report retention-report.json --raw-days "$RETENTION_RAW_DAYS" --canonical-days "$RETENTION_CANONICAL_DAYS"` deletes raw data older than the configured env values (defaults 30/90). Dry-run first to inspect the generated report; the CLI validates that both windows are positive and the nightly workflow exports the same env vars so every environment stays in policy.
+- **Bucket lifecycle** – Use `python -m tools.apply_bucket_lifecycle --bucket fundsignal-artifacts --raw-days 30 --canonical-days 90 --dry-run` to preview, then persist with `--output bucket-lifecycle.json`. Apply those rules so remote storage mirrors on-disk governance.
+- **Audit trail** – Retention reports are committed to workflow artifacts; each entry includes bundle_id, deleted paths, and reclaimed storage so compliance can trace deletions during audits.
+
 ## 3. Local / Sandbox Consumption
 
 1. Run `make sync-fixtures` (wrapper around `tools.sync_fixtures.py`) to download `latest.json` + bundle to `./fixtures/latest`.

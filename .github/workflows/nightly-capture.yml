@@ -32,6 +32,8 @@ jobs:
       BUNDLE_HMAC_KEY: ${{ secrets.BUNDLE_HMAC_KEY }}
       PYTHONUNBUFFERED: "1"
       POINTER_PATH: artifacts/latest.json
+      RETENTION_RAW_DAYS: "30"
+      RETENTION_CANONICAL_DAYS: "90"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,6 +125,10 @@ jobs:
               fh.write(f"captured_at={data.get('captured_at','unknown')}\n")
           PY
 
+      - name: Compress raw payloads
+        run: |
+          uv run python -m tools.compress_raw_data --input "${{ steps.bundle.outputs.bundle_dir }}"
+
       - name: Verify bundle integrity & freshness
         run: |
           uv run python -m tools.verify_bundle --manifest "${{ steps.bundle.outputs.manifest_path }}"
@@ -133,6 +139,16 @@ jobs:
             --bundle "${{ steps.bundle.outputs.bundle_dir }}" \
             --remote-prefix "${{ steps.bundle.outputs.remote_prefix }}" \
             --pointer-path "${{ env.POINTER_PATH }}"
+
+      - name: Enforce retention policy
+        run: |
+          uv run python -m tools.enforce_retention \
+            --path artifacts \
+            --delete \
+            --report retention-report.json \
+            --raw-days "$RETENTION_RAW_DAYS" \
+            --canonical-days "$RETENTION_CANONICAL_DAYS"
+          cat retention-report.json
 
       - name: Summarize capture
         run: |
