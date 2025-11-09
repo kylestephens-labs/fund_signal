@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   capture:
-    runs-on: [self-hosted, linux, x64, network-enabled]
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
