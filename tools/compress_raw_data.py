@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Sequence
 
+from tools import capture_pipeline
+
 logger = logging.getLogger("tools.compress_raw_data")
 
 RAW_SUBDIR = "raw"
@@ -123,7 +125,59 @@ def compress_bundle(bundle_path: Path, *, dry_run: bool = False) -> list[Compres
             results.append(compress_file(path, dry_run=dry_run))
         except (OSError, json.JSONDecodeError) as exc:
             raise CompressionError(f"Failed to compress {path}: {exc}") from exc
+    if not dry_run:
+        update_manifest(bundle_path, results)
     return results
+
+
+def update_manifest(bundle_path: Path, results: list[CompressionResult]) -> None:
+    manifest_path = bundle_path / "manifest.json"
+    if not manifest_path.exists():
+        logger.warning("Manifest not found at %s; skipping manifest update.", manifest_path)
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CompressionError(f"Unable to parse manifest: {exc}", code="E_SCHEMA_INVALID") from exc
+
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        raise CompressionError("Manifest missing files array.", code="E_SCHEMA_INVALID")
+
+    files_by_path: dict[str, dict] = {}
+    for entry in files:
+        if isinstance(entry, dict) and "path" in entry:
+            files_by_path[entry["path"]] = entry
+
+    updated = False
+    for result in results:
+        if result.skipped:
+            continue
+        try:
+            source_rel = result.source.relative_to(bundle_path).as_posix()
+            output_rel = result.output.relative_to(bundle_path).as_posix()
+        except ValueError:
+            # Should not happen, but guard against it.
+            logger.warning("Skipping manifest update for %s (outside bundle).", result.source)
+            continue
+
+        entry = files_by_path.get(source_rel)
+        if not entry:
+            logger.warning("Manifest entry for %s not found; creating new entry.", source_rel)
+            entry = {"path": output_rel}
+            files.append(entry)
+        entry["path"] = output_rel
+        entry["size"] = result.output.stat().st_size
+        entry["checksum"] = capture_pipeline.sha256_file(result.output)
+        updated = True
+
+    if not updated:
+        return
+
+    manifest_no_sig = dict(manifest)
+    manifest_no_sig.pop("signature", None)
+    manifest["signature"] = capture_pipeline.sign_manifest(manifest_no_sig)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
