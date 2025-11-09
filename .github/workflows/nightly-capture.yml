@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 defaults:
   run:
@@ -97,8 +96,7 @@ jobs:
             --out artifacts \
             --concurrency 8 \
             --qps-youcom 2 \
-            --qps-tavily 2 \
-            --resume
+            --qps-tavily 2
 
       - name: Determine bundle paths
         id: bundle
@@ -172,15 +170,13 @@ jobs:
 
       - name: Alert on failure
         if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = `Nightly capture failed (${context.runId})`;
-            const body = `Nightly capture workflow failed. [View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`;
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-              labels: ['capture', 'alert']
-            });
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "::error::Nightly capture failed. Inspect ${RUN_URL}"
+          {
+            echo "## Nightly Capture Failure"
+            echo ""
+            echo "- Run: ${RUN_URL}"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Workflow: $GITHUB_WORKFLOW"
+          } >> "$GITHUB_STEP_SUMMARY"
