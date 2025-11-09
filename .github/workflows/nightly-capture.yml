@@ -102,7 +102,7 @@ jobs:
         id: bundle
         run: |
           python - <<'PY'
-          import pathlib, json
+          import pathlib, json, os
           repo_root = pathlib.Path('.').resolve()
           manifests = sorted(pathlib.Path('artifacts').glob('**/manifest.json'))
           if not manifests:
@@ -115,7 +115,10 @@ jobs:
               rel = bundle_dir.as_posix()
           with open(manifest) as fh:
               data = json.load(fh)
-          with open('$GITHUB_OUTPUT', 'a') as fh:
+          output_path = os.environ.get("GITHUB_OUTPUT")
+          if not output_path:
+              raise SystemExit("Missing GITHUB_OUTPUT.")
+          with open(output_path, 'a') as fh:
               fh.write(f"bundle_dir={bundle_dir}\n")
               fh.write(f"manifest_path={manifest.resolve()}\n")
               fh.write(f"remote_prefix={rel}\n")
