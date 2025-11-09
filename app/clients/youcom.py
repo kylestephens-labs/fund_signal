@@ -83,17 +83,13 @@ class YoucomClient:
         if limit <= 0:
             raise ValueError("limit must be a positive integer.")
 
-        params = {
-            "query": query,
-            "num_results": limit,
-        }
+        params = {"query": query}
         if time_filter:
             params["time_filter"] = time_filter
 
         headers = {"X-API-Key": self._api_key}
-
         try:
-            response = self._http.get("/livenews", params=params, headers=headers)
+            response = self._http.get("/v1/search", params=params, headers=headers)
         except httpx.TimeoutException as exc:  # pragma: no cover - network failure
             raise YoucomTimeoutError() from exc
         except httpx.HTTPError as exc:  # pragma: no cover - network failure
@@ -119,17 +115,14 @@ class YoucomClient:
         except ValueError as exc:  # pragma: no cover - invalid JSON response
             raise YoucomSchemaError("Failed to decode You.com response JSON.") from exc
 
-        results = data.get("results")
-        if not isinstance(results, list):
-            for key in ("news", "data"):
-                alt = data.get(key)
-                if isinstance(alt, list):
-                    results = alt
-                    break
-        if not isinstance(results, list):
-            raise YoucomSchemaError("`results` missing from You.com response.")
-        if not all(isinstance(entry, dict) for entry in results):
-            raise YoucomSchemaError("Entries in `results` must be JSON objects.")
+        if isinstance(data, dict):
+            for key in ("error", "message", "detail"):
+                if data.get(key):
+                    raise YoucomError(f"You.com request error: {data[key]}")
+
+        results = _extract_results(data)
+        if limit and limit > 0:
+            results = results[:limit]
         return results
 
     def __enter__(self) -> "YoucomClient":
@@ -137,3 +130,39 @@ class YoucomClient:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
+def _extract_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    results: Any = payload.get("results")
+    if isinstance(results, list):
+        filtered = results
+    else:
+        filtered = None
+        containers = [
+            payload.get("news"),
+            payload.get("data"),
+        ]
+        nested_results = payload.get("results") if isinstance(payload.get("results"), dict) else None
+        if isinstance(nested_results, dict):
+            containers.extend(
+                [
+                    nested_results.get("news"),
+                    nested_results.get("web"),
+                    nested_results.get("items"),
+                ]
+            )
+        for container in containers:
+            if isinstance(container, list):
+                filtered = container
+                break
+            if isinstance(container, dict):
+                candidate = container.get("results") or container.get("items")
+                if isinstance(candidate, list):
+                    filtered = candidate
+                    break
+
+    if not isinstance(filtered, list):
+        raise YoucomSchemaError("`results` missing from You.com response.")
+    if not all(isinstance(entry, dict) for entry in filtered):
+        raise YoucomSchemaError("Entries in `results` must be JSON objects.")
+    return filtered

@@ -92,7 +92,7 @@ class TavilyClient:
         if days_limit:
             payload["days"] = days_limit
 
-        headers = {"X-Tavily-API-Key": self._api_key}
+        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
 
         try:
             response = self._http.post("/search", json=payload, headers=headers)

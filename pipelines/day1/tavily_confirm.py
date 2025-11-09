@@ -35,6 +35,26 @@ class TavilyResult:
     snippet: str
 
 
+def _format_query_amount(amount: int) -> str:
+    """Format funding amount portion of Tavily queries."""
+    if amount >= 1_000_000:
+        normalized = f"{amount / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"${normalized}M"
+    if amount >= 1_000:
+        normalized = f"{amount / 1_000:.1f}".rstrip("0").rstrip(".")
+        return f"${normalized}K"
+    return f"${amount:,}"
+
+
+def _percentile_ms(values: Sequence[float], percentile: float) -> float:
+    """Compute percentile of durations in milliseconds."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = int(percentile * (len(ordered) - 1))
+    return ordered[index] * 1000
+
+
 def build_query(lead: CompanyFunding) -> str:
     """Build Tavily query string."""
     amount_str = _format_query_amount(lead.funding_amount)
@@ -331,23 +351,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     raise SystemExit(main())
-
-
-def _format_query_amount(amount: int) -> str:
-    """Format funding amount portion of Tavily queries."""
-    if amount >= 1_000_000:
-        normalized = f"{amount / 1_000_000:.1f}".rstrip("0").rstrip(".")
-        return f"${normalized}M"
-    if amount >= 1_000:
-        normalized = f"{amount / 1_000:.1f}".rstrip("0").rstrip(".")
-        return f"${normalized}K"
-    return f"${amount:,}"
-
-
-def _percentile_ms(values: Sequence[float], percentile: float) -> float:
-    """Compute percentile of durations in milliseconds."""
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    index = int(percentile * (len(ordered) - 1))
-    return ordered[index] * 1000
