@@ -1,0 +1,31 @@
+version: v1
+notes: |
+  Deterministic heuristic weights for day-1 adaptive confidence scoring.
+  Changing these values requires bumping the version and updating fixture tests.
+weights:
+  mainstream_domain_pair: 2
+  normalized_field_match: 1
+  dual_source_confirmation: 1
+thresholds:
+  verified: 3
+  likely: 2
+mainstream_domains:
+  - techcrunch.com
+  - businesswire.com
+  - prnewswire.com
+  - globenewswire.com
+  - venturebeat.com
+  - forbes.com
+  - bloomberg.com
+  - reuters.com
+  - yahoo.com
+  - bizjournals.com
+sources:
+  discovery:
+    - id: exa
+      label: Exa
+  verification:
+    - id: youcom
+      label: You.com
+    - id: tavily
+      label: Tavily

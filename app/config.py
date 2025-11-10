@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     exa_api_key: str | None = None
     youcom_api_key: str | None = None
     tavily_api_key: str | None = None
+    supabase_url: str | None = None
+    supabase_service_key: str | None = None
+    supabase_bucket: str | None = None
+    bundle_hmac_key: str | None = None
 
     # Security
     secret_key: str = ""  # Will be generated if empty

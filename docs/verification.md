@@ -54,3 +54,56 @@ The command accepts JSON arrays, JSON Lines, or `.jsonl.gz` files. The output in
 ### Programmatic use
 
 Automation steps that need the normalized payload without touching disk can import `normalize_records` from `tools.normalize_exa_seed`. It accepts any iterable of raw Exa rows and returns the same payload structure emitted by the CLI entrypoint, which keeps downstream tests fast while sharing the identical validation logic.
+
+## Deterministic confidence scoring (v2)
+
+The second-stage scorer consumes the unified verification bundle from SCV-003 and emits lead-level points, labels, and observability metadata.
+
+```
+python -m pipelines.day1.confidence_scoring_v2 \
+  --input artifacts/<bundle>/leads/unified_verify.json \
+  --rules configs/verification_rules.v1.yaml \
+  --out artifacts/<bundle>/leads/day1_scored.json
+```
+
+### Ruleset + heuristics
+
+- `configs/verification_rules.v1.yaml` is the single source of truth for weights, thresholds, and the “mainstream domains” allowlist. Changing those values requires bumping the version.
+- Each lead starts at zero points and gains:
+  - `+2` for at least two unique domains from the mainstream list across all confirming articles.
+  - `+1` when any confirming article exactly matches the normalized stage or amount.
+  - `+1` when both You.com and Tavily each contribute at least one confirming article.
+- Labels are derived from the versioned thresholds: `VERIFIED (>=3)`, `LIKELY (>=2)`, `EXCLUDE (<2)`.
+- Missing normalized fields or confirmation sources never drop the item; instead, they add entries to `warnings[]` and the lead simply receives zero points for that rule.
+
+### Output contract
+
+`day1_scored.json` is deterministic (same bundle → same SHA) and includes:
+
+```json
+{
+  "ruleset_version": "v1",
+  "ruleset_sha256": "<sha of configs/verification_rules.v1.yaml>",
+  "scored_at": "2025-11-07T03:00:00Z",
+  "leads": [
+    {
+      "id": "lead_001",
+      "company_name": "Acme AI",
+      "confidence_points": 3,
+      "final_label": "VERIFIED",
+      "verified_by": ["Exa", "You.com", "Tavily"],
+      "proof_links": [
+        "https://techcrunch.com/...",
+        "https://www.businesswire.com/..."
+      ],
+      "warnings": []
+    }
+  ]
+}
+```
+
+`ruleset_version` can be temporarily overridden via `RULES_VERSION_OVERRIDE` for fixture tests, but the SHA always reflects the on-disk config.
+
+### Tests
+
+Use `pytest -k "test_confidence_scoring_v2 or test_rules_determinism or test_rules_backward_compat" -q` to exercise the heuristics plus determinism guarantees. The fixture inputs cover the FSQ-001 scenario: two mainstream confirmations with an exact amount match must score `>=3` and land in `VERIFIED`.
