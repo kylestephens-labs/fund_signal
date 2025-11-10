@@ -1,10 +1,118 @@
 ## Verification Pipeline Overview
 
-The Day-1 pipeline now promotes a deterministic normalization pass ahead of You.com/Tavily verification:
+The Day-1 pipeline now promotes a deterministic normalization pass ahead of the unified You.com/Tavily verification:
+
+```mermaid
+flowchart LR
+    A[raw/exa_seed.jsonl.gz] --> B[`tools.normalize_exa_seed`]
+    B -->|`leads/exa_seed.normalized.json`| C[Unified Verify (SCV-003)]
+    C -->|`leads/unified_verify.json`| D[confidence_scoring_v2]
+    C --> M[Metrics + Explainability]
+```
 
 1. **Exa capture** writes `raw/exa_seed.jsonl.gz`.
-2. **`tools.normalize_exa_seed`** converts each noisy item into `{company_name, funding_stage, amount, announced_date, source_url}` tuples and records metrics + skip reasons.
-3. The normalized file (`leads/exa_seed.normalized.json`) feeds You.com/Tavily so their regex lookups operate on consistent entities.
+2. **`tools.normalize_exa_seed`** converts each noisy item into `{company_name, funding_stage, amount, announced_date, source_url}` tuples.
+3. **`pipelines.day1.unified_verify`** fans out to You.com + Tavily (online) or their fixtures (fixture mode), normalizes article evidence, deduplicates domains, emits attribution/metrics, and persists `leads/unified_verify.json`.
+4. **`pipelines.day1.confidence_scoring_v2`** deterministically scores each lead from the unified artifact.
+
+### Unified cross-verification (SCV-003)
+
+```mermaid
+sequenceDiagram
+    participant Exa as Exa Seed
+    participant UV as unified_verify.py
+    participant You as You.com
+    participant Tav as Tavily
+
+    Exa->>UV: normalized seeds
+    UV-->>You: build query per seed (online) / load slug fixtures
+    You-->>UV: raw news articles
+    UV-->>Tav: build query per seed (online) / load slug fixtures
+    Tav-->>UV: multi-source articles
+    UV->>UV: normalize -> ArticleEvidence{url,domain,title,published_at,match{stage,amount}}
+    UV->>UV: dedupe by (normalized_domain, canonical_url)
+    UV->>UV: emit counters + verified_by
+    UV->>FS: leads/unified_verify.json
+```
+
+Key behaviors:
+
+- **Normalization** – `article_normalizer` slugifies each seed (fixture lookup), canonicalizes URLs, strips tracking params, and collapses domains with public-suffix aware logic (e.g., `news.bbc.co.uk → bbc.co.uk`).
+- **Matching** – An article is considered *confirming* only when it mentions the seed’s company name and matches either the normalized stage or funding amount tokens. Non-confirming items remain in `confirmations.<source>[]` but do not count toward metrics/`verified_by`.
+- **Deduplication** – `articles_all` is deduped by `(normalized_domain, canonical_url)` while per-source arrays remain intact for explainability.
+- **Attribution** – `verified_by` always starts with `["Exa"]` and only appends `["You.com","Tavily"]` when that source contributed ≥1 confirming article (stage or amount match).
+- **Observability** – The pipeline logs `youcom_hits`, `tavily_hits`, `unique_domains_total`, and `unique_domains_by_source` and persists them under `payload.metrics` for downstream monitoring.
+- **Resilience** – Fixture loads / API calls are wrapped so source failures log warnings and the pipeline continues with remaining evidence. Fixture mode never issues network requests.
+
+#### `leads/unified_verify.json` schema
+
+```jsonc
+{
+  "unified_verify_version": "1.0.0",
+  "generated_at": "2025-11-09T06:54:32Z",
+  "bundle_id": "bundle-20251109T065356Z",
+  "metrics": {
+    "youcom_hits": 12,
+    "tavily_hits": 14,
+    "unique_domains_total": 18,
+    "unique_domains_by_source": {"youcom": 10, "tavily": 14}
+  },
+  "leads": [
+    {
+      "id": "acme-ai",
+      "company_name": "Acme AI",
+      "normalized": {
+        "stage": "Series A",
+        "amount": {"value": 8, "unit": "M", "currency": "USD"},
+        "announced_date": "2025-10-15",
+        "source_url": "https://exa.example/acme",
+        "raw_title": "...",
+        "raw_snippet": "..."
+      },
+      "confirmations": {
+        "youcom": [
+          {
+            "url": "https://techcrunch.com/acme-series-a",
+            "domain": "techcrunch.com",
+            "title": "Acme AI raises $8M Series A",
+            "published_at": "2025-10-15T00:00:00Z",
+            "match": {"stage": true, "amount": true}
+          }
+        ],
+        "tavily": [
+          {
+            "url": "https://www.businesswire.com/news/...",
+            "domain": "businesswire.com",
+            "title": "BusinessWire: Acme AI completes Series A",
+            "published_at": null,
+            "match": {"stage": true, "amount": false}
+          }
+        ]
+      },
+      "articles_all": [
+        {"url": "https://techcrunch.com/acme-series-a", "domain": "techcrunch.com"},
+        {"url": "https://www.businesswire.com/news/...", "domain": "businesswire.com"}
+      ],
+      "unique_domains_total": 2,
+      "unique_domains_by_source": {"youcom": 1, "tavily": 2},
+      "verified_by": ["Exa", "You.com", "Tavily"]
+    }
+  ]
+}
+```
+
+Field notes:
+
+| Field | Description |
+| --- | --- |
+| `unified_verify_version` | Deterministic format id (currently `"1.0.0"`). |
+| `metrics.youcom_hits / tavily_hits` | Count of confirming articles (stage or amount match) contributed by each source across the bundle. |
+| `metrics.unique_domains_total` | Total unique domains across all confirming articles (You.com + Tavily). |
+| `metrics.unique_domains_by_source` | Unique domain counts attributed per source. |
+| `leads[].confirmations.<source>[]` | Normalized `ArticleEvidence` payloads (URL, normalized domain, title, ISO timestamp when provided, match booleans). |
+| `leads[].articles_all` | Deduped union of confirming articles across sources, ordered by source priority. |
+| `leads[].unique_domains_*` | Per-lead aggregates derived from confirming article sets. |
+| `leads[].verified_by` | Explainability list surfaced in the UI drawer (`Exa` + verifying sources). |
 
 ### Running the normalizer
 
