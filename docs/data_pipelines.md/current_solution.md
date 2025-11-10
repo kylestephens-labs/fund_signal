@@ -75,3 +75,7 @@ Environment variables (`FUND_SIGNAL_MODE`, `FUND_SIGNAL_SOURCE`) switch between 
    ```
 
 Following these steps ensures the faster, two-mode solution operates correctly, keeps data compliant, and provides reproducible bundles with verifiable hashes.
+
+## Downstream Consumption Notes
+- The nightly GitHub workflow uploads each bundle and updates `artifacts/latest.json` in Supabase. That pointer is what the Day‑1 email/report pipeline reads when preparing the daily briefing.
+- There are currently no automated Day‑2 consumers (dashboards, ML jobs, etc.) beyond that emailed report. Any future downstream service should consume bundles via the Supabase pointer or signed URLs and can reuse the verification/compression steps above for reproducibility.

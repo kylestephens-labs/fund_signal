@@ -228,7 +228,7 @@ for company in verified_companies:
     Tech stack: {company.tech_stack}
     
     Scoring rubric (show math):
-    1. Funding recency (60-90 days = +30 pts)
+    1. Funding recency (0-90 days = +30 pts)
     2. Hiring velocity (5+ roles = +25 pts)
     3. Tech stack fit (Salesforce/HubSpot = +20 pts)
     4. Team size (25-50 = +15 pts)
