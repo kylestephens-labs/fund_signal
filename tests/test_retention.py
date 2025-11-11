@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -29,7 +29,7 @@ def _create_bundle(tmp_path: Path, *, age_days: int) -> tuple[Path, Path, Path]:
     canonical_file = leads_dir / "lead.json"
     raw_file.write_bytes(b"data")
     canonical_file.write_text("{}", encoding="utf-8")
-    captured_at = datetime.now(timezone.utc) - timedelta(days=age_days)
+    captured_at = datetime.now(UTC) - timedelta(days=age_days)
     _write_manifest(bundle, captured_at)
     return root, raw_file, canonical_file
 
@@ -42,7 +42,7 @@ def test_enforce_retention_deletes_raw_only_when_within_window(tmp_path):
         delete=True,
         raw_days=30,
         canonical_days=90,
-        now=datetime.now(timezone.utc),
+        now=datetime.now(UTC),
     )
 
     assert raw_file.exists() is False
@@ -59,7 +59,7 @@ def test_enforce_retention_deletes_canonical_after_threshold(tmp_path):
         delete=True,
         raw_days=30,
         canonical_days=90,
-        now=datetime.now(timezone.utc),
+        now=datetime.now(UTC),
     )
 
     assert not raw_file.exists()

@@ -8,18 +8,20 @@ import json
 import logging
 import sys
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from pipelines.io.canonical_reader import (
     CanonicalBundle,
     CanonicalReaderError,
     from_bundle_info,
-    from_path as load_bundle_from_path,
     load_sources,
+)
+from pipelines.io.canonical_reader import (
+    from_path as load_bundle_from_path,
 )
 from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
 from pipelines.news_client import get_runtime_config
@@ -94,7 +96,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def run_pipeline(input_path: Path, output_path: Path, *, ignore_expiry: bool = False) -> list[ConfidenceRecord]:
     """Run deterministic scoring and persist day1_output.json."""
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     config = get_runtime_config()
     context = resolve_bundle_context(
         config,
@@ -142,7 +144,7 @@ def _enforce_expiry(bundle: CanonicalBundle, *, ignore_expiry: bool) -> None:
     if not bundle.expiry_days:
         return
     expires_at = bundle.captured_at + timedelta(days=bundle.expiry_days)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if now <= expires_at:
         return
     if ignore_expiry:
@@ -315,7 +317,7 @@ def _log_summary(
     sha: str,
 ) -> None:
     counts = Counter(record.confidence for record in records)
-    duration = datetime.now(timezone.utc) - start
+    duration = datetime.now(UTC) - start
     logger.info(
         "Confidence summary bundle=%s VERIFIED=%s LIKELY=%s EXCLUDE=%s",
         bundle.bundle_id,
@@ -338,7 +340,7 @@ def _normalize_company(value) -> str:
 
 
 def _format_timestamp(value: datetime) -> str:
-    value = value.astimezone(timezone.utc)
+    value = value.astimezone(UTC)
     return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 

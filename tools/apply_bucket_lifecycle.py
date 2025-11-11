@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 logger = logging.getLogger("tools.apply_bucket_lifecycle")
 
@@ -38,7 +38,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def build_policy(bucket: str, *, raw_days: int, canonical_days: int) -> dict:
     return {
         "bucket": bucket,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "rules": [
             {
                 "id": "raw-retention",

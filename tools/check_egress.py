@@ -7,9 +7,9 @@ import json
 import logging
 import socket
 import time
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
 
 logger = logging.getLogger("tools.check_egress")
 

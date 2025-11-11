@@ -183,6 +183,8 @@ APP_VERSION="0.1.0"
 ENVIRONMENT="development"
 DEBUG="true"
 LOG_LEVEL="INFO"
+TELEMETRY_FORMAT="json"
+TELEMETRY_PATH="logs/pipeline.log"
 DATABASE_URL="postgresql://postgres:<password>@<host>.supabase.co:5432/postgres"
 SECRET_KEY="your_secret"
 CORS_ORIGINS='["http://localhost:3000","http://localhost:8000"]'
@@ -201,7 +203,7 @@ RESEND_API_KEY=""
 
 ## Day 1: Exa Discovery Pipeline
 
-- Add `EXA_API_KEY` to `.env` (keep `LOG_LEVEL=INFO`, `ENVIRONMENT=development` by default).
+- Add `EXA_API_KEY` to `.env` (keep `LOG_LEVEL=INFO`, `ENVIRONMENT=development`, and telemetry defaults unless you want plain text logs).
 - (Optional) Start Postgres for inserts: `docker compose up -d db`.
 - Seed discovery data: `python -m pipelines.day1.exa_discovery --days_min=60 --days_max=90 --limit=80`.
 - Inspect output: open `leads/exa_seed.json` or run `python -m tools.peek leads/exa_seed.json | head -n 50`.

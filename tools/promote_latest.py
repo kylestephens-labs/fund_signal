@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Sequence
 
 logger = logging.getLogger("tools.promote_latest")
 
@@ -117,7 +117,7 @@ def build_payload(bundle_dir: Path) -> LatestPayload:
         schema_version=1,
         bundle_id=bundle_dir.name,
         bundle_prefix=bundle_dir.as_posix(),
-        generated_at=datetime.now(tz=timezone.utc).isoformat(),
+        generated_at=datetime.now(tz=UTC).isoformat(),
         manifest=manifest,
         files=gather_file_metadata(bundle_dir),
     )

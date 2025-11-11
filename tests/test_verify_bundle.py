@@ -1,6 +1,5 @@
 import json
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -22,7 +21,7 @@ def create_manifest(bundle: Path, *, age_days: int = 0, signature: bool = False)
     write_file(leads_dir / "youcom_verified.json", "[]")
     write_file(leads_dir / "tavily_confirmed.json", "[]")
 
-    captured_at = (datetime.now(timezone.utc) - timedelta(days=age_days)).isoformat()
+    captured_at = (datetime.now(UTC) - timedelta(days=age_days)).isoformat()
     manifest = {
         "schema_version": 1,
         "bundle_id": bundle.name,

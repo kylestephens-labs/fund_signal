@@ -1,13 +1,12 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from pipelines.io import fixture_loader
-from pipelines.io.manifest_loader import build_freshness_metadata, WARNING_THRESHOLD
+from pipelines.io.manifest_loader import WARNING_THRESHOLD, build_freshness_metadata
 from pipelines.news_client import FixtureSource, RuntimeConfig, RuntimeMode, get_runtime_config
-from tools.verify_bundle import VerificationError
 
 
 def create_bundle(tmp_path: Path, age_days: int = 0) -> Path:
@@ -20,7 +19,7 @@ def create_bundle(tmp_path: Path, age_days: int = 0) -> Path:
     (bundle / "fixtures" / "tavily" / "articles.json").write_text("[]", encoding="utf-8")
     (bundle / "leads" / "youcom_verified.json").write_text("[]", encoding="utf-8")
     (bundle / "leads" / "tavily_confirmed.json").write_text("[]", encoding="utf-8")
-    captured_at = (datetime.now(timezone.utc) - timedelta(days=age_days)).isoformat()
+    captured_at = (datetime.now(UTC) - timedelta(days=age_days)).isoformat()
     manifest = {
         "schema_version": 1,
         "bundle_id": "bundle-sample",
@@ -80,7 +79,7 @@ def test_resolve_root_defaults_supabase(monkeypatch):
 
 
 def test_build_freshness_metadata_allows_injected_clock():
-    captured_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    captured_at = datetime(2025, 1, 1, tzinfo=UTC)
     fake_now = captured_at + timedelta(days=2)
 
     metadata = build_freshness_metadata("bundle-sample", captured_at, expiry_days=10, now=fake_now)
@@ -91,7 +90,7 @@ def test_build_freshness_metadata_allows_injected_clock():
 
 
 def test_build_freshness_metadata_sets_warning_near_expiry():
-    captured_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    captured_at = datetime(2025, 1, 1, tzinfo=UTC)
     threshold_days = 10 * WARNING_THRESHOLD
     fake_now = captured_at + timedelta(days=threshold_days)
 

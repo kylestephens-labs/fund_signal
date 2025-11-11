@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import random
 from collections.abc import Iterator
+from random import SystemRandom
 
 
 def exponential_backoff(
@@ -26,9 +26,10 @@ def exponential_backoff(
     if jitter < 0:
         raise ValueError("jitter must be >= 0")
 
+    rng = SystemRandom()
     delay = base_delay
     for attempt in range(1, max_attempts + 1):
-        jitter_offset = random.uniform(0, delay * jitter) if jitter > 0 else 0.0
+        jitter_offset = rng.uniform(0, delay * jitter) if jitter > 0 else 0.0
         sleep_for = min(delay + jitter_offset, max_delay)
         yield attempt, sleep_for
         delay = min(delay * factor, max_delay)

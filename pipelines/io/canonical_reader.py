@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from pipelines.io.fixture_loader import BundleInfo
 
@@ -164,8 +165,8 @@ def _parse_timestamp(value: str) -> datetime:
         value = value[:-1] + "+00:00"
     timestamp = datetime.fromisoformat(value)
     if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=timezone.utc)
-    return timestamp.astimezone(timezone.utc)
+        timestamp = timestamp.replace(tzinfo=UTC)
+    return timestamp.astimezone(UTC)
 
 
 def _read_json(path: Path, *, code: str) -> Any:

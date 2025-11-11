@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -62,7 +63,7 @@ class YoucomClient:
         self._http = http_client or httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
 
     @classmethod
-    def from_env(cls) -> "YoucomClient":
+    def from_env(cls) -> YoucomClient:
         """Instantiate the client using the YOUCOM_API_KEY environment variable."""
         api_key = os.getenv("YOUCOM_API_KEY", "")
         return cls(api_key=api_key)
@@ -106,8 +107,8 @@ class YoucomClient:
             try:
                 detail_json = response.json()
                 detail = detail_json.get("message") or detail_json.get("detail") or detail
-            except Exception:  # pragma: no cover - best effort decoding
-                pass
+            except Exception as exc:  # pragma: no cover - best effort decoding
+                logger.warning("Failed to decode You.com error response JSON: %s", exc)
             raise YoucomError(f"You.com request failed: {response.status_code} - {detail}")
 
         try:
@@ -125,7 +126,7 @@ class YoucomClient:
             results = results[:limit]
         return results
 
-    def __enter__(self) -> "YoucomClient":
+    def __enter__(self) -> YoucomClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -166,3 +167,4 @@ def _extract_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if not all(isinstance(entry, dict) for entry in filtered):
         raise YoucomSchemaError("Entries in `results` must be JSON objects.")
     return filtered
+logger = logging.getLogger("app.clients.youcom")

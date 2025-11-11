@@ -8,10 +8,11 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import yaml
@@ -27,6 +28,7 @@ DEFAULT_RULES = Path("configs/verification_rules.v1.yaml")
 INPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_INPUT, location="leads_dir")
 OUTPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_OUTPUT, location="leads_dir")
 RULES_VERSION_OVERRIDE_ENV = "RULES_VERSION_OVERRIDE"
+TIMESTAMP_ENV = "FUND_SIGNAL_BUNDLE_TIMESTAMP"
 SENSITIVE_TOKENS = ("key",)
 
 
@@ -148,13 +150,25 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=DEFAULT_OUTPUT,
         help="Destination for day1_scored.json",
     )
+    parser.add_argument(
+        "--timestamp",
+        type=str,
+        default=None,
+        help="Override timestamp (ISO 8601) written to scored_at; falls back to bundle capture time.",
+    )
     return parser.parse_args(argv)
 
 
-def run_pipeline(input_path: Path, rules_path: Path, output_path: Path) -> list[ScoredLead]:
+def run_pipeline(
+    input_path: Path,
+    rules_path: Path,
+    output_path: Path,
+    *,
+    timestamp_override: str | None = None,
+) -> list[ScoredLead]:
     """Execute deterministic scoring."""
 
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     config = get_runtime_config()
     context = resolve_bundle_context(
         config,
@@ -168,10 +182,11 @@ def run_pipeline(input_path: Path, rules_path: Path, output_path: Path) -> list[
     leads = _load_leads(context.input_path)
     scored = _score_leads(leads, ruleset)
 
+    scored_at = _resolve_output_timestamp(timestamp_override, context.scoring_timestamp or start)
     payload = _build_output_payload(
         scored,
         ruleset,
-        scored_at=context.scoring_timestamp or start,
+        scored_at=scored_at,
     )
     sha = _persist_output(payload, context.output_path)
     _log_summary(scored, start=start, output_path=context.output_path, sha=sha)
@@ -363,7 +378,7 @@ def _log_summary(
     counts: dict[str, int] = {"VERIFIED": 0, "LIKELY": 0, "EXCLUDE": 0}
     for lead in leads:
         counts[lead.final_label] = counts.get(lead.final_label, 0) + 1
-    duration = datetime.now(timezone.utc) - start
+    duration = datetime.now(UTC) - start
     logger.info(
         "Confidence scoring complete: VERIFIED=%s LIKELY=%s EXCLUDE=%s",
         counts.get("VERIFIED", 0),
@@ -393,7 +408,7 @@ def _extract_amount_value(normalized: Mapping[str, Any]) -> int | float | None:
         value = amount.get("value")
         if value is not None:
             return value
-    if isinstance(amount, (int, float)):
+    if isinstance(amount, int | float):
         return amount
     return None
 
@@ -557,15 +572,36 @@ def _sanitize_url(url: str | None) -> str | None:
 
 
 def _format_timestamp(value: datetime) -> str:
-    value = value.astimezone(timezone.utc)
+    value = value.astimezone(UTC)
     return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _resolve_output_timestamp(cli_value: str | None, fallback: datetime) -> datetime:
+    raw = cli_value or os.getenv(TIMESTAMP_ENV)
+    if not raw:
+        return fallback
+    try:
+        return _parse_timestamp(raw)
+    except ValueError as exc:  # pragma: no cover - invalid override text
+        raise ScoringError(f"Invalid timestamp override: {raw}", code="INVALID_TIMESTAMP") from exc
+
+
+def _parse_timestamp(value: str) -> datetime:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("timestamp cannot be empty")
+    normalized = normalized.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).replace(microsecond=0)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
     try:
-        run_pipeline(args.input, args.rules, args.output)
+        run_pipeline(args.input, args.rules, args.output, timestamp_override=args.timestamp)
     except ScoringError as exc:
         logger.error("confidence_scoring_v2 failed: %s (code=%s)", exc, exc.code)
         return 1

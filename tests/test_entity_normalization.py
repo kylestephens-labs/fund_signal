@@ -13,7 +13,7 @@ def test_seed_normalizer_extracts_core_fields(tmp_path):
         "source_url": "https://example.com/acme-raises",
     }
     normalizer = SeedNormalizer()
-    normalized, error = normalizer.normalize(record)
+    normalized, error, meta = normalizer.normalize(record)
     assert error is None
     assert normalized
     assert normalized.company_name == "Acme"
@@ -21,6 +21,7 @@ def test_seed_normalizer_extracts_core_fields(tmp_path):
     assert normalized.amount.value == 8
     assert normalized.amount.unit == "M"
     assert normalized.announced_date.isoformat() == "2025-09-15"
+    assert meta["extraction_method"] in {"regex", "publisher_split", "delimiter_regex", "delimiter_plain"}
 
 
 def test_normalize_file_writes_payload(tmp_path):
@@ -34,9 +35,13 @@ def test_normalize_file_writes_payload(tmp_path):
 
     assert output_path.exists()
     written = json.loads(output_path.read_text(encoding="utf-8"))
-    assert written["normalizer_version"] == "1.0.0"
+    assert written["normalizer_version"] == "2.0.0"
+    assert written["ruleset_version"]
+    assert written["ruleset_sha256"]
     assert len(written["data"]) == 1
     assert written["data"][0]["company_name"] == "Zeal"
+    assert written["data"][0]["extraction_method"]
+    assert written["metrics"]["final_accepted"] == 1
     assert payload["items_total"] == 1
 
 
@@ -71,3 +76,17 @@ def test_normalize_records_reports_skip_reasons():
     assert payload["items_skipped"] == 2
     reasons = {entry["skip_reason"] for entry in payload["skipped"]}
     assert {"MISSING_SOURCE_URL", "INVALID_AMOUNT"} <= reasons
+
+
+def test_publisher_split_detection():
+    record = {
+        "company": "The SaaS News | Nimbus raises $10M Series A",
+        "funding_amount": 10_000_000,
+        "source_url": "https://www.thesaasnews.com/news/nimbus-raises-10m",
+    }
+    normalizer = SeedNormalizer()
+    normalized, error, meta = normalizer.normalize(record)
+    assert error is None
+    assert normalized.company_name == "Nimbus"
+    assert meta["publisher_flagged"] is True
+    assert meta["publisher_split_used"] is True

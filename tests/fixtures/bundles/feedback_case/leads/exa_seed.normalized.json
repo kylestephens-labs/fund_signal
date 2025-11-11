@@ -1,0 +1,45 @@
+{
+  "resolver_version": "1.0.0",
+  "resolver_ruleset_version": "v1",
+  "resolver_ruleset_sha256": "sha256:resolver-dummy",
+  "items_total": 2,
+  "items_resolved": 2,
+  "items_skipped": 0,
+  "data": [
+    {
+      "id": "row_hotglue",
+      "company_name": "Seed Round",
+      "funding_stage": "Seed",
+      "amount": {
+        "value": 4,
+        "unit": "M",
+        "currency": "USD"
+      },
+      "source_url": "https://example.com/hotglue",
+      "resolution": {
+        "final_label": "EXCLUDE",
+        "score": 0,
+        "candidates": ["Seed Round", "Hotglue"],
+        "scores": [-2, 1]
+      }
+    },
+    {
+      "id": "row_appya",
+      "company_name": "Appy.ai",
+      "funding_stage": "Series A",
+      "amount": {
+        "value": 10,
+        "unit": "M",
+        "currency": "USD"
+      },
+      "source_url": "https://example.com/appy",
+      "resolution": {
+        "final_label": "VERIFIED",
+        "score": 5,
+        "candidates": ["Appy.ai"],
+        "scores": [5]
+      }
+    }
+  ],
+  "skipped": []
+}

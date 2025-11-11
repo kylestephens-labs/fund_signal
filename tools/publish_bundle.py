@@ -6,10 +6,10 @@ import argparse
 import json
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import httpx
 
@@ -136,7 +136,7 @@ def build_pointer_payload(bundle_id: str, remote_prefix: str) -> bytes:
         "schema_version": 1,
         "bundle_id": bundle_id,
         "bundle_prefix": remote_prefix,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
     return json.dumps(payload, indent=2).encode("utf-8")
 

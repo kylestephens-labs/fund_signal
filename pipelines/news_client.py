@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 import httpx
 
@@ -22,7 +23,7 @@ MODE_ENV = "FUND_SIGNAL_MODE"
 SOURCE_ENV = "FUND_SIGNAL_SOURCE"
 FIXTURE_DIR_ENV = "FUND_SIGNAL_FIXTURE_DIR"
 SUPABASE_BASE_URL_ENV = "FUND_SIGNAL_SUPABASE_BASE_URL"
-SUPABASE_TOKEN_ENV = "FUND_SIGNAL_SUPABASE_SERVICE_KEY"
+SUPABASE_TOKEN_ENV = "FUND_SIGNAL_SUPABASE_SERVICE_KEY"  # noqa: S105 - env var name, not a secret value
 
 
 class RuntimeMode(str, Enum):

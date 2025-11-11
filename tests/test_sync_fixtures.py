@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -26,7 +26,7 @@ def create_local_source(tmp_path: Path, *, age_days: int = 0, tamper: bool = Fal
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text("[]", encoding="utf-8")
 
-    captured_at = (datetime.now(timezone.utc) - timedelta(days=age_days)).isoformat()
+    captured_at = (datetime.now(UTC) - timedelta(days=age_days)).isoformat()
     files = []
     for path in paths:
         file_path = bundle / path

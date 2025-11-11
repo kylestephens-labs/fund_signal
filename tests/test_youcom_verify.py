@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.clients.youcom import YoucomRateLimitError
@@ -24,9 +24,9 @@ def make_lead(company: str) -> CompanyFunding:
         company=company,
         funding_amount=12_000_000,
         funding_stage="Series A",
-        funding_date=datetime(2025, 9, 2, tzinfo=timezone.utc).date(),
+        funding_date=datetime(2025, 9, 2, tzinfo=UTC).date(),
         source_url="https://example.com/acme",
-        discovered_at=datetime(2025, 11, 5, tzinfo=timezone.utc),
+        discovered_at=datetime(2025, 11, 5, tzinfo=UTC),
     )
 
 

@@ -120,3 +120,69 @@ def test_rules_version_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     expected_sha = hashlib.sha256(rules_path.read_bytes()).hexdigest()
     assert payload["ruleset_version"] == "v-test"
     assert payload["ruleset_sha256"] == expected_sha
+
+
+def test_timestamp_override_controls_scored_at(tmp_path: Path):
+    input_path = tmp_path / "unified_verify.json"
+    leads = [
+        {
+            "id": "lead_999",
+            "company_name": "Theta AI",
+            "normalized": {"stage": "Seed", "amount": {"value": 1.5}},
+            "confirmations": {
+                "youcom": [{"url": "https://techcrunch.com/theta", "domain": "techcrunch.com", "match": {"amount": True}}],
+                "tavily": [],
+            },
+        }
+    ]
+    _write_unified(input_path, leads)
+
+    output_path = tmp_path / "day1_scored.json"
+    override = "2025-03-01T08:15:00Z"
+
+    confidence_scoring_v2.run_pipeline(
+        input_path,
+        Path("configs/verification_rules.v1.yaml"),
+        output_path,
+        timestamp_override=override,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["scored_at"] == override
+
+
+def test_timestamp_override_produces_stable_scoring_file(tmp_path: Path):
+    input_path = tmp_path / "unified_verify.json"
+    leads = [
+        {
+            "id": "lead-stable",
+            "company_name": "Lambda AI",
+            "normalized": {"stage": "Series A", "amount": {"value": 7}},
+            "confirmations": {
+                "youcom": [{"url": "https://techcrunch.com/lambda", "domain": "techcrunch.com", "match": {"stage": True}}],
+                "tavily": [{"url": "https://wire.example/lambda", "domain": "wire.example", "match": {"amount": True}}],
+            },
+        }
+    ]
+    _write_unified(input_path, leads)
+
+    output_path = tmp_path / "day1_scored.json"
+    override = "2025-04-10T05:00:00Z"
+
+    confidence_scoring_v2.run_pipeline(
+        input_path,
+        Path("configs/verification_rules.v1.yaml"),
+        output_path,
+        timestamp_override=override,
+    )
+    first_bytes = output_path.read_bytes()
+
+    confidence_scoring_v2.run_pipeline(
+        input_path,
+        Path("configs/verification_rules.v1.yaml"),
+        output_path,
+        timestamp_override=override,
+    )
+    second_bytes = output_path.read_bytes()
+
+    assert first_bytes == second_bytes

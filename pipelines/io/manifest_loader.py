@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Final
 
 
@@ -30,7 +30,7 @@ def build_freshness_metadata(
     warning_threshold: float = WARNING_THRESHOLD,
 ) -> FreshnessMetadata:
     """Derive freshness metadata used for logging and lead annotations."""
-    now = _ensure_timezone(now or datetime.now(timezone.utc))
+    now = _ensure_timezone(now or datetime.now(UTC))
     captured_at = _ensure_timezone(captured_at)
     age = now - captured_at
     age_days = age.total_seconds() / 86400
@@ -57,5 +57,5 @@ def _format_watermark(captured_at: datetime, expires_in_days: float) -> str:
 
 def _ensure_timezone(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value

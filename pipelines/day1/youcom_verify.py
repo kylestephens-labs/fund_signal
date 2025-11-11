@@ -9,12 +9,17 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app.clients.youcom import YoucomError, YoucomNotFoundError, YoucomRateLimitError, YoucomTimeoutError
+from app.clients.youcom import (
+    YoucomError,
+    YoucomNotFoundError,
+    YoucomRateLimitError,
+    YoucomTimeoutError,
+)
 from app.models.lead import CompanyFunding
 from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
 from pipelines.news_client import YoucomClientProtocol, get_runtime_config, get_youcom_client
@@ -250,7 +255,7 @@ def verify_leads(
             )
             continue
 
-        timestamp = datetime.now(tz=timezone.utc)
+        timestamp = datetime.now(tz=UTC)
         lead.youcom_verified = True
         lead.youcom_verified_at = timestamp
         lead.news_sources = list(dict.fromkeys(article.publisher for article in confirming))

@@ -6,10 +6,10 @@ import argparse
 import json
 import logging
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 logger = logging.getLogger("tools.enforce_retention")
 
@@ -110,13 +110,13 @@ def parse_timestamp(value: str | None, *, fallback: datetime) -> datetime:
         value = value[:-1] + "+00:00"
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _bundle_age_days(bundle_dir: Path, manifest: dict, now: datetime) -> float:
     captured_at_str = manifest.get("captured_at")
-    fallback = datetime.fromtimestamp(bundle_dir.stat().st_mtime, tz=timezone.utc)
+    fallback = datetime.fromtimestamp(bundle_dir.stat().st_mtime, tz=UTC)
     captured_at = parse_timestamp(captured_at_str, fallback=fallback)
     return (now - captured_at).total_seconds() / 86400
 
@@ -206,7 +206,7 @@ def enforce_retention(
     if not root.exists():
         raise RetentionError(f"Path not found: {root}", code="E_RETENTION_PATH")
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     manifests = sorted(root.rglob("manifest.json"))
     result = RetentionResult()
 
@@ -271,7 +271,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     summary = {
-        "run_at": datetime.now(timezone.utc).isoformat(),
+        "run_at": datetime.now(UTC).isoformat(),
         "raw_deleted": outcome.raw_deleted,
         "canonical_deleted": outcome.canonical_deleted,
         "errors": outcome.errors,

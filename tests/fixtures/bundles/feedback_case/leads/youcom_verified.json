@@ -1,0 +1,27 @@
+[
+  {
+    "id": "row_hotglue",
+    "articles": [
+      {
+        "title": "Hotglue raises $5M to simplify integration pipelines",
+        "url": "https://techcrunch.com/hotglue-raises-5m",
+        "domain": "techcrunch.com"
+      },
+      {
+        "title": "BusinessWire: Hotglue secures new funding for data platform",
+        "url": "https://www.businesswire.com/news/hotglue-secures",
+        "domain": "businesswire.com"
+      }
+    ]
+  },
+  {
+    "id": "row_appya",
+    "articles": [
+      {
+        "title": "Appy.ai expands its Series A",
+        "url": "https://venturebeat.com/appyai-series-a",
+        "domain": "venturebeat.com"
+      }
+    ]
+  }
+]

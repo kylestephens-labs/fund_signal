@@ -227,3 +227,97 @@ def test_missing_fixture_inputs_are_tolerated(tmp_path: Path):
     assert lead["verified_by"] == ["Exa", "You.com"]
     assert lead["confirmations"]["tavily"] == []
     assert payload["metrics"]["tavily_hits"] == 0
+
+
+def test_timestamp_override_sets_generated_at(tmp_path: Path):
+    seed_path = tmp_path / "exa_seed.normalized.json"
+    youcom_path = tmp_path / "youcom.jsonl.gz"
+    tavily_path = tmp_path / "tavily.jsonl.gz"
+    output_path = tmp_path / "unified_verify.json"
+
+    _write_normalized_seed(
+        seed_path,
+        [
+            {
+                "company_name": "Delta AI",
+                "funding_stage": "Series A",
+                "amount": {"value": 10, "unit": "M", "currency": "USD"},
+                "source_url": "https://exa.example/delta",
+            }
+        ],
+    )
+
+    _write_fixture(
+        youcom_path,
+        [{"slug": "delta-ai", "data": [{"url": "https://press.example/delta", "title": "Delta AI raises $10M Series A", "snippet": "Delta AI raises."}]}],
+    )
+    _write_fixture(
+        tavily_path,
+        [{"slug": "delta-ai", "data": [{"url": "https://wire.example/delta", "title": "Delta AI raises $10M", "content": "Delta AI raises."}]}],
+    )
+
+    override = "2025-02-01T12:30:00Z"
+    payload = unified_verify.run_pipeline(
+        seed_path=seed_path,
+        youcom_path=youcom_path,
+        tavily_path=tavily_path,
+        output_path=output_path,
+        youcom_limit=3,
+        tavily_limit=3,
+        timestamp_override=override,
+    )
+
+    assert payload["generated_at"] == override
+
+
+def test_timestamp_override_produces_stable_file(tmp_path: Path):
+    seed_path = tmp_path / "exa_seed.normalized.json"
+    youcom_path = tmp_path / "youcom.jsonl.gz"
+    tavily_path = tmp_path / "tavily.jsonl.gz"
+    output_path = tmp_path / "unified_verify.json"
+
+    _write_normalized_seed(
+        seed_path,
+        [
+            {
+                "company_name": "Epsilon AI",
+                "funding_stage": "Seed",
+                "amount": {"value": 5, "unit": "M", "currency": "USD"},
+                "source_url": "https://exa.example/epsilon",
+            }
+        ],
+    )
+
+    _write_fixture(
+        youcom_path,
+        [{"slug": "epsilon-ai", "data": [{"url": "https://press.example/epsilon", "title": "Epsilon raises $5M", "snippet": "Seed funding."}]}],
+    )
+    _write_fixture(
+        tavily_path,
+        [{"slug": "epsilon-ai", "data": [{"url": "https://wire.example/epsilon", "title": "Epsilon funding", "content": "Seed funding."}]}],
+    )
+
+    override = "2025-01-15T00:00:00Z"
+    unified_verify.run_pipeline(
+        seed_path=seed_path,
+        youcom_path=youcom_path,
+        tavily_path=tavily_path,
+        output_path=output_path,
+        youcom_limit=2,
+        tavily_limit=2,
+        timestamp_override=override,
+    )
+    first_bytes = output_path.read_bytes()
+
+    unified_verify.run_pipeline(
+        seed_path=seed_path,
+        youcom_path=youcom_path,
+        tavily_path=tavily_path,
+        output_path=output_path,
+        youcom_limit=2,
+        tavily_limit=2,
+        timestamp_override=override,
+    )
+    second_bytes = output_path.read_bytes()
+
+    assert first_bytes == second_bytes

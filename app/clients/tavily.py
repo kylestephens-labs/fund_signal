@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -62,7 +63,7 @@ class TavilyClient:
         self._http = http_client or httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
 
     @classmethod
-    def from_env(cls) -> "TavilyClient":
+    def from_env(cls) -> TavilyClient:
         """Instantiate the client using the TAVILY_API_KEY environment variable."""
         api_key = os.getenv("TAVILY_API_KEY", "")
         return cls(api_key=api_key)
@@ -112,8 +113,8 @@ class TavilyClient:
             try:
                 detail_json = response.json()
                 detail = detail_json.get("message") or detail_json.get("detail") or detail
-            except Exception:  # pragma: no cover - best effort
-                pass
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.warning("Failed to decode Tavily error response JSON: %s", exc)
             raise TavilyError(f"Tavily request failed: {response.status_code} - {detail}")
 
         try:
@@ -128,8 +129,9 @@ class TavilyClient:
             raise TavilySchemaError("Entries in `results` must be JSON objects.")
         return results
 
-    def __enter__(self) -> "TavilyClient":
+    def __enter__(self) -> TavilyClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+logger = logging.getLogger("app.clients.tavily")

@@ -8,10 +8,10 @@ import hmac
 import json
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, Sequence
 
 logger = logging.getLogger("tools.verify_bundle")
 
@@ -34,7 +34,7 @@ class ManifestFile:
     checksum: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ManifestFile":
+    def from_dict(cls, data: dict) -> ManifestFile:
         path = data.get("path")
         checksum = data.get("checksum")
         if not path or not checksum:
@@ -68,7 +68,7 @@ def verify_freshness(manifest: dict) -> None:
     if not captured_at or expiry_days is None:
         raise VerificationError("E_MANIFEST_INVALID", "Manifest missing captured_at or expiry_days.")
     captured_dt = parse_timestamp(captured_at)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     age = now - captured_dt
     age_days = age.total_seconds() / 86400
     logger.info("Bundle age: %.2f days (expiry %s days)", age_days, expiry_days)

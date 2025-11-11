@@ -55,7 +55,7 @@ class ExaClient:
         self._http = http_client or httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
 
     @classmethod
-    def from_env(cls) -> "ExaClient":
+    def from_env(cls) -> ExaClient:
         """Instantiate the client using the EXA_API_KEY environment variable."""
         api_key = os.getenv("EXA_API_KEY", "")
         return cls(api_key)
@@ -132,7 +132,7 @@ class ExaClient:
 
         return results
 
-    def __enter__(self) -> "ExaClient":
+    def __enter__(self) -> ExaClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

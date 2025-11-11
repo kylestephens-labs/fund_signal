@@ -6,18 +6,25 @@ import argparse
 import gzip
 import json
 import logging
+import os
 import sys
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any
 
 from app.clients.tavily import TavilyError
 from app.clients.youcom import YoucomError
 from pipelines.day1.article_normalizer import ArticleEvidence, ArticleNormalizer, slugify
 from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
 from pipelines.io.schemas import NormalizedSeed
-from pipelines.news_client import RuntimeMode, get_runtime_config, get_tavily_client, get_youcom_client
+from pipelines.news_client import (
+    RuntimeMode,
+    get_runtime_config,
+    get_tavily_client,
+    get_youcom_client,
+)
 
 logger = logging.getLogger("pipelines.day1.unified_verify")
 
@@ -31,6 +38,7 @@ SEED_SPEC = FixtureArtifactSpec(default_path=DEFAULT_SEED, location="leads_dir")
 YOUCOM_SPEC = FixtureArtifactSpec(default_path=DEFAULT_YOUCOM, location="raw_dir")
 TAVILY_SPEC = FixtureArtifactSpec(default_path=DEFAULT_TAVILY, location="raw_dir")
 OUTPUT_SPEC = FixtureArtifactSpec(default_path=DEFAULT_OUTPUT, location="leads_dir")
+TIMESTAMP_ENV = "FUND_SIGNAL_BUNDLE_TIMESTAMP"
 
 @dataclass(frozen=True)
 class VerificationSource:
@@ -43,6 +51,15 @@ class VerificationSource:
 VERIFICATION_SOURCES: tuple[VerificationSource, ...] = (
     VerificationSource(id="youcom", label="You.com"),
     VerificationSource(id="tavily", label="Tavily"),
+)
+SEED_FIELDS = (
+    "company_name",
+    "funding_stage",
+    "amount",
+    "announced_date",
+    "source_url",
+    "raw_title",
+    "raw_snippet",
 )
 
 
@@ -106,6 +123,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument("--youcom-limit", type=int, default=8, help="Maximum articles to request from You.com.")
     parser.add_argument("--tavily-limit", type=int, default=8, help="Maximum articles to request from Tavily.")
+    parser.add_argument(
+        "--timestamp",
+        type=str,
+        default=None,
+        help="Override timestamp (ISO 8601) used for generated_at; falls back to bundle capture time.",
+    )
     return parser.parse_args(argv)
 
 
@@ -117,10 +140,11 @@ def run_pipeline(
     output_path: Path,
     youcom_limit: int,
     tavily_limit: int,
+    timestamp_override: str | None = None,
 ) -> dict[str, Any]:
     """Execute the unified verification pipeline."""
 
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     config = get_runtime_config()
     context = resolve_bundle_context(
         config,
@@ -146,6 +170,9 @@ def run_pipeline(
         youcom_client = get_youcom_client(config)
         tavily_client = get_tavily_client(config)
 
+    bundle_timestamp = context.bundle.captured_at if context.bundle else None
+    output_timestamp = _resolve_output_timestamp(timestamp_override, bundle_timestamp or start)
+
     try:
         payload = _verify_leads(
             leads,
@@ -158,11 +185,10 @@ def run_pipeline(
             youcom_limit=youcom_limit,
             tavily_limit=tavily_limit,
             start=start,
+            generated_timestamp=output_timestamp,
         )
     finally:
-        for closer in (getattr(youcom_client, "close", None), getattr(tavily_client, "close", None)):
-            if closer:
-                closer()
+        _close_clients(youcom_client, tavily_client)
     return payload
 
 
@@ -178,6 +204,7 @@ def _verify_leads(
     youcom_limit: int,
     tavily_limit: int,
     start: datetime,
+    generated_timestamp: datetime,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     total_confirming_by_source = {source.id: 0 for source in VERIFICATION_SOURCES}
@@ -234,13 +261,13 @@ def _verify_leads(
 
     payload = {
         "unified_verify_version": UNIFIED_VERSION,
-        "generated_at": _format_timestamp(start),
+        "generated_at": _format_timestamp(generated_timestamp),
         "bundle_id": bundle_id,
         "metrics": metrics,
         "leads": results,
     }
     _write_payload(payload, output_path)
-    duration = datetime.now(timezone.utc) - start
+    duration = datetime.now(UTC) - start
     logger.info(
         "Unified verify complete. leads=%s youcom_hits=%s tavily_hits=%s unique_domains=%s duration=%.2fs",
         len(leads),
@@ -269,8 +296,9 @@ def _load_normalized_leads(path: Path) -> list[LeadCandidate]:
     for idx, entry in enumerate(data, start=1):
         if not isinstance(entry, Mapping):
             raise UnifiedVerifyError(f"Normalized seed entry {idx} must be an object.", code="SEED_INVALID")
+        seed_payload = {field: entry.get(field) for field in SEED_FIELDS if entry.get(field) is not None}
         try:
-            seed = NormalizedSeed.model_validate(entry)
+            seed = NormalizedSeed.model_validate(seed_payload)
         except Exception as exc:  # pragma: no cover - validation detail surfaces in tests
             raise UnifiedVerifyError(f"Invalid normalized seed at index {idx}: {exc}", code="SEED_INVALID") from exc
         slug = slugify(seed.company_name) or f"lead-{idx:04d}"
@@ -376,6 +404,32 @@ def _write_payload(payload: Mapping[str, Any], output_path: Path) -> None:
     with output_path.open("w", encoding="utf-8") as outfile:
         json.dump(payload, outfile, indent=2)
         outfile.write("\n")
+
+
+def _resolve_output_timestamp(cli_value: str | None, fallback: datetime) -> datetime:
+    raw_value = cli_value or os.getenv(TIMESTAMP_ENV)
+    if not raw_value:
+        return fallback
+    try:
+        return _parse_timestamp(raw_value)
+    except ValueError as exc:  # pragma: no cover - invalid user input
+        raise UnifiedVerifyError(f"Invalid timestamp override: {raw_value}", code="INVALID_TIMESTAMP") from exc
+
+
+def _parse_timestamp(value: str) -> datetime:
+    candidate = value.strip()
+    if not candidate:
+        raise ValueError("timestamp cannot be empty")
+    normalized = candidate.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).replace(microsecond=0)
+
+
+def _format_timestamp(value: datetime) -> str:
+    value = value.astimezone(UTC).replace(microsecond=0)
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def _load_fixture_index(path: Path) -> dict[str, list[dict[str, Any]]]:
@@ -489,8 +543,11 @@ def _dedup_articles(articles_by_source: Mapping[str, Sequence[ArticleEvidence]])
     return articles_all
 
 
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+def _close_clients(*clients: Any) -> None:
+    for client in clients:
+        closer = getattr(client, "close", None)
+        if callable(closer):
+            closer()
 
 
 def _fetch_youcom_articles(client, query: str, limit: int) -> Iterable[Mapping[str, Any]]:
@@ -512,6 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=args.output,
             youcom_limit=args.youcom_limit,
             tavily_limit=args.tavily_limit,
+            timestamp_override=args.timestamp,
         )
     except UnifiedVerifyError as exc:
         logger.error("unified_verify failed: %s (code=%s)", exc, exc.code)

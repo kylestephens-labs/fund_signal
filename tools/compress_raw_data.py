@@ -6,9 +6,9 @@ import argparse
 import gzip
 import json
 import logging
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Sequence
 
 from tools import capture_pipeline
 

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.clients.tavily import TavilyRateLimitError
@@ -12,11 +12,11 @@ def make_lead(company: str, *, youcom_verified: bool = True) -> CompanyFunding:
         company=company,
         funding_amount=15_000_000,
         funding_stage="Series B",
-        funding_date=datetime(2025, 9, 2, tzinfo=timezone.utc).date(),
+        funding_date=datetime(2025, 9, 2, tzinfo=UTC).date(),
         source_url="https://example.com/acme",
-        discovered_at=datetime(2025, 11, 5, tzinfo=timezone.utc),
+        discovered_at=datetime(2025, 11, 5, tzinfo=UTC),
         youcom_verified=youcom_verified,
-        youcom_verified_at=datetime(2025, 11, 6, tzinfo=timezone.utc),
+        youcom_verified_at=datetime(2025, 11, 6, tzinfo=UTC),
         news_sources=["TechCrunch", "BusinessWire"],
         press_articles=["https://techcrunch.com/acme", "https://businesswire.com/acme"],
     )

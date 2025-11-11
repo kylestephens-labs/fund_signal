@@ -6,10 +6,10 @@ import argparse
 import json
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Sequence
 
 logger = logging.getLogger("tools.rotate_keys")
 
@@ -90,12 +90,12 @@ def parse_timestamp(value: str) -> datetime:
         value = value[:-1] + "+00:00"
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def iso_now(now: datetime | None = None) -> str:
-    value = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    value = (now or datetime.now(UTC)).astimezone(UTC)
     return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -123,7 +123,7 @@ def run_rotation(
     force: bool,
     now: datetime | None = None,
 ) -> list[dict[str, str]]:
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     state = load_state(state_file)
     results: list[dict[str, str]] = []
 

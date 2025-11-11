@@ -1,8 +1,6 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-
-import pytest
 
 from app.clients.exa import ExaRateLimitError
 from pipelines.day1 import exa_discovery
@@ -34,7 +32,7 @@ def make_result(idx: int, published: datetime) -> dict:
 
 
 def test_run_pipeline_persists_normalized_records(tmp_path: Path):
-    published = datetime.now(tz=timezone.utc) - timedelta(days=65)
+    published = datetime.now(tz=UTC) - timedelta(days=65)
     results = [make_result(idx, published) for idx in range(60)]
     client = StubExaClient(results)
     output = tmp_path / "exa_seed.json"
@@ -87,7 +85,7 @@ def test_discover_with_retries_handles_rate_limit(monkeypatch):
             self._attempts += 1
             if self._attempts == 1:
                 raise ExaRateLimitError()
-            return [{"title": "Acme raises $1M Seed", "summary": "Seed", "text": "Seed", "url": "https://example.com", "publishedDate": datetime.now(tz=timezone.utc).isoformat()}]
+            return [{"title": "Acme raises $1M Seed", "summary": "Seed", "text": "Seed", "url": "https://example.com", "publishedDate": datetime.now(tz=UTC).isoformat()}]
 
     client = FlakyClient()
     results = exa_discovery.discover_with_retries(

@@ -7,11 +7,11 @@ import json
 import logging
 import os
 import shutil
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal
 
 import httpx
 
@@ -41,7 +41,7 @@ class LatestPointer:
     bundle_prefix: str
 
     @classmethod
-    def from_dict(cls, payload: dict) -> "LatestPointer":
+    def from_dict(cls, payload: dict) -> LatestPointer:
         bundle_id = payload.get("bundle_id")
         bundle_prefix = payload.get("bundle_prefix")
         if not bundle_prefix:

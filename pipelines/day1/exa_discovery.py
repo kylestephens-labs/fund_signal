@@ -8,10 +8,10 @@ import logging
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Callable
+from typing import Any
 
 from app.clients.exa import (
     ExaClient,
@@ -182,7 +182,7 @@ def _parse_datetime(value: str) -> datetime | None:
         try:
             parsed = datetime.strptime(value, fmt)
             if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
+                return parsed.replace(tzinfo=UTC)
             return parsed
         except ValueError:
             continue
@@ -196,7 +196,7 @@ def _parse_datetime(value: str) -> datetime | None:
 def normalize_results(results: Iterable[ExaResult]) -> list[CompanyFunding]:
     """Convert raw Exa results to CompanyFunding models."""
     normalized: list[CompanyFunding] = []
-    discovered_at = datetime.now(tz=timezone.utc)
+    discovered_at = datetime.now(tz=UTC)
     for result in results:
         record = normalize_result(result, discovered_at)
         if record is not None:

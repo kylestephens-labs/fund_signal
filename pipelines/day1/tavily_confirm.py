@@ -7,14 +7,19 @@ import json
 import logging
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
-from app.clients.tavily import TavilyError, TavilyNotFoundError, TavilyRateLimitError, TavilyTimeoutError
+from app.clients.tavily import (
+    TavilyError,
+    TavilyNotFoundError,
+    TavilyRateLimitError,
+    TavilyTimeoutError,
+)
 from app.models.lead import CompanyFunding
 from pipelines.io.fixture_loader import FixtureArtifactSpec, resolve_bundle_context
 from pipelines.news_client import TavilyClientProtocol, get_runtime_config, get_tavily_client
@@ -229,7 +234,7 @@ def run_confirmation(
             continue
 
         lead.tavily_verified = True
-        lead.tavily_verified_at = datetime.now(tz=timezone.utc)
+        lead.tavily_verified_at = datetime.now(tz=UTC)
         lead.tavily_reason = None
         lead.proof_links = [result.url for result in confirming[: min_confirmations]]
         logger.info(

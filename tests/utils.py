@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 
 def create_canonical_bundle(
@@ -53,4 +53,4 @@ def create_canonical_bundle(
 
 def iso_now() -> str:
     """Return a UTC ISO-8601 timestamp with Z suffix."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")

@@ -1,0 +1,73 @@
+version: v1
+verbs:
+  - raises
+  - raised
+  - secures
+  - secured
+  - snags
+  - snagged
+  - lands
+  - landed
+  - closes
+  - closed
+  - bags
+  - bagged
+  - nabs
+  - nabbed
+  - hauls
+  - hauled
+  - announces
+  - announced
+delimiters:
+  - " | "
+  - " - "
+  - " — "
+  - " – "
+  - ": "
+  - ":"
+publisher_keywords:
+  - news
+  - weekly
+  - report
+  - digest
+  - newsletter
+  - journal
+  - gazette
+publisher_domains:
+  - thesaasnews.com
+  - saasweekly.com
+publisher_delimiter_direction:
+  default: left
+  thesaasnews.com: right
+  saasweekly.com: right
+slug_stopwords:
+  - news
+  - funding
+  - round
+  - series-a
+  - series-b
+  - series-c
+  - seed-round
+  - announcement
+  - major-funding-wins
+  - track-companies
+  - track-companies-that-just
+  - seed-round-the-saas-news
+  - series-a-the-saas-news
+  - series-b-the-saas-news
+  - appy-ai-secures
+company_domain_exceptions:
+  - appy.ai
+  - openai.com
+  - uipath.com
+bad_company_tokens:
+  - seed round
+  - series a
+  - series b
+  - series c
+  - series to
+  - major funding wins
+  - track companies
+  - track companies that just
+  - unified to
+  - appy ai secures

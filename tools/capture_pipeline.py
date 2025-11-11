@@ -9,15 +9,15 @@ import hmac
 import json
 import logging
 import os
-import random
 import subprocess
 import threading
 import time
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from random import SystemRandom
 
 from app.clients.tavily import TavilyClient, TavilyError, TavilyRateLimitError, TavilyTimeoutError
 from app.clients.youcom import YoucomClient, YoucomError, YoucomRateLimitError, YoucomTimeoutError
@@ -30,12 +30,13 @@ from pipelines.news_client import (
     FixtureSource,
     RuntimeMode,
 )
-from pipelines.normalize import ensure_dir, serialize_lead, slugify_company
+from pipelines.normalize import ensure_dir, slugify_company
 
 logger = logging.getLogger("tools.capture_pipeline")
 
 ProviderFn = Callable[[], list[dict]]
 TOOL_VERSION = "1.0.0"
+_RNG = SystemRandom()
 
 
 class RateLimiter:
@@ -134,7 +135,7 @@ class JsonlCapture:
             return slug in self._processed
 
     def append(self, slug: str, data: list[dict]) -> None:
-        record = {"slug": slug, "data": data, "timestamp": datetime.now(tz=timezone.utc).isoformat()}
+        record = {"slug": slug, "data": data, "timestamp": datetime.now(tz=UTC).isoformat()}
         line = json.dumps(record, separators=(",", ":"))
         with self._lock, self._path.open("a", encoding="utf-8") as outfile:
             outfile.write(line + "\n")
@@ -175,7 +176,7 @@ def build_bundle_dir(args: argparse.Namespace) -> Path:
         if not args.bundle or not args.bundle.exists():
             raise ValueError("--resume requires --bundle pointing to an existing capture directory.")
         return args.bundle
-    timestamp = datetime.now(tz=timezone.utc)
+    timestamp = datetime.now(tz=UTC)
     date_prefix = timestamp.strftime("%Y/%m/%d")
     bundle_id = f"bundle-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
     bundle_dir = ensure_dir(args.out / date_prefix / bundle_id)
@@ -240,7 +241,7 @@ def call_with_retries(
 
 def _sleep_with_backoff(attempt: int) -> None:
     base = min(60, 2 ** attempt)
-    jitter = random.uniform(0, base * 0.25)
+    jitter = _RNG.uniform(0, base * 0.25)
     time.sleep(base + jitter)
 
 
@@ -354,7 +355,7 @@ def write_manifest(bundle_dir: Path, args: argparse.Namespace, youcom_stats: Pro
     manifest = {
         "schema_version": 1,
         "bundle_id": bundle_dir.name,
-        "captured_at": datetime.now(tz=timezone.utc).isoformat(),
+        "captured_at": datetime.now(tz=UTC).isoformat(),
         "expiry_days": args.expiry_days,
         "git_commit": get_git_commit(),
         "tool_version": TOOL_VERSION,
@@ -400,7 +401,7 @@ def sha256_file(path: Path) -> str:
 def get_git_commit() -> str | None:
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "HEAD"],  # noqa: S603, S607 - fixed command invoking git
             capture_output=True,
             text=True,
             check=True,

@@ -6,16 +6,16 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from pipelines.news_client import (
-    FixtureSource,
     FIXTURE_DIR_ENV,
-    RuntimeMode,
+    FixtureSource,
     RuntimeConfig,
+    RuntimeMode,
     get_runtime_config,
 )
 from tools import verify_bundle
@@ -111,7 +111,7 @@ def ensure_bundle(runtime_mode: RuntimeMode | None = None) -> BundleInfo:
 
 
 def log_bundle(bundle: BundleInfo) -> None:
-    age_days = (datetime.now(timezone.utc) - bundle.captured_at).total_seconds() / 86400
+    age_days = (datetime.now(UTC) - bundle.captured_at).total_seconds() / 86400
     logger.info(
         "Using bundle %s captured %s (age %.2fd, expiry %sd).",
         bundle.bundle_id,
@@ -128,7 +128,7 @@ class LatestPointer:
     bundle_prefix: str
 
     @classmethod
-    def from_path(cls, latest_path: Path) -> "LatestPointer":
+    def from_path(cls, latest_path: Path) -> LatestPointer:
         if not latest_path.exists():
             raise FixtureError("E_LATEST_MISSING", f"latest.json not found at {latest_path}")
         payload = json.loads(latest_path.read_text(encoding="utf-8"))
@@ -194,10 +194,23 @@ def resolve_bundle_context(
             (output_spec, output_path),
         )
     )
-    if not needs_bundle:
-        return BundleContext(input_path=input_path, output_path=output_path, bundle=None, scoring_timestamp=None)
+    bundle: BundleInfo | None = None
+    if needs_bundle:
+        try:
+            bundle = ensure_bundle(config.mode)
+        except FixtureError:
+            if needs_bundle:
+                raise
+            bundle = None
 
-    bundle = ensure_bundle(config.mode)
+    if not needs_bundle or not bundle:
+        return BundleContext(
+            input_path=input_path,
+            output_path=output_path,
+            bundle=bundle,
+            scoring_timestamp=bundle.captured_at if bundle else None,
+        )
+
     if log:
         log_bundle(bundle)
 
