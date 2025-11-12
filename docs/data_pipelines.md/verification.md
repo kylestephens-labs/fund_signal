@@ -409,10 +409,12 @@ Telemetry emitted via `feedback_resolver` logs: `items_total`, `feedback_applied
 
 **Operational checklist**
 
-- [ ] Ensure the bundle already contains `leads/youcom_verified.json` + `leads/tavily_verified.json`.
-- [ ] Run in fixture mode locally (`FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local`) unless operating on the capture runner.
-- [ ] Capture the new `feedback_sha256` from logs and, if using `--update-manifest`, archive the updated `manifest.json`.
-- [ ] Store generated artifacts alongside the original normalized file so Unified Verify / downstream scoring can read whichever version is required.
+- Confirm the bundle already contains `leads/youcom_verified.json` and `leads/tavily_verified.json`.
+- Run in fixture mode locally (`FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local`) unless executing on the capture runner.
+- Capture the emitted `feedback_sha256` and, when `--update-manifest` is used, archive the refreshed `manifest.json`.
+- Store `exa_seed.feedback_resolved.json` alongside the original normalized file so Unified Verify can choose the appropriate input.
+
+> **Integration status (FSQ‑019)**: The Day‑1 pipeline will eventually invoke `tools.verify_feedback_resolver` automatically immediately after `tools.normalize_and_resolve.run_pipeline` and ahead of `pipelines.day1.unified_verify`. Until that wiring lands, operators must run the CLI manually using the checklist above.
 
 ### When to re-run
 

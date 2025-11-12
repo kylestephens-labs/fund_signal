@@ -154,6 +154,10 @@ def run_pipeline(
         output_spec=OUTPUT_SPEC,
     )
 
+    # TODO(FSQ-019): Once tooling writes exa_seed.feedback_resolved.json
+    # automatically, detect that artifact here and load it instead of the
+    # raw normalized payload. For now operators run the CLI manually after
+    # normalize_and_resolve and before invoking unified_verify.
     leads = _load_normalized_leads(context.input_path)
     youcom_input = _resolve_additional_path(config, youcom_path, YOUCOM_SPEC)
     tavily_input = _resolve_additional_path(config, tavily_path, TAVILY_SPEC)

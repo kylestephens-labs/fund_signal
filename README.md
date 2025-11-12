@@ -150,9 +150,9 @@ make check-freshness       # Freshness/integrity gate
 make online-contract-test  # Minimal live smoke (requires provider keys)
 ```
 
-### Feedback Resolver CLI (FSQ-008)
+### Feedback Resolver CLI (FSQ‑008)
 
-Use the deterministic feedback resolver to patch low-confidence leads after `tools.normalize_and_resolve` finishes:
+Run the deterministic feedback resolver immediately after `tools.normalize_and_resolve` finishes so `unified_verify` consumes the corrected payload:
 
 ```bash
 FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local \
@@ -164,10 +164,20 @@ python -m tools.verify_feedback_resolver \
   --update-manifest artifacts/<bundle>/manifest.json
 ```
 
-- Targets rows with `final_label=EXCLUDE` or resolver scores `<2`, finds capitalized spans that appear in ≥2 unique domains, and promotes them deterministically.
-- Output rows include `feedback_applied`, `feedback_reason`, `feedback_domains`, `feedback_version` (`v1`), and `feedback_sha256`. Telemetry logs `feedback_sha256` so auditors can confirm the run.
-- `--update-manifest` rewrites the manifest entry for `leads/exa_seed.feedback_resolved.json` using the file’s SHA256 (no secrets logged). Skip the flag when experimenting locally.
-- Fixtures: `tests/fixtures/bundles/feedback_case/` contains the canonical bundle referenced by `pytest -k "feedback_resolver" -q`.
+**What it does**
+
+1. Filters rows with `resolution.final_label == "EXCLUDE"` or resolver scores `<2`.
+2. Scans You.com/Tavily evidence for 1–3 token spans that appear in ≥2 unique domains (publisher/stopword tokens are ignored).
+3. Promotes the winning span deterministically and records `feedback_applied`, `feedback_reason`, `feedback_domains`, `feedback_version` (`v1`), and `feedback_sha256` per row, plus a canonical payload SHA for the entire file.
+
+**Operator checklist**
+
+- Keep the normalized, You.com, and Tavily inputs in the same bundle folder so manifest rewrites succeed.
+- Pass `--update-manifest` when producing promotable bundles; the command rewrites `leads/exa_seed.feedback_resolved.json` with its SHA256 via `tools.manifest_utils` (no secrets logged). Skip it for ad-hoc experiments.
+- Capture the emitted telemetry (`feedback_resolver` module) so auditors can confirm the recorded SHA.
+- Need fixtures? `tests/fixtures/bundles/feedback_case/` contains the canonical bundle referenced by `pytest -k "feedback_resolver" -q`.
+
+> **Integration plan (FSQ‑019)**: Day‑1 automation will land this CLI between `tools.normalize_and_resolve` and `pipelines.day1.unified_verify`. Until then, operators should run it manually on any bundle that will flow into unified verification so downstream stages prefer `exa_seed.feedback_resolved.json` over the raw normalized payload.
 
 ### 4. Deployment (Render.com)
 
