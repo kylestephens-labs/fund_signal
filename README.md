@@ -150,6 +150,25 @@ make check-freshness       # Freshness/integrity gate
 make online-contract-test  # Minimal live smoke (requires provider keys)
 ```
 
+### Feedback Resolver CLI (FSQ-008)
+
+Use the deterministic feedback resolver to patch low-confidence leads after `tools.normalize_and_resolve` finishes:
+
+```bash
+FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local \
+python -m tools.verify_feedback_resolver \
+  --input artifacts/<bundle>/leads/exa_seed.normalized.json \
+  --youcom artifacts/<bundle>/leads/youcom_verified.json \
+  --tavily artifacts/<bundle>/leads/tavily_verified.json \
+  --out artifacts/<bundle>/leads/exa_seed.feedback_resolved.json \
+  --update-manifest artifacts/<bundle>/manifest.json
+```
+
+- Targets rows with `final_label=EXCLUDE` or resolver scores `<2`, finds capitalized spans that appear in ≥2 unique domains, and promotes them deterministically.
+- Output rows include `feedback_applied`, `feedback_reason`, `feedback_domains`, `feedback_version` (`v1`), and `feedback_sha256`. Telemetry logs `feedback_sha256` so auditors can confirm the run.
+- `--update-manifest` rewrites the manifest entry for `leads/exa_seed.feedback_resolved.json` using the file’s SHA256 (no secrets logged). Skip the flag when experimenting locally.
+- Fixtures: `tests/fixtures/bundles/feedback_case/` contains the canonical bundle referenced by `pytest -k "feedback_resolver" -q`.
+
 ### 4. Deployment (Render.com)
 
 - Connect your GitHub repo to Render

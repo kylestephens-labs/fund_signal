@@ -379,6 +379,16 @@ CI tests (`tests/test_telemetry.py`) ensure telemetry writes structured records 
 
 After generator → resolver, an optional deterministic feedback resolver can patch low-confidence rows using You.com/Tavily evidence:
 
+```mermaid
+flowchart LR
+    A[exa_seed.normalized.json] -->|low-confidence filter| B{feedback resolver}
+    C[youcom_verified.json] --> B
+    D[tavily_verified.json] --> B
+    B -->|promoted rows + metadata| E[exa_seed.feedback_resolved.json]
+    E -->|optional --update-manifest| F[manifest.json]
+    B -->|telemetry: items_total, feedback_applied, feedback_sha256| G[Logs/Monitoring]
+```
+
 ```bash
 python -m tools.verify_feedback_resolver \
   --input artifacts/<bundle>/leads/exa_seed.normalized.json \
@@ -396,6 +406,13 @@ Correction rules:
 4. When promoted, rows gain `feedback_applied`, `feedback_reason`, `feedback_domains`, `feedback_version` (`v1`), and `feedback_sha256`. The overall payload records the same version + SHA (calculated over `data[]`), and the optional `--update-manifest` flag rewrites `leads/exa_seed.feedback_resolved.json`'s checksum entry so auditors can verify bundle integrity.
 
 Telemetry emitted via `feedback_resolver` logs: `items_total`, `feedback_applied`, `feedback_candidates_checked`, `unique_spans_found`, and the deterministic `feedback_sha256`. See `tests/fixtures/bundles/feedback_case` for the curated evidence used in CI tests.
+
+**Operational checklist**
+
+- [ ] Ensure the bundle already contains `leads/youcom_verified.json` + `leads/tavily_verified.json`.
+- [ ] Run in fixture mode locally (`FUND_SIGNAL_MODE=fixture FUND_SIGNAL_SOURCE=local`) unless operating on the capture runner.
+- [ ] Capture the new `feedback_sha256` from logs and, if using `--update-manifest`, archive the updated `manifest.json`.
+- [ ] Store generated artifacts alongside the original normalized file so Unified Verify / downstream scoring can read whichever version is required.
 
 ### When to re-run
 
