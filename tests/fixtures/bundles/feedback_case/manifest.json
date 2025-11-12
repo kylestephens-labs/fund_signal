@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "bundle_id": "feedback_case",
+  "captured_at": "2025-11-15T00:00:00Z",
+  "expiry_days": 0,
+  "scenario": "Low-confidence resolver feedback case with multi-domain verification",
+  "files": [
+    {
+      "path": "leads/exa_seed.normalized.json",
+      "size": 4024,
+      "sha256": "f7d744f34994443ed883f492e31cbcc1bcf7d0eed29557b068cab5c054b28cc2"
+    },
+    {
+      "path": "leads/youcom_verified.json",
+      "size": 661,
+      "sha256": "e7e795f56610b7c4c68d78408ce67d94d4ef107ff66854e55d6a6b9a0ba58778"
+    },
+    {
+      "path": "leads/tavily_verified.json",
+      "size": 248,
+      "sha256": "cca498174896fe62d9eb463e2d39b6ade2c0097ab70fd1278f6060ffa3add44d"
+    }
+  ],
+  "signature": null
+}

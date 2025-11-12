@@ -16,13 +16,58 @@
         "currency": "USD"
       },
       "source_url": "https://example.com/hotglue",
+      "raw_title": "Digest | Hotglue secures $4M Seed Round",
+      "raw_snippet": "Deliberately noisy headline that causes the resolver to pick the wrong span.",
       "resolution": {
+        "method": "resolver_v1.1",
+        "chosen_idx": 0,
         "final_label": "EXCLUDE",
         "score": 0,
         "candidates": ["Seed Round", "Hotglue"],
-        "scores": [-2, 1],
-        "feature_flags": []
-      }
+        "scores": [0, -1],
+        "feature_flags": [
+          {
+            "candidate": "Seed Round",
+            "signals": {
+              "has_funding_token": true,
+              "no_funding_tokens": false,
+              "token_count_1_3": false,
+              "long_phrase_penalty": false,
+              "proper_noun_or_dotted": false,
+              "slug_head_edit_distance": 4,
+              "close_to_slug_head": false,
+              "slug_head_proximity_bonus": 0,
+              "near_funding_verb": true,
+              "locale_verb_hit": false,
+              "has_publisher_token_or_domain": false,
+              "has_publisher_prefix": false,
+              "starts_with_verb_or_gerund": false,
+              "possessive_plural_repaired": false
+            }
+          },
+          {
+            "candidate": "Hotglue",
+            "signals": {
+              "has_funding_token": false,
+              "no_funding_tokens": true,
+              "token_count_1_3": true,
+              "long_phrase_penalty": false,
+              "proper_noun_or_dotted": true,
+              "slug_head_edit_distance": 0,
+              "close_to_slug_head": true,
+              "slug_head_proximity_bonus": 3,
+              "near_funding_verb": true,
+              "locale_verb_hit": true,
+              "has_publisher_token_or_domain": false,
+              "has_publisher_prefix": false,
+              "starts_with_verb_or_gerund": false,
+              "possessive_plural_repaired": false
+            }
+          }
+        ]
+      },
+      "resolver_ruleset_version": "v1.1",
+      "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a"
     },
     {
       "id": "row_appya",
@@ -34,13 +79,39 @@
         "currency": "USD"
       },
       "source_url": "https://example.com/appy",
+      "raw_title": "The SaaS News | Appy.ai raises $10M Series A",
+      "raw_snippet": "Control row that the resolver gets right.",
       "resolution": {
+        "method": "resolver_v1.1",
+        "chosen_idx": 0,
         "final_label": "VERIFIED",
-        "score": 5,
+        "score": 13,
         "candidates": ["Appy.ai"],
-        "scores": [5],
-        "feature_flags": []
-      }
+        "scores": [13],
+        "feature_flags": [
+          {
+            "candidate": "Appy.ai",
+            "signals": {
+              "has_funding_token": false,
+              "no_funding_tokens": true,
+              "token_count_1_3": true,
+              "long_phrase_penalty": false,
+              "proper_noun_or_dotted": true,
+              "slug_head_edit_distance": 0,
+              "close_to_slug_head": true,
+              "slug_head_proximity_bonus": 3,
+              "near_funding_verb": true,
+              "locale_verb_hit": false,
+              "has_publisher_token_or_domain": false,
+              "has_publisher_prefix": false,
+              "starts_with_verb_or_gerund": false,
+              "possessive_plural_repaired": false
+            }
+          }
+        ]
+      },
+      "resolver_ruleset_version": "v1.1",
+      "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a"
     }
   ],
   "skipped": []
