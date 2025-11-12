@@ -9,7 +9,7 @@ This directory hosts deterministic bundles that mirror the on-disk layout emitte
 Current bundles:
 
 - `sample/bundle-sample` – end-to-end sanity bundle referenced by resolver + normalize tests.
-- `feedback_case` – low-confidence resolver scenario used by forthcoming feedback tests. See the nested README for scenario details and file-by-file guidance.
+- `feedback_case` – low-confidence resolver scenario used by feedback tests. See the nested README for scenario details, guidance on running `python -m tools.verify_feedback_resolver ... --update-manifest`, and file-by-file metadata.
 
 When adding or updating bundles:
 

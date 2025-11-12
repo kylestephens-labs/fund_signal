@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from tools.manifest_utils import compute_sha256, update_manifest
 from tools.telemetry import get_telemetry
 
 logger = logging.getLogger("tools.verify_feedback_resolver")
@@ -49,6 +50,23 @@ def _normalize_payload(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         return payload
     raise ValueError("Unsupported JSON shape.")
+
+
+def _relative_to_manifest(target: Path, manifest_path: Path) -> str:
+    try:
+        return str(target.relative_to(manifest_path.parent))
+    except ValueError as exc:
+        raise ValueError(f"Output path {target} is outside manifest root {manifest_path.parent}") from exc
+
+
+def _canonical_data_sha(rows: Sequence[Mapping[str, Any]]) -> str:
+    canonical = json.dumps(
+        rows,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _article_entries(payload: Any) -> list[dict[str, Any]]:
@@ -141,13 +159,13 @@ def choose_span(span_domains: Mapping[str, set[str]]) -> tuple[str, set[str]] | 
     ]
     if not candidates:
         return None
-    return max(candidates, key=_span_rank)
+    return min(candidates, key=_span_rank)
 
 
 def _span_rank(entry: tuple[str, set[str]]) -> tuple[int, int, str]:
     span, domains = entry
-    # Prefer more domains, fewer tokens, then lexicographic order
-    return (len(domains), -len(span.split()), span.lower() or "")
+    # Use negatives so min() prefers higher domain count, fewer tokens, then lexicographic ascending
+    return (-len(domains), len(span.split()), span.lower() or "")
 
 
 def apply_feedback(
@@ -155,6 +173,7 @@ def apply_feedback(
     output_path: Path,
     youcom_path: Path,
     tavily_path: Path,
+    manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     payload = load_json(normalized_path)
     rows = _normalize_payload(payload)
@@ -187,11 +206,14 @@ def apply_feedback(
     payload["feedback_version"] = FEEDBACK_VERSION
     payload["feedback_applied"] = metrics.applied
     payload_rows = payload.get("data", rows) if isinstance(payload, Mapping) else rows
-    payload["feedback_sha256"] = hashlib.sha256(
-        json.dumps(payload_rows, sort_keys=True, default=str).encode("utf-8")
-    ).hexdigest()
+    payload["feedback_sha256"] = _canonical_data_sha(payload_rows)
 
     _write_json(output_path, payload)
+    output_sha256 = compute_sha256(output_path)
+
+    if manifest_path:
+        rel_path = _relative_to_manifest(output_path, manifest_path)
+        update_manifest(manifest_path, {rel_path: output_sha256})
 
     telemetry = get_telemetry()
     telemetry.emit(
@@ -201,9 +223,19 @@ def apply_feedback(
         feedback_applied=metrics.applied,
         feedback_candidates_checked=metrics.reviewed,
         unique_spans_found=metrics.spans_found,
+        feedback_sha256=payload["feedback_sha256"],
     )
-    logger.info("Feedback corrections applied: %s / %s", metrics.applied, len(rows))
-    return {"feedback_applied": metrics.applied, "rows_total": len(rows)}
+    logger.info(
+        "Feedback corrections applied: %s / %s (output_sha=%s)",
+        metrics.applied,
+        len(rows),
+        output_sha256,
+    )
+    return {
+        "feedback_applied": metrics.applied,
+        "rows_total": len(rows),
+        "output_sha256": output_sha256,
+    }
 
 
 def _apply_span_feedback(*, row: dict[str, Any], span: str, domains: set[str]) -> None:
@@ -239,6 +271,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--youcom", type=Path, required=True, help="youcom_verified.json")
     parser.add_argument("--tavily", type=Path, required=True, help="tavily_verified.json")
     parser.add_argument("--out", type=Path, required=True, help="Output path for feedback_resolved JSON")
+    parser.add_argument(
+        "--update-manifest",
+        type=Path,
+        default=None,
+        help="Optional manifest.json to update with the feedback_resolved SHA entry.",
+    )
     return parser.parse_args(argv)
 
 
@@ -251,12 +289,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=args.out,
             youcom_path=args.youcom,
             tavily_path=args.tavily,
+            manifest_path=args.update_manifest,
         )
     except FileNotFoundError as exc:
         logger.error("INPUT_MISSING_ERROR: %s", exc)
         return 1
-    except json.JSONDecodeError as exc:
-        logger.error("JSON_PARSE_ERROR: %s", exc)
+    except ValueError as exc:
+        logger.error("INPUT_VALIDATION_ERROR: %s", exc)
         return 1
     except Exception as exc:  # pragma: no cover
         logger.exception("Feedback resolver failed: %s", exc)
