@@ -27,7 +27,7 @@ def test_resolver_selects_best_candidate(tmp_path: Path):
     ]
     input_path = _write_candidates(tmp_path, rows)
     output_path = tmp_path / "resolved.json"
-    rules = load_rules(Path("configs/resolver_rules.v1.yaml"))
+    rules = load_rules(Path("configs/resolver_rules.v1.1.yaml"))
 
     payload = resolve_company_name.resolve_company_name(
         input_path=input_path,
@@ -56,7 +56,7 @@ def test_resolver_tie_breakers_apply_in_order(tmp_path: Path):
     ]
     input_path = _write_candidates(tmp_path, rows)
     output_path = tmp_path / "resolved.json"
-    rules = load_rules(Path("configs/resolver_rules.v1.yaml"))
+    rules = load_rules(Path("configs/resolver_rules.v1.1.yaml"))
 
     payload = resolve_company_name.resolve_company_name(
         input_path=input_path,
@@ -84,7 +84,7 @@ def test_resolver_skips_empty_candidates(tmp_path: Path):
     ]
     input_path = _write_candidates(tmp_path, rows)
     output_path = tmp_path / "resolved.json"
-    rules = load_rules(Path("configs/resolver_rules.v1.yaml"))
+    rules = load_rules(Path("configs/resolver_rules.v1.1.yaml"))
 
     payload = resolve_company_name.resolve_company_name(
         input_path=input_path,

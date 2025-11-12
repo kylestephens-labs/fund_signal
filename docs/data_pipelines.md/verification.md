@@ -218,20 +218,20 @@ The output payload is deterministic (same bundle + ruleset → same SHA) and inc
 
 ### Resolver ruleset (FSQ-003)
 
-Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rules.v1.yaml`). The loader (`python -m tools.resolver_rules --rules configs/resolver_rules.v1.yaml --print-sha`) validates the schema, computes a canonical SHA, and surfaces:
+Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rules.v1.1.yaml`). The loader (`python -m tools.resolver_rules --rules configs/resolver_rules.v1.1.yaml --print-sha`) validates the schema, computes a canonical SHA, and surfaces:
 
 ```
 {
-  "version": "v1",
+  "version": "v1.1",
   "weights": {
-    "no_funding_tokens": 3,
+    "no_funding_tokens": 4,
     "token_count_1_3": 2,
-    "proper_noun_or_dotted": 2,
-    "close_to_slug_head": 2,
-    "near_funding_verb": 1,
-    "has_funding_token": -3,
-    "has_publisher_token_or_domain": -2,
-    "long_phrase_penalty": -1
+    "proper_noun_or_dotted": 3,
+    "close_to_slug_head": 3,
+    "near_funding_verb": 2,
+    "has_funding_token": -4,
+    "has_publisher_token_or_domain": -4,
+    "long_phrase_penalty": -2
   },
   "tie_breakers": [
     "score_desc",
@@ -241,11 +241,11 @@ Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rule
   ],
   "slug_head_edit_distance_threshold": 2,
   "token_limits": {"max_tokens": 6, "min_tokens": 1},
-  "ruleset_sha256": "<sha>"
+  "ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029"
 }
 ```
 
-Any schema violation (missing fields, unsupported tie breaker, negative thresholds) raises `ResolverRulesError` with code `RULES_SCHEMA_INVALID`. Hashing uses sorted JSON dumps to guarantee determinism; the Resolver will embed `ruleset_version` + `ruleset_sha256` in its outputs, making scoring decisions fully auditable.
+Any schema violation (missing fields, unsupported tie breaker, negative thresholds) raises `ResolverRulesError` with code `RULES_SCHEMA_INVALID`. Hashing uses sorted JSON dumps to guarantee determinism; the Resolver embeds `ruleset_version` + `ruleset_sha256` (v1.1 hash `4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029`) in its outputs so scoring decisions stay auditable. v1.1 specifically increases penalties for publisher prefixes/gerunds and boosts signals that correlate with true company spans (slug-head proximity, locale verb adjacency, possessive repair handled by the existing normalizer).
 
 ### Deterministic resolver (FSQ-004)
 
@@ -254,7 +254,7 @@ The resolver consumes `exa_seed.candidates.json`, loads the resolver ruleset, an
 ```bash
 python -m tools.resolve_company_name \
   --input artifacts/<bundle>/leads/exa_seed.candidates.json \
-  --rules configs/resolver_rules.v1.yaml \
+  --rules configs/resolver_rules.v1.1.yaml \
   --out artifacts/<bundle>/leads/exa_seed.normalized.json
 ```
 
@@ -262,24 +262,24 @@ Scoring signals (weights pulled from the YAML):
 
 | Feature | Description | Weight |
 | --- | --- | --- |
-| `no_funding_tokens` | Candidate does **not** contain tokens like `seed/series/funding/round`. | +3 |
+| `no_funding_tokens` | Candidate does **not** contain tokens like `seed/series/funding/round`. | +4 |
 | `token_count_1_3` | Tokenized length between 1–3 inclusive. | +2 |
-| `proper_noun_or_dotted` | Contains dotted brand (`Appy.ai`) or capitalized tokens. | +2 |
-| `close_to_slug_head` | Levenshtein distance to URL slug head ≤ threshold (default 2). | +2 |
-| `near_funding_verb` | Candidate appears near verbs such as “raises/announces” in the title. | +1 |
-| `has_funding_token` | Contains `seed/series/round/funding`. | −3 |
-| `has_publisher_token_or_domain` | Matches publisher keywords/domains. | −2 |
-| `long_phrase_penalty` | ≥5 tokens. | −1 |
+| `proper_noun_or_dotted` | Contains dotted brand (`Appy.ai`) or capitalized tokens (benefits possessive repair). | +3 |
+| `close_to_slug_head` | Levenshtein distance to URL slug head ≤ threshold (default 2). | +3 |
+| `near_funding_verb` | Candidate appears near locale verbs such as “raises/erhält/announces”. | +2 |
+| `has_funding_token` | Contains `seed/series/round/funding` style gerunds. | −4 |
+| `has_publisher_token_or_domain` | Matches publisher prefixes/domains (News, Digest, etc.). | −4 |
+| `long_phrase_penalty` | ≥5 tokens. | −2 |
 
-Tie-breakers (resolver_rules.v1.yaml): `score_desc → token_count_asc → appears_in_title_first → lexicographic_ci`.
+Tie-breakers (`resolver_rules.v1.1.yaml`): `score_desc → token_count_asc → appears_in_title_first → lexicographic_ci`.
 
 Resolver output example:
 
 ```json
 {
   "resolver_version": "1.0.0",
-  "resolver_ruleset_version": "v1",
-  "resolver_ruleset_sha256": "<sha>",
+  "resolver_ruleset_version": "v1.1",
+  "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
   "items_total": 76,
   "items_resolved": 75,
   "items_skipped": 1,
@@ -288,14 +288,14 @@ Resolver output example:
       "id": "row_000123",
       "company_name": "Appy.ai",
       "resolution": {
-        "method": "resolver_v1",
+        "method": "resolver_v1.1",
         "chosen_idx": 0,
         "score": 7.0,
         "candidates": ["Appy.ai","Appy","Seed Round"],
         "scores": [7.0,4.0,-5.0]
       },
-      "resolver_ruleset_version": "v1",
-      "resolver_ruleset_sha256": "<sha>",
+      "resolver_ruleset_version": "v1.1",
+      "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
       "generator_ruleset_version": "v1",
       "generator_ruleset_sha256": "<sha>"
     }
@@ -324,8 +324,8 @@ All three stages (generator, resolver, normalize_and_resolve) emit JSON-friendly
     "metrics": {"items_total": 71, "items_with_candidates": 71, "avg_candidates_per_item": 2.3, "publisher_flagged": 9}
   },
   "resolver": {
-    "ruleset_version": "v1",
-    "ruleset_sha256": "sha256:…",
+    "ruleset_version": "v1.1",
+    "ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
     "metrics": {"items_total": 71, "items_resolved": 71, "items_skipped": 0},
     "accuracy_estimate": 0.96
   }

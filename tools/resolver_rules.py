@@ -14,7 +14,7 @@ import yaml
 
 logger = logging.getLogger("tools.resolver_rules")
 
-DEFAULT_RULES_PATH = Path("configs/resolver_rules.v1.yaml")
+DEFAULT_RULES_PATH = Path("configs/resolver_rules.v1.1.yaml")
 ALLOWED_TIE_BREAKERS = {"score_desc", "token_count_asc", "appears_in_title_first", "lexicographic_ci"}
 
 

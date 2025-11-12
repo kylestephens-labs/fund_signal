@@ -33,7 +33,7 @@ def test_normalize_and_resolve_end_to_end(tmp_path: Path):
         candidates_out=candidates_out,
         normalized_out=normalized_out,
         normalizer_rules=Path("configs/normalizer_rules.v1.yaml"),
-        resolver_rules=Path("configs/resolver_rules.v1.yaml"),
+        resolver_rules=Path("configs/resolver_rules.v1.1.yaml"),
     )
 
     assert candidates_out.exists()
@@ -52,7 +52,7 @@ def test_normalize_and_resolve_end_to_end(tmp_path: Path):
         candidates_out=candidates_out,
         normalized_out=normalized_out,
         normalizer_rules=Path("configs/normalizer_rules.v1.yaml"),
-        resolver_rules=Path("configs/resolver_rules.v1.yaml"),
+        resolver_rules=Path("configs/resolver_rules.v1.1.yaml"),
     )
     assert first_candidates == candidates_out.read_bytes()
     assert first_normalized == normalized_out.read_bytes()
@@ -80,7 +80,7 @@ def test_normalize_and_resolve_updates_manifest(tmp_path: Path, monkeypatch):
         candidates_out=candidates_out,
         normalized_out=normalized_out,
         normalizer_rules=Path("configs/normalizer_rules.v1.yaml"),
-        resolver_rules=Path("configs/resolver_rules.v1.yaml"),
+        resolver_rules=Path("configs/resolver_rules.v1.1.yaml"),
         manifest_path=manifest_path,
     )
 

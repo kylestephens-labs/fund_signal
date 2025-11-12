@@ -116,7 +116,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--candidates-out", type=Path, required=True, help="Path to write candidates JSON.")
     parser.add_argument("--normalized-out", type=Path, required=True, help="Path to write normalized JSON.")
     parser.add_argument("--normalizer-rules", type=Path, default=Path("configs/normalizer_rules.v1.yaml"))
-    parser.add_argument("--resolver-rules", type=Path, default=Path("configs/resolver_rules.v1.yaml"))
+    parser.add_argument("--resolver-rules", type=Path, default=Path("configs/resolver_rules.v1.1.yaml"))
     parser.add_argument(
         "--update-manifest",
         type=Path,

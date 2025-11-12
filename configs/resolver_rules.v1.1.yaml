@@ -1,13 +1,13 @@
-version: v1
+version: v1.1
 weights:
-  no_funding_tokens: 3
+  no_funding_tokens: 4
   token_count_1_3: 2
-  proper_noun_or_dotted: 2
-  close_to_slug_head: 2
-  near_funding_verb: 1
-  has_funding_token: -3
-  has_publisher_token_or_domain: -2
-  long_phrase_penalty: -1
+  proper_noun_or_dotted: 3
+  close_to_slug_head: 3
+  near_funding_verb: 2
+  has_funding_token: -4
+  has_publisher_token_or_domain: -4
+  long_phrase_penalty: -2
 tie_breakers:
   - score_desc
   - token_count_asc

@@ -21,7 +21,7 @@ logger = logging.getLogger("tools.resolve_company_name")
 RESOLVER_VERSION = "1.0.0"
 DEFAULT_INPUT = Path("leads/exa_seed.candidates.json")
 DEFAULT_OUTPUT = Path("leads/exa_seed.normalized.json")
-DEFAULT_RULES = Path("configs/resolver_rules.v1.yaml")
+DEFAULT_RULES = Path("configs/resolver_rules.v1.1.yaml")
 
 FUNDING_TOKENS = {"seed", "series", "round", "funding"}
 PUBLISHER_TOKENS = {"news", "weekly", "report", "digest", "newsletter", "journal", "gazette"}
@@ -62,6 +62,32 @@ class SeedFields:
     amount: dict[str, Any]
     source_url: str
     announced_date: str | None
+
+
+@dataclass(frozen=True)
+class CandidateView:
+    """Preprocessed view of a candidate string for scoring/tie-breaking."""
+
+    raw: str
+    normalized: str
+    normalized_lower: str
+    tokens: tuple[str, ...]
+    raw_lower: str
+
+    @classmethod
+    def from_raw(cls, value: str) -> CandidateView:
+        normalized = normalize_text(value)
+        return cls(
+            raw=value,
+            normalized=normalized,
+            normalized_lower=normalized.lower(),
+            tokens=tuple(normalized.split()),
+            raw_lower=value.lower() if value else "",
+        )
+
+    @property
+    def token_count(self) -> int:
+        return len(self.tokens)
 
 
 def load_candidates(path: Path) -> Mapping[str, Any]:
@@ -154,11 +180,18 @@ def resolve_row(
     if fields is None:
         return None, failure_reason
 
-    raw_title = row.get("raw_title") or ""
+    raw_title_value = row.get("raw_title")
+    title_for_scoring = raw_title_value if isinstance(raw_title_value, str) else ""
+    title_lower = title_for_scoring.lower()
     slug_head = extract_slug_head(fields.source_url)
-    scores = [score_candidate(candidate, raw_title, slug_head, rules) for candidate in candidates]
+    slug_head_lower = slug_head.lower() if slug_head else None
+    candidate_views = [CandidateView.from_raw(candidate) for candidate in candidates]
+    scores = [
+        score_candidate(candidate_view, title_lower, slug_head_lower, rules)
+        for candidate_view in candidate_views
+    ]
 
-    best_idx = choose_candidate(candidates, scores, raw_title, rules)
+    best_idx = choose_candidate(candidate_views, scores, title_lower, rules)
     if best_idx is None:
         return None, DEFAULT_SKIP_REASON
 
@@ -177,7 +210,7 @@ def resolve_row(
         "funding_stage": fields.stage,
         "amount": fields.amount,
         "source_url": fields.source_url,
-        "raw_title": row.get("raw_title"),
+        "raw_title": raw_title_value,
         "raw_snippet": row.get("raw_snippet"),
         "resolution": resolution_info,
         "resolver_ruleset_version": rules.version,
@@ -206,33 +239,36 @@ def _extract_seed_fields(row: Mapping[str, Any]) -> tuple[SeedFields | None, str
     return SeedFields(stage=stage, amount=amount, source_url=source_url, announced_date=announced_date), None
 
 
-def score_candidate(candidate: str, title: str, slug_head: str | None, rules: ResolverRules) -> float:
-    cleaned = normalize_text(candidate)
-    tokens = cleaned.split()
+def score_candidate(
+    candidate: CandidateView,
+    title_lower: str,
+    slug_head_lower: str | None,
+    rules: ResolverRules,
+) -> float:
     score = 0.0
 
-    if not any(token in FUNDING_TOKENS for token in map(str.lower, tokens)):
+    if not any(token in FUNDING_TOKENS for token in map(str.lower, candidate.tokens)):
         score += rules.weights.get("no_funding_tokens", 0)
     else:
         score += rules.weights.get("has_funding_token", 0)
 
-    if 1 <= len(tokens) <= 3:
+    if 1 <= candidate.token_count <= 3:
         score += rules.weights.get("token_count_1_3", 0)
-    elif len(tokens) >= 5:
+    elif candidate.token_count >= 5:
         score += rules.weights.get("long_phrase_penalty", 0)
 
-    if any(token[:1].isupper() for token in tokens) or "." in candidate:
+    if any(token[:1].isupper() for token in candidate.tokens) or "." in candidate.raw:
         score += rules.weights.get("proper_noun_or_dotted", 0)
 
-    if slug_head:
-        distance = levenshtein_distance(cleaned.lower(), slug_head.lower())
+    if slug_head_lower:
+        distance = levenshtein_distance(candidate.normalized_lower, slug_head_lower)
         if distance <= rules.slug_head_edit_distance_threshold:
             score += rules.weights.get("close_to_slug_head", 0)
 
-    if appears_near_funding_verb(candidate, title):
+    if appears_near_funding_verb(candidate.raw_lower, title_lower):
         score += rules.weights.get("near_funding_verb", 0)
 
-    if contains_publisher_token(candidate, title):
+    if contains_publisher_token(candidate.raw_lower, title_lower):
         score += rules.weights.get("has_publisher_token_or_domain", 0)
 
     return score
@@ -291,27 +327,36 @@ def _normalize_announced_date(value: Any) -> str | None:
     return parsed.isoformat()
 
 
-def choose_candidate(candidates: Sequence[str], scores: Sequence[float], title: str, rules: ResolverRules) -> int | None:
+def choose_candidate(
+    candidates: Sequence[CandidateView],
+    scores: Sequence[float],
+    title_lower: str,
+    rules: ResolverRules,
+) -> int | None:
     if not candidates:
         return None
-    title_lower = (title or "").lower()
+    if not scores:
+        return None
 
-    def tie_key(idx: int) -> tuple:
+    def tie_key(idx: int) -> tuple[Any, ...]:
         key_components: list[Any] = []
+        candidate = candidates[idx]
         for breaker in rules.tie_breakers:
             if breaker == "score_desc":
                 key_components.append(-scores[idx])
             elif breaker == "token_count_asc":
-                key_components.append(len(normalize_text(candidates[idx]).split()))
+                key_components.append(candidate.token_count)
             elif breaker == "appears_in_title_first":
-                pos = title_lower.find(candidates[idx].lower())
+                pos = title_lower.find(candidate.raw_lower)
                 key_components.append(pos if pos >= 0 else 10_000)
             elif breaker == "lexicographic_ci":
-                key_components.append(candidates[idx].casefold())
+                key_components.append(candidate.raw.casefold())
         return tuple(key_components)
 
-    order = sorted(range(len(candidates)), key=tie_key)
-    return order[0] if order else None
+    try:
+        return min(range(len(candidates)), key=tie_key)
+    except ValueError:
+        return None
 
 
 def normalize_text(value: str) -> str:
@@ -354,11 +399,9 @@ def levenshtein_distance(a: str, b: str) -> int:
     return prev[-1]
 
 
-def appears_near_funding_verb(candidate: str, title: str) -> bool:
-    if not candidate or not title:
+def appears_near_funding_verb(candidate_lower: str, title_lower: str) -> bool:
+    if not candidate_lower or not title_lower:
         return False
-    title_lower = title.lower()
-    candidate_lower = candidate.lower()
     index = title_lower.find(candidate_lower)
     if index == -1:
         return False
@@ -366,8 +409,10 @@ def appears_near_funding_verb(candidate: str, title: str) -> bool:
     return any(verb in window for verb in VERBS)
 
 
-def contains_publisher_token(candidate: str, title: str) -> bool:
-    combined = f"{candidate} {title}".lower()
+def contains_publisher_token(candidate_lower: str, title_lower: str) -> bool:
+    if not candidate_lower and not title_lower:
+        return False
+    combined = f"{candidate_lower} {title_lower}"
     return any(token in combined for token in PUBLISHER_TOKENS)
 
 

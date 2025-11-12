@@ -1,7 +1,7 @@
 {
   "resolver_version": "1.0.0",
-  "resolver_ruleset_version": "v1",
-  "resolver_ruleset_sha256": "sha256:resolver-dummy",
+  "resolver_ruleset_version": "v1.1",
+  "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
   "items_total": 2,
   "items_resolved": 2,
   "items_skipped": 0,

@@ -1,0 +1,44 @@
+{
+  "generator_version": "1.0.0",
+  "ruleset_version": "v1",
+  "ruleset_sha256": "4399ac76beab374ae9364e762cf30f4d6dc036221e00d39d53b508a4f5a07c28",
+  "items_total": 1,
+  "items_with_candidates": 1,
+  "metrics": {
+    "items_total": 1,
+    "items_with_candidates": 1,
+    "publisher_flagged": 0,
+    "publisher_split_used": 1,
+    "url_slug_used": 1,
+    "avg_candidates_per_item": 2.0
+  },
+  "data": [
+    {
+      "id": "row_000001",
+      "raw_title": "Acme SaaS",
+      "raw_snippet": null,
+      "source_url": "https://example.com/acme",
+      "features": {
+        "publisher_flagged": false,
+        "publisher_split_used": true,
+        "url_slug_used": true
+      },
+      "candidates": [
+        "Acme Saa",
+        "Acme"
+      ],
+      "extraction_methods": {
+        "Acme Saa": "delimiter_plain",
+        "Acme": "url_slug"
+      },
+      "funding_stage": "Series A",
+      "funding_amount": 12000000,
+      "funding_currency": "USD",
+      "announced_date": "2025-09-02",
+      "ruleset_version": "v1",
+      "ruleset_sha256": "4399ac76beab374ae9364e762cf30f4d6dc036221e00d39d53b508a4f5a07c28",
+      "generator_version": "1.0.0"
+    }
+  ],
+  "skipped": []
+}
