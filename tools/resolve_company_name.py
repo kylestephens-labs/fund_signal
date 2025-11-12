@@ -24,8 +24,41 @@ DEFAULT_OUTPUT = Path("leads/exa_seed.normalized.json")
 DEFAULT_RULES = Path("configs/resolver_rules.v1.1.yaml")
 
 FUNDING_TOKENS = {"seed", "series", "round", "funding"}
-PUBLISHER_TOKENS = {"news", "weekly", "report", "digest", "newsletter", "journal", "gazette"}
+PUBLISHER_TOKENS = {"news", "weekly", "report", "digest", "newsletter", "journal", "gazette", "daily", "times"}
+PUBLISHER_PREFIXES = {"the", "der", "die", "das", "la", "le", "los", "las", "el"}
+PUBLISHER_PREFIX_COMBINATIONS = {
+    f"{prefix} {token}" for prefix in PUBLISHER_PREFIXES for token in ("news", "daily", "digest", "report")
+}
 VERBS = ("raises", "raised", "secures", "secured", "lands", "landed", "announces", "announced", "bags", "bagged")
+VERB_STARTERS = VERBS + (
+    "receives",
+    "received",
+    "receiving",
+    "wins",
+    "won",
+    "acquires",
+    "acquired",
+    "acquiring",
+    "earns",
+    "earning",
+)
+LOCALE_FUNDING_VERBS = (
+    "erhält",
+    "erhaelt",
+    "erhalten",
+    "obtiene",
+    "obtuvo",
+    "obtient",
+    "obtiennent",
+    "recauda",
+    "recaudo",
+    "recaudó",
+    "levanta",
+    "levanto",
+    "consegue",
+    "conseguiu",
+)
+GERUND_SUFFIXES = ("ing", "ando", "iendo")
 DEFAULT_SKIP_REASON = "EMPTY_CANDIDATES_AFTER_FILTER"
 
 
@@ -73,9 +106,10 @@ class CandidateView:
     normalized_lower: str
     tokens: tuple[str, ...]
     raw_lower: str
+    meta: Mapping[str, Any] | None = None
 
     @classmethod
-    def from_raw(cls, value: str) -> CandidateView:
+    def from_raw(cls, value: str, meta: Mapping[str, Any] | None = None) -> CandidateView:
         normalized = normalize_text(value)
         return cls(
             raw=value,
@@ -83,6 +117,7 @@ class CandidateView:
             normalized_lower=normalized.lower(),
             tokens=tuple(normalized.split()),
             raw_lower=value.lower() if value else "",
+            meta=meta or {},
         )
 
     @property
@@ -185,10 +220,19 @@ def resolve_row(
     title_lower = title_for_scoring.lower()
     slug_head = extract_slug_head(fields.source_url)
     slug_head_lower = slug_head.lower() if slug_head else None
-    candidate_views = [CandidateView.from_raw(candidate) for candidate in candidates]
-    scores = [
+    candidate_feature_map = row.get("candidate_features") or {}
+    candidate_views = [
+        CandidateView.from_raw(candidate, candidate_feature_map.get(candidate))
+        for candidate in candidates
+    ]
+    score_results = [
         score_candidate(candidate_view, title_lower, slug_head_lower, rules)
         for candidate_view in candidate_views
+    ]
+    scores = [result[0] for result in score_results]
+    feature_details = [
+        {"candidate": view.raw, "signals": result[1]}
+        for view, result in zip(candidate_views, score_results, strict=False)
     ]
 
     best_idx = choose_candidate(candidate_views, scores, title_lower, rules)
@@ -202,6 +246,7 @@ def resolve_row(
         "score": scores[best_idx],
         "candidates": candidates,
         "scores": scores,
+        "feature_flags": feature_details,
     }
 
     resolved = {
@@ -244,34 +289,85 @@ def score_candidate(
     title_lower: str,
     slug_head_lower: str | None,
     rules: ResolverRules,
-) -> float:
+) -> tuple[float, dict[str, Any]]:
+    signals = compute_candidate_signals(candidate, title_lower, slug_head_lower, rules)
     score = 0.0
+    for feature_name, weight in rules.weights.items():
+        if weight == 0:
+            continue
+        value = _feature_scalar(signals.get(feature_name))
+        if not value:
+            continue
+        score += weight * value
+    return score, signals
 
-    if not any(token in FUNDING_TOKENS for token in map(str.lower, candidate.tokens)):
-        score += rules.weights.get("no_funding_tokens", 0)
-    else:
-        score += rules.weights.get("has_funding_token", 0)
 
-    if 1 <= candidate.token_count <= 3:
-        score += rules.weights.get("token_count_1_3", 0)
-    elif candidate.token_count >= 5:
-        score += rules.weights.get("long_phrase_penalty", 0)
-
-    if any(token[:1].isupper() for token in candidate.tokens) or "." in candidate.raw:
-        score += rules.weights.get("proper_noun_or_dotted", 0)
+def compute_candidate_signals(
+    candidate: CandidateView,
+    title_lower: str,
+    slug_head_lower: str | None,
+    rules: ResolverRules,
+) -> dict[str, Any]:
+    signals: dict[str, Any] = {}
+    lower_tokens = [token.lower() for token in candidate.tokens]
+    has_funding_token = any(token in FUNDING_TOKENS for token in lower_tokens)
+    signals["has_funding_token"] = has_funding_token
+    signals["no_funding_tokens"] = not has_funding_token
+    signals["token_count_1_3"] = 1 <= candidate.token_count <= 3
+    signals["long_phrase_penalty"] = candidate.token_count >= 5
+    signals["proper_noun_or_dotted"] = any(token[:1].isupper() for token in candidate.tokens) or "." in candidate.raw
 
     if slug_head_lower:
         distance = levenshtein_distance(candidate.normalized_lower, slug_head_lower)
-        if distance <= rules.slug_head_edit_distance_threshold:
-            score += rules.weights.get("close_to_slug_head", 0)
+        signals["slug_head_edit_distance"] = distance
+        signals["close_to_slug_head"] = distance <= rules.slug_head_edit_distance_threshold
+        proximity = max(0, (rules.slug_head_edit_distance_threshold + 1) - distance)
+        signals["slug_head_proximity_bonus"] = proximity if proximity > 0 else 0
+    else:
+        signals["slug_head_edit_distance"] = None
+        signals["close_to_slug_head"] = False
+        signals["slug_head_proximity_bonus"] = 0
 
-    if appears_near_funding_verb(candidate.raw_lower, title_lower):
-        score += rules.weights.get("near_funding_verb", 0)
+    signals["near_funding_verb"] = appears_near_funding_verb(candidate.raw_lower, title_lower)
+    signals["locale_verb_hit"] = appears_near_locale_verb(candidate.raw_lower, title_lower)
+    signals["has_publisher_token_or_domain"] = contains_publisher_token(candidate.raw_lower, title_lower)
+    signals["has_publisher_prefix"] = _has_publisher_prefix(candidate)
+    signals["starts_with_verb_or_gerund"] = _starts_with_verb_or_gerund(candidate)
+    signals["possessive_plural_repaired"] = bool((candidate.meta or {}).get("possessive_plural_repaired"))
+    return signals
 
-    if contains_publisher_token(candidate.raw_lower, title_lower):
-        score += rules.weights.get("has_publisher_token_or_domain", 0)
 
-    return score
+def _feature_scalar(value: Any) -> float:
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
+def _has_publisher_prefix(candidate: CandidateView) -> bool:
+    if candidate.token_count == 0:
+        return False
+    first = candidate.tokens[0].lower()
+    second = candidate.tokens[1].lower() if candidate.token_count > 1 else ""
+    third = candidate.tokens[2].lower() if candidate.token_count > 2 else ""
+    if first in PUBLISHER_PREFIXES and (
+        second in PUBLISHER_TOKENS or third in PUBLISHER_TOKENS or second == "news"
+    ):
+        return True
+    if first in PUBLISHER_TOKENS:
+        return True
+    combined = f"{first} {second}".strip()
+    return combined in PUBLISHER_PREFIX_COMBINATIONS
+
+
+def _starts_with_verb_or_gerund(candidate: CandidateView) -> bool:
+    if candidate.token_count == 0:
+        return False
+    first = candidate.tokens[0].lower()
+    if first in VERB_STARTERS or first in LOCALE_FUNDING_VERBS:
+        return True
+    return any(first.endswith(suffix) for suffix in GERUND_SUFFIXES)
 
 
 def _normalize_stage(value: Any) -> str | None:
@@ -400,13 +496,21 @@ def levenshtein_distance(a: str, b: str) -> int:
 
 
 def appears_near_funding_verb(candidate_lower: str, title_lower: str) -> bool:
+    return _appears_near_keywords(candidate_lower, title_lower, VERBS)
+
+
+def appears_near_locale_verb(candidate_lower: str, title_lower: str) -> bool:
+    return _appears_near_keywords(candidate_lower, title_lower, LOCALE_FUNDING_VERBS)
+
+
+def _appears_near_keywords(candidate_lower: str, title_lower: str, keywords: Sequence[str]) -> bool:
     if not candidate_lower or not title_lower:
         return False
     index = title_lower.find(candidate_lower)
     if index == -1:
         return False
     window = title_lower[max(0, index - 40) : index + len(candidate_lower) + 40]
-    return any(verb in window for verb in VERBS)
+    return any(keyword in window for keyword in keywords)
 
 
 def contains_publisher_token(candidate_lower: str, title_lower: str) -> bool:

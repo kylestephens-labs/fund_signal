@@ -3,10 +3,15 @@ weights:
   no_funding_tokens: 4
   token_count_1_3: 2
   proper_noun_or_dotted: 3
-  close_to_slug_head: 3
+  close_to_slug_head: 1
+  slug_head_proximity_bonus: 1
   near_funding_verb: 2
+  locale_verb_hit: 2
+  possessive_plural_repaired: 1
   has_funding_token: -4
   has_publisher_token_or_domain: -4
+  has_publisher_prefix: -2
+  starts_with_verb_or_gerund: -2
   long_phrase_penalty: -2
 tie_breakers:
   - score_desc

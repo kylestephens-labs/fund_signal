@@ -205,6 +205,10 @@ The output payload is deterministic (same bundle + ruleset → same SHA) and inc
       "features": {"publisher_flagged": true, "publisher_split_used": true, "url_slug_used": true},
       "candidates": ["Appy.ai", "Appy"],
       "extraction_methods": {"Appy.ai": "url_slug", "Appy": "title_regex"},
+      "candidate_features": {
+        "Appy.ai": {"possessive_plural_repaired": false},
+        "Appy": {"possessive_plural_repaired": false}
+      },
       "ruleset_version": "v1",
       "ruleset_sha256": "<sha>",
       "generator_version": "1.0.0"
@@ -214,7 +218,7 @@ The output payload is deterministic (same bundle + ruleset → same SHA) and inc
 }
 ```
 
-`tools.candidate_generator` logs counters (`items_total`, `items_with_candidates`, `publisher_flagged`, `publisher_split_used`, `url_slug_used`, `avg_candidates_per_item`) so drift is visible in Render/Cloud logs. Each candidate undergoes light normalization (Unicode NFKC, possessive/plural cleanup, token cap ≤6, vowel check) while preserving dotted brands (e.g., `Appy.ai`). Downstream resolver tasks can then deterministically choose the best company name without bloated heuristics in this stage.
+`tools.candidate_generator` logs counters (`items_total`, `items_with_candidates`, `publisher_flagged`, `publisher_split_used`, `url_slug_used`, `avg_candidates_per_item`) so drift is visible in Render/Cloud logs. Each candidate undergoes light normalization (Unicode NFKC, possessive/plural cleanup, token cap ≤6, vowel check) while preserving dotted brands (e.g., `Appy.ai`) and records deterministic metadata in `candidate_features` (e.g., whether possessive repair occurred). Downstream resolver tasks can then deterministically choose the best company name without bloated heuristics in this stage.
 
 ### Resolver ruleset (FSQ-003)
 
@@ -227,10 +231,15 @@ Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rule
     "no_funding_tokens": 4,
     "token_count_1_3": 2,
     "proper_noun_or_dotted": 3,
-    "close_to_slug_head": 3,
+    "close_to_slug_head": 1,
+    "slug_head_proximity_bonus": 1,
     "near_funding_verb": 2,
+    "locale_verb_hit": 2,
+    "possessive_plural_repaired": 1,
     "has_funding_token": -4,
     "has_publisher_token_or_domain": -4,
+    "has_publisher_prefix": -2,
+    "starts_with_verb_or_gerund": -2,
     "long_phrase_penalty": -2
   },
   "tie_breakers": [
@@ -241,11 +250,11 @@ Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rule
   ],
   "slug_head_edit_distance_threshold": 2,
   "token_limits": {"max_tokens": 6, "min_tokens": 1},
-  "ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029"
+  "ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a"
 }
 ```
 
-Any schema violation (missing fields, unsupported tie breaker, negative thresholds) raises `ResolverRulesError` with code `RULES_SCHEMA_INVALID`. Hashing uses sorted JSON dumps to guarantee determinism; the Resolver embeds `ruleset_version` + `ruleset_sha256` (v1.1 hash `4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029`) in its outputs so scoring decisions stay auditable. v1.1 specifically increases penalties for publisher prefixes/gerunds and boosts signals that correlate with true company spans (slug-head proximity, locale verb adjacency, possessive repair handled by the existing normalizer).
+Any schema violation (missing fields, unsupported tie breaker, negative thresholds) raises `ResolverRulesError` with code `RULES_SCHEMA_INVALID`. Hashing uses sorted JSON dumps to guarantee determinism; the Resolver embeds `ruleset_version` + `ruleset_sha256` (v1.1 hash `490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a`) in its outputs so scoring decisions stay auditable. v1.1 now records per-candidate `feature_flags` (publisher prefixes, verb/gerund starters, slug-head proximity, locale verb hits, possessive repairs) and the candidate generator persists matching `candidate_features`, enabling troubleshooting without touching runtime heuristics.
 
 ### Deterministic resolver (FSQ-004)
 
@@ -264,11 +273,16 @@ Scoring signals (weights pulled from the YAML):
 | --- | --- | --- |
 | `no_funding_tokens` | Candidate does **not** contain tokens like `seed/series/funding/round`. | +4 |
 | `token_count_1_3` | Tokenized length between 1–3 inclusive. | +2 |
-| `proper_noun_or_dotted` | Contains dotted brand (`Appy.ai`) or capitalized tokens (benefits possessive repair). | +3 |
-| `close_to_slug_head` | Levenshtein distance to URL slug head ≤ threshold (default 2). | +3 |
-| `near_funding_verb` | Candidate appears near locale verbs such as “raises/erhält/announces”. | +2 |
+| `proper_noun_or_dotted` | Contains dotted brand (`Appy.ai`) or capitalized tokens. | +3 |
+| `close_to_slug_head` | Levenshtein distance to URL slug head ≤ threshold (default 2). | +1 |
+| `slug_head_proximity_bonus` | Extra boost scaled by `(threshold + 1) − distance` (0 when outside range). | +1 |
+| `near_funding_verb` | Candidate appears near verbs such as “raises/announces”. | +2 |
+| `locale_verb_hit` | Locale verb (e.g., “erhält”, “obtiene”) appears near the candidate span. | +2 |
+| `possessive_plural_repaired` | Generator trimmed possessive/plural suffixes to reach this candidate. | +1 |
 | `has_funding_token` | Contains `seed/series/round/funding` style gerunds. | −4 |
-| `has_publisher_token_or_domain` | Matches publisher prefixes/domains (News, Digest, etc.). | −4 |
+| `has_publisher_token_or_domain` | Matches publisher keywords/domains (News, Digest, etc.). | −4 |
+| `has_publisher_prefix` | Begins with publisher/article prefix (e.g., “The SaaS News”). | −2 |
+| `starts_with_verb_or_gerund` | Candidate itself begins with verbs/gerunds (“Raises”, “Securing”). | −2 |
 | `long_phrase_penalty` | ≥5 tokens. | −2 |
 
 Tie-breakers (`resolver_rules.v1.1.yaml`): `score_desc → token_count_asc → appears_in_title_first → lexicographic_ci`.
@@ -279,7 +293,7 @@ Resolver output example:
 {
   "resolver_version": "1.0.0",
   "resolver_ruleset_version": "v1.1",
-  "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+  "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
   "items_total": 76,
   "items_resolved": 75,
   "items_skipped": 1,
@@ -292,10 +306,23 @@ Resolver output example:
         "chosen_idx": 0,
         "score": 7.0,
         "candidates": ["Appy.ai","Appy","Seed Round"],
-        "scores": [7.0,4.0,-5.0]
+        "scores": [7.0,4.0,-5.0],
+        "feature_flags": [
+          {
+            "candidate": "Appy.ai",
+            "signals": {
+              "no_funding_tokens": true,
+              "token_count_1_3": true,
+              "slug_head_edit_distance": 0,
+              "slug_head_proximity_bonus": 3,
+              "near_funding_verb": true,
+              "has_publisher_prefix": false
+            }
+          }
+        ]
       },
       "resolver_ruleset_version": "v1.1",
-      "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+      "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
       "generator_ruleset_version": "v1",
       "generator_ruleset_sha256": "<sha>"
     }
@@ -325,7 +352,7 @@ All three stages (generator, resolver, normalize_and_resolve) emit JSON-friendly
   },
   "resolver": {
     "ruleset_version": "v1.1",
-    "ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+    "ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
     "metrics": {"items_total": 71, "items_resolved": 71, "items_skipped": 0},
     "accuracy_estimate": 0.96
   }

@@ -31,6 +31,14 @@
         "Acme Saa": "delimiter_plain",
         "Acme": "url_slug"
       },
+      "candidate_features": {
+        "Acme Saa": {
+          "possessive_plural_repaired": true
+        },
+        "Acme": {
+          "possessive_plural_repaired": false
+        }
+      },
       "funding_stage": "Series A",
       "funding_amount": 12000000,
       "funding_currency": "USD",

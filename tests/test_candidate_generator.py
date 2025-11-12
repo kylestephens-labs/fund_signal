@@ -35,6 +35,9 @@ def test_candidate_generator_emits_candidates(tmp_path: Path):
     assert row["features"]["url_slug_used"] is True
     assert "Appy.ai" in row["candidates"]
     assert row["extraction_methods"]["Appy.ai"] == "url_slug"
+    candidate_meta = row.get("candidate_features") or {}
+    assert "Appy.ai" in candidate_meta
+    assert "possessive_plural_repaired" in candidate_meta["Appy.ai"]
     assert payload["metrics"]["avg_candidates_per_item"] >= 1
 
 
@@ -83,3 +86,25 @@ def test_slug_parser_trims_verbs(tmp_path: Path):
 
     row = payload["data"][0]
     assert any(candidate.startswith("Hotglue") for candidate in row["candidates"])
+
+
+def test_candidate_generator_marks_possessive_repairs(tmp_path: Path):
+    rows = [
+        {
+            "title": "Glassflow's",
+            "url": "",
+        }
+    ]
+    input_path = _write_input(tmp_path, rows)
+    output_path = tmp_path / "possessive.json"
+
+    payload = candidate_generator.generate_candidates(
+        input_path=input_path,
+        output_path=output_path,
+        rules_path=Path("configs/normalizer_rules.v1.yaml"),
+    )
+
+    row = payload["data"][0]
+    meta = row["candidate_features"].get("Glassflow")
+    assert meta is not None
+    assert meta["possessive_plural_repaired"] is True

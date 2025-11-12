@@ -51,11 +51,11 @@
     },
     {
       "path": "leads/exa_seed.candidates.json",
-      "sha256": "ea9161110f89892584f90fad3f5ae68eeac1dc347e4ad333bbd92af467f024d2"
+      "sha256": "7e11da4bcba9bb45c8465e96afa3fa50fbe941f0769e91ee46de9b703238101d"
     },
     {
       "path": "leads/exa_seed.normalized.json",
-      "sha256": "877f8c552ee69d49522f57709036dad53b9e23697d1a8c7a18acc2d9b47deb99"
+      "sha256": "c422b4fc07bcdae522e02c89a70f9f9439c00b9b0a4c790511cf556bf90db1b1"
     }
   ],
   "signature": null

@@ -106,7 +106,7 @@ class CandidateGenerator:
             "url_slug_used": False,
         }
         raw_candidates = self._extract_candidates(title, snippet, url, features)
-        normalized_candidates, methods = self._normalize_candidates(raw_candidates)
+        normalized_candidates, methods, candidate_features = self._normalize_candidates(raw_candidates)
 
         if not normalized_candidates:
             return None, "EMPTY_CANDIDATES_AFTER_NORMALIZATION"
@@ -125,6 +125,7 @@ class CandidateGenerator:
             "features": features,
             "candidates": normalized_candidates,
             "extraction_methods": methods,
+            "candidate_features": candidate_features,
         }
         payload.update(_seed_metadata(record))
         return payload, None
@@ -218,12 +219,13 @@ class CandidateGenerator:
     def _normalize_candidates(
         self,
         raw_candidates: Sequence[tuple[str, str]],
-    ) -> tuple[list[str], dict[str, str]]:
+    ) -> tuple[list[str], dict[str, str], dict[str, dict[str, Any]]]:
         normalized: list[str] = []
         methods: dict[str, str] = {}
+        candidate_features: dict[str, dict[str, Any]] = {}
         seen: dict[str, int] = {}
         for value, method in raw_candidates:
-            cleaned = self._clean_candidate(value)
+            cleaned, normalization_meta = self._clean_candidate(value)
             if not cleaned:
                 continue
             dedupe_key = cleaned.lower()
@@ -235,36 +237,43 @@ class CandidateGenerator:
                     for idx, candidate in enumerate(normalized):
                         if candidate.lower() == dedupe_key:
                             methods.pop(candidate, None)
+                            candidate_features.pop(candidate, None)
                             normalized[idx] = cleaned
                             methods[cleaned] = method
+                            candidate_features[cleaned] = normalization_meta or {}
                             break
                     seen[dedupe_key] = priority
                 continue
             seen[dedupe_key] = priority
             normalized.append(cleaned)
             methods[cleaned] = method
-        return normalized, methods
+            candidate_features[cleaned] = normalization_meta or {}
+        return normalized, methods, candidate_features
 
-    def _clean_candidate(self, value: str) -> str | None:
+    def _clean_candidate(self, value: str) -> tuple[str | None, dict[str, Any]]:
         text = unicodedata.normalize("NFKC", value or "")
         text = text.replace("’", "'").strip()
         text = re.sub(r"[\"“”]", "", text)
         text = re.sub(r"\s+", " ", text)
         text = text.strip(" -_,.")
         if not text:
-            return None
+            return None, {}
 
+        repaired_possessive = False
         lower = text.lower()
         if lower.endswith("'s"):
             text = text[:-2]
+            repaired_possessive = True
         elif lower.endswith("es") and len(text) > 4 and lower[-3] not in "aeiou":
             text = text[:-2]
+            repaired_possessive = True
         elif lower.endswith("s") and not lower.endswith("ss") and len(text) > 3:
             text = text[:-1]
+            repaired_possessive = True
 
         text = text.strip(" -_,.")
         if not text:
-            return None
+            return None, {}
 
         tokens = text.split()
         if len(tokens) > 6:
@@ -273,9 +282,10 @@ class CandidateGenerator:
 
         letters = [ch for ch in text if ch.isalpha()]
         if letters and not any(ch in "aeiouyAEIOUY" for ch in letters):
-            return None
+            return None, {}
 
-        return text or None
+        meta = {"possessive_plural_repaired": repaired_possessive}
+        return text or None, meta
 
     def _is_publisher_phrase(self, candidate: str, title: str, url: str) -> bool:
         lowered = (candidate or "").lower()

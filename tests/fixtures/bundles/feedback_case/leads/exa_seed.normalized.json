@@ -1,7 +1,7 @@
 {
   "resolver_version": "1.0.0",
   "resolver_ruleset_version": "v1.1",
-  "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+  "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
   "items_total": 2,
   "items_resolved": 2,
   "items_skipped": 0,
@@ -20,7 +20,8 @@
         "final_label": "EXCLUDE",
         "score": 0,
         "candidates": ["Seed Round", "Hotglue"],
-        "scores": [-2, 1]
+        "scores": [-2, 1],
+        "feature_flags": []
       }
     },
     {
@@ -37,7 +38,8 @@
         "final_label": "VERIFIED",
         "score": 5,
         "candidates": ["Appy.ai"],
-        "scores": [5]
+        "scores": [5],
+        "feature_flags": []
       }
     }
   ],

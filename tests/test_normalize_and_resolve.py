@@ -39,11 +39,15 @@ def test_normalize_and_resolve_end_to_end(tmp_path: Path):
     assert candidates_out.exists()
     assert normalized_out.exists()
     normalized_payload = json.loads(normalized_out.read_text(encoding="utf-8"))
+    candidates_payload = json.loads(candidates_out.read_text(encoding="utf-8"))
     entry = normalized_payload["data"][0]
     assert entry["company_name"]
     assert entry["funding_stage"] == "Series A"
     assert entry["amount"]["unit"] in {"M", "K", "B"}
     assert entry["source_url"]
+    assert "feature_flags" in entry["resolution"]
+    candidate_row = candidates_payload["data"][0]
+    assert "candidate_features" in candidate_row
     # Determinism: re-run and compare bytes
     first_candidates = candidates_out.read_bytes()
     first_normalized = normalized_out.read_bytes()

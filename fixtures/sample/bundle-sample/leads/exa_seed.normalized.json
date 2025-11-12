@@ -1,7 +1,7 @@
 {
   "resolver_version": "1.0.0",
   "resolver_ruleset_version": "v1.1",
-  "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+  "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
   "items_total": 1,
   "items_resolved": 1,
   "items_skipped": 0,
@@ -21,18 +21,58 @@
       "resolution": {
         "method": "resolver_v1.1",
         "chosen_idx": 1,
-        "score": 12.0,
+        "score": 13.0,
         "candidates": [
           "Acme Saa",
           "Acme"
         ],
         "scores": [
-          9.0,
-          12.0
+          10.0,
+          13.0
+        ],
+        "feature_flags": [
+          {
+            "candidate": "Acme Saa",
+            "signals": {
+              "has_funding_token": false,
+              "no_funding_tokens": true,
+              "token_count_1_3": true,
+              "long_phrase_penalty": false,
+              "proper_noun_or_dotted": true,
+              "slug_head_edit_distance": 4,
+              "close_to_slug_head": false,
+              "slug_head_proximity_bonus": 0,
+              "near_funding_verb": false,
+              "locale_verb_hit": false,
+              "has_publisher_token_or_domain": false,
+              "has_publisher_prefix": false,
+              "starts_with_verb_or_gerund": false,
+              "possessive_plural_repaired": true
+            }
+          },
+          {
+            "candidate": "Acme",
+            "signals": {
+              "has_funding_token": false,
+              "no_funding_tokens": true,
+              "token_count_1_3": true,
+              "long_phrase_penalty": false,
+              "proper_noun_or_dotted": true,
+              "slug_head_edit_distance": 0,
+              "close_to_slug_head": true,
+              "slug_head_proximity_bonus": 3,
+              "near_funding_verb": false,
+              "locale_verb_hit": false,
+              "has_publisher_token_or_domain": false,
+              "has_publisher_prefix": false,
+              "starts_with_verb_or_gerund": false,
+              "possessive_plural_repaired": false
+            }
+          }
         ]
       },
       "resolver_ruleset_version": "v1.1",
-      "resolver_ruleset_sha256": "4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029",
+      "resolver_ruleset_sha256": "490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a",
       "announced_date": "2025-09-02"
     }
   ],
