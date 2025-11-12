@@ -256,6 +256,12 @@ Resolver scoring/selection logic lives in versioned YAML (`configs/resolver_rule
 
 Any schema violation (missing fields, unsupported tie breaker, negative thresholds) raises `ResolverRulesError` with code `RULES_SCHEMA_INVALID`. Hashing uses sorted JSON dumps to guarantee determinism; the Resolver embeds `ruleset_version` + `ruleset_sha256` (v1.1 hash `490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a`) in its outputs so scoring decisions stay auditable. v1.1 now records per-candidate `feature_flags` (publisher prefixes, verb/gerund starters, slug-head proximity, locale verb hits, possessive repairs) and the candidate generator persists matching `candidate_features`, enabling troubleshooting without touching runtime heuristics.
 
+> **Resolver v1.1 rollout (2025‑11‑11)**  
+> - Added publisher prefix penalty + verb/gerund opener penalty to demote publisher headlines.  
+> - Introduced slug-head proximity bonus and locale verb hits (e.g., *erhält*, *obtiene*) to boost real company spans even in non-English copy.  
+> - Propagated possessive/plural repair metadata from the generator so the resolver can up-rank cleaned candidates.  
+> Verify your environment by checking `resolver_ruleset_version`/`resolver_ruleset_sha256` in resolver telemetry logs or by running `python -m tools.resolve_company_name --input … --output … --rules configs/resolver_rules.v1.1.yaml` and confirming the printed SHA matches the value above.
+
 ### Deterministic resolver (FSQ-004)
 
 The resolver consumes `exa_seed.candidates.json`, loads the resolver ruleset, and deterministically emits a single `company_name` per row:

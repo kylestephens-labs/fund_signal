@@ -40,3 +40,14 @@ artifacts/
 | `signature` | Optional HMAC-SHA256 of the manifest payload |
 
 Use `python -m tools.verify_bundle --manifest <bundle>/manifest.json` to validate freshness, checksums, and signature before consumption.
+
+### Resolver ruleset reference
+
+Keep a running table of the active resolver config so bundle consumers can confirm what version generated their leads:
+
+| Version | SHA256 | Rolled out | Notes |
+| --- | --- | --- | --- |
+| v1.1 | `490356d1cfa7ecd84cf13a197768a1c5012d41c878f19ebab7aad6c9ad8bdd4a` | 2025‑11‑11 | Adds publisher prefix/verb penalties, slug-head proximity bonus, locale verb hits, possessive repair boost, and per-candidate feature flags. |
+| v1 | `4759d2bf03ce5b3991cc77444430d455084cbd51911543438639123fe4fd9029` | 2025‑08‑14 | Baseline resolver launch (publisher token penalty, slug edit distance ≤2). |
+
+Each bundle’s `leads/exa_seed.normalized.json` and resolver telemetry payloads embed `resolver_ruleset_version` + `resolver_ruleset_sha256`; auditors should compare those values against this table to ensure the captured data matches the documented configuration.
