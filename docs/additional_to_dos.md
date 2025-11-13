@@ -11,3 +11,16 @@ Optimization Ideas
 
 Extract the OpenAI client/payload parsing behind an interface so higher-level tests can swap in deterministic stubs without touching the main engine.
 Introduce a persistence-backed ScoreRepository (e.g., SQLModel) to warm API caches across processes once the in-memory implementation is no longer sufficient.
+
+
+## FS-D2-03: Scores Align With Intuition Regression Suite
+Needs Improvement / Follow-ups
+
+Online-mode scoring still lacks a corresponding regression guard; once prompt responses are stable we should add one alongside this fixture-based suite.
+Regression fixture format is parsed defensively now, but automated hash/version enforcement would further ensure changes remain intentional.
+
+Optimization Ideas
+
+Promote the new regression loader into a shared test utility so future regression suites (online mode, alternate models) can reuse it without re-importing from this file.
+
+Consider parameterizing the regression test via pytest.mark.parametrize to surface per-persona failures earlier while keeping ranking assertions as a final aggregate check.

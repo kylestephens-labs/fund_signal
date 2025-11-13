@@ -1,0 +1,66 @@
+{
+  "regression_version": "2025-11-13",
+  "notes": "High/medium/low personas used to guard the fixture rubric. Update alongside scoring changes.",
+  "companies": [
+    {
+      "id": "high-growth",
+      "label": "High Growth SaaS",
+      "expected_rank": 1,
+      "band": "high",
+      "min_score": 80,
+      "max_score": 100,
+      "profile": {
+        "company_id": "11111111-0000-0000-0000-000000000001",
+        "name": "High Growth SaaS",
+        "funding_amount": "$15M",
+        "funding_stage": "Series A",
+        "days_since_funding": 45,
+        "employee_count": 40,
+        "job_postings": 8,
+        "tech_stack": ["Salesforce", "HubSpot"],
+        "buying_signals": ["https://press.fundsignal.dev/high-growth"],
+        "verified_sources": ["Exa", "You.com", "Tavily"]
+      }
+    },
+    {
+      "id": "steady-climber",
+      "label": "Steady Climber Inc",
+      "expected_rank": 2,
+      "band": "medium",
+      "min_score": 45,
+      "max_score": 70,
+      "profile": {
+        "company_id": "22222222-0000-0000-0000-000000000002",
+        "name": "Steady Climber Inc",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 130,
+        "employee_count": 70,
+        "job_postings": 2,
+        "tech_stack": ["HubSpot"],
+        "buying_signals": ["https://press.fundsignal.dev/steady-climber"],
+        "verified_sources": ["Exa", "You.com"]
+      }
+    },
+    {
+      "id": "stalled-co",
+      "label": "Stalled Co",
+      "expected_rank": 3,
+      "band": "low",
+      "min_score": 0,
+      "max_score": 30,
+      "profile": {
+        "company_id": "33333333-0000-0000-0000-000000000003",
+        "name": "Stalled Co",
+        "funding_amount": "$3M",
+        "funding_stage": "Seed",
+        "days_since_funding": 210,
+        "employee_count": 12,
+        "job_postings": 0,
+        "tech_stack": [],
+        "buying_signals": [],
+        "verified_sources": ["Exa"]
+      }
+    }
+  ]
+}

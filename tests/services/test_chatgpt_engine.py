@@ -1,15 +1,43 @@
 import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import pytest
 
 from app.models.company import CompanyProfile
 from app.services.scoring.chatgpt_engine import (
+    DEFAULT_SOURCE_MAP,
     ChatGPTScoringEngine,
     ScoringContext,
     ScoringValidationError,
 )
 from app.services.scoring.proof_links import ProofLinkHydrator
+
+REGRESSION_FIXTURE_ENV = "SCORING_REGRESSION_FIXTURE"
+DEFAULT_REGRESSION_FIXTURE = Path("tests/fixtures/scoring/regression_companies.json")
+
+
+@dataclass(frozen=True)
+class RegressionPersona:
+    persona_id: str
+    profile: CompanyProfile
+    min_score: int
+    max_score: int
+    expected_rank: int
+
+
+@dataclass(frozen=True)
+class RegressionFixture:
+    path: Path
+    version: str
+    personas: list[RegressionPersona]
+
+    @property
+    def context(self) -> str:
+        return f"[fixture={self.path}] [version={self.version}]"
 
 
 class StubOpenAIClient:
@@ -40,6 +68,38 @@ def _sample_company(**overrides):
     }
     payload.update(overrides)
     return CompanyProfile(**payload)
+
+
+def _load_regression_fixture() -> RegressionFixture:
+    fixture_path = Path(os.getenv(REGRESSION_FIXTURE_ENV, DEFAULT_REGRESSION_FIXTURE))
+    if not fixture_path.exists():
+        pytest.fail(
+            f"Regression fixture not found at {fixture_path}. "
+            f"Override via {REGRESSION_FIXTURE_ENV} or restore the default file."
+        )
+    data = json.loads(fixture_path.read_text(encoding="utf-8"))
+    version = data.get("regression_version", "unknown")
+    personas = [_parse_persona(raw, fixture_path) for raw in data.get("companies", [])]
+    return RegressionFixture(path=fixture_path, version=version, personas=personas)
+
+
+def _parse_persona(payload: dict[str, Any], fixture_path: Path) -> RegressionPersona:
+    try:
+        persona = RegressionPersona(
+            persona_id=payload["id"],
+            profile=CompanyProfile(**payload["profile"]),
+            min_score=payload["min_score"],
+            max_score=payload["max_score"],
+            expected_rank=payload["expected_rank"],
+        )
+    except KeyError as exc:  # pragma: no cover - defensive field guard
+        pytest.fail(f"[fixture={fixture_path}] missing regression field: {exc}")  # noqa: PT009
+    if persona.min_score > persona.max_score:
+        pytest.fail(
+            f"[fixture={fixture_path}] persona {persona.persona_id} has min_score > max_score "
+            f"({persona.min_score} > {persona.max_score})"
+        )
+    return persona
 
 
 def test_fixture_rubric_scores_company_without_openai():
@@ -248,3 +308,32 @@ def test_fetch_scores_returns_runs():
     assert len(all_scores) == 2
     assert len(run_1) == 1
     assert run_1[0].scoring_run_id == "run-1"
+
+
+def test_fixture_regression_scores_align_with_intuition():
+    fixture = _load_regression_fixture()
+    context = fixture.context
+    assert len(fixture.personas) >= 3, f"{context} expected at least three regression personas."
+
+    engine = ChatGPTScoringEngine(
+        context=ScoringContext(
+            mode="fixture",
+            system_prompt="regression-system",
+            model="fixture-rubric",
+            temperature=0.0,
+        ),
+        proof_hydrator=ProofLinkHydrator(default_sources=DEFAULT_SOURCE_MAP),
+    )
+
+    scored: list[tuple[str, int]] = []
+    for persona in fixture.personas:
+        result = engine.score_company(persona.profile, scoring_run_id=f"regression-{persona.persona_id}", force=True)
+        assert persona.min_score <= result.score <= persona.max_score, (
+            f"{context} {persona.persona_id} expected score between {persona.min_score}-{persona.max_score}, "
+            f"got {result.score}"
+        )
+        scored.append((persona.persona_id, result.score))
+
+    expected_order = [persona.persona_id for persona in sorted(fixture.personas, key=lambda p: p.expected_rank)]
+    actual_order = [persona_id for persona_id, _ in sorted(scored, key=lambda row: row[1], reverse=True)]
+    assert actual_order == expected_order, f"{context} unexpected ranking {actual_order}; expected {expected_order}"

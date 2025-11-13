@@ -331,6 +331,8 @@ Pass structured signal metadata in the scoring request via the optional `signals
 
 When a slugged signal is provided, the proof-link hydrator reuses every matching piece of evidence; otherwise it falls back to the sanitized `buying_signals` list (deduped, order-preserving) or built-in default proof URLs. Each breakdown item exposes `proof` (legacy single entry) plus the full `proofs` array so UIs can render multiple links. Missing or unreachable evidence results in API errors using the `404_PROOF_NOT_FOUND` or `424_EVIDENCE_SOURCE_DOWN` codes so clients can remediate quickly.
 
+Regression guard: run `pytest tests/services/test_chatgpt_engine.py -k regression` to ensure the scoring rubric keeps the canonical high/medium/low personas in their expected bands. Update `tests/fixtures/scoring/regression_companies.json` (or set `SCORING_REGRESSION_FIXTURE`) whenever rubric weights or persona definitions change so the suite reflects the new intuition.
+
 ***
 
 ## Deterministic Confidence Scoring
