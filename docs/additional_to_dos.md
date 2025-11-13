@@ -19,8 +19,30 @@ Needs Improvement / Follow-ups
 Online-mode scoring still lacks a corresponding regression guard; once prompt responses are stable we should add one alongside this fixture-based suite.
 Regression fixture format is parsed defensively now, but automated hash/version enforcement would further ensure changes remain intentional.
 
+Regression suite currently only covers the fixture rubric; add a similar guard once the online/prompted model is ready (maybe via recorded responses).
+
+Personas cover only three clusters; consider adding edge cases (e.g., negative scores, neutral hiring) to better detect drift.
+
+Fixture JSON lacks automated hash/versioning—documented regression_version but no enforcement that updates are intentional.
+
 Optimization Ideas
 
 Promote the new regression loader into a shared test utility so future regression suites (online mode, alternate models) can reuse it without re-importing from this file.
 
 Consider parameterizing the regression test via pytest.mark.parametrize to surface per-persona failures earlier while keeping ranking assertions as a final aggregate check.
+
+Introduce a helper factory (e.g., load_regression_personas() in a shared test util) so future regression suites (online mode, other scoring models) can reuse the same loader and validation logic without duplicating code.
+
+## FS-D2-04: Scores Align With Intuition – Bundle Regression & Drift Detection
+
+Needs Improvement / Follow-ups
+
+Bundle fixtures remain static; consider version pinning or hashing to ensure updates are intentional before CI relies on them.
+
+Regression helpers now live inside this test file; moving them into a shared tests/utils module would allow reuse as more suites depend on bundle personas.
+
+Optimization Ideas
+
+Build a small factory on top of BundleRegressionFixture that returns parametrized pytest cases, so failures point directly at the offending persona/tier without scanning aggregated assertions.
+
+Cache parsed fixtures across tests (module-level functools.lru_cache) to avoid repeated file I/O if additional regression tests are added later.

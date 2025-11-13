@@ -18,6 +18,14 @@ from app.services.scoring.proof_links import ProofLinkHydrator
 
 REGRESSION_FIXTURE_ENV = "SCORING_REGRESSION_FIXTURE"
 DEFAULT_REGRESSION_FIXTURE = Path("tests/fixtures/scoring/regression_companies.json")
+BUNDLE_FIXTURE_ENV = "SCORING_BUNDLE_FIXTURE_DIR"
+DEFAULT_BUNDLE_FIXTURE_DIR = Path("tests/fixtures/bundles/intuition_regression")
+BUNDLE_FIXTURE_FILENAME = "bundle_companies.json"
+TIER_RANGES = {
+    "high": (80, 100),
+    "medium": (45, 70),
+    "low": (0, 35),
+}
 
 
 @dataclass(frozen=True)
@@ -38,6 +46,33 @@ class RegressionFixture:
     @property
     def context(self) -> str:
         return f"[fixture={self.path}] [version={self.version}]"
+
+
+@dataclass(frozen=True)
+class BundleCompany:
+    entry_id: str
+    tier: str
+    profile: CompanyProfile
+    label: str
+    notes: str | None = None
+
+
+@dataclass(frozen=True)
+class BundleRegressionFixture:
+    manifest: Path
+    bundle_id: str
+    captured_at: str
+    version: str
+    companies: list[BundleCompany]
+
+    @property
+    def context(self) -> str:
+        return (
+            f"[bundle_manifest={self.manifest}] "
+            f"[bundle_id={self.bundle_id}] "
+            f"[captured_at={self.captured_at}] "
+            f"[version={self.version}]"
+        )
 
 
 class StubOpenAIClient:
@@ -100,6 +135,56 @@ def _parse_persona(payload: dict[str, Any], fixture_path: Path) -> RegressionPer
             f"({persona.min_score} > {persona.max_score})"
         )
     return persona
+
+
+def _load_bundle_regression_fixture() -> BundleRegressionFixture:
+    root = Path(os.getenv(BUNDLE_FIXTURE_ENV, DEFAULT_BUNDLE_FIXTURE_DIR))
+    manifest = root / BUNDLE_FIXTURE_FILENAME
+    if not manifest.exists():
+        pytest.fail(
+            f"Bundle regression manifest not found at {manifest}. "
+            f"Override via {BUNDLE_FIXTURE_ENV} or restore the default directory."
+        )
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    companies_payload = data.get("companies", [])
+    if not companies_payload:
+        pytest.fail(f"[bundle_manifest={manifest}] contains no companies for regression.")
+    companies = [_parse_bundle_company(entry, manifest) for entry in companies_payload]
+    return BundleRegressionFixture(
+        manifest=manifest,
+        bundle_id=data.get("bundle_id", "bundle-regression"),
+        captured_at=data.get("captured_at", "unknown"),
+        version=data.get("regression_bundle_version", "unknown"),
+        companies=companies,
+    )
+
+
+def _parse_bundle_company(entry: dict[str, Any], manifest: Path) -> BundleCompany:
+    try:
+        normalized_tier = _normalize_tier(entry["human_tier"])
+        profile = CompanyProfile(**entry["company"])
+        label = entry.get("label", entry["company"]["name"])
+        return BundleCompany(
+            entry_id=entry["id"],
+            tier=normalized_tier,
+            profile=profile,
+            label=label,
+            notes=entry.get("notes"),
+        )
+    except KeyError as exc:  # pragma: no cover - defensive parsing
+        pytest.fail(f"[bundle_manifest={manifest}] missing field: {exc}")  # noqa: PT009
+
+
+def _normalize_tier(key: str) -> str:
+    normalized = key.strip().lower()
+    if normalized not in TIER_RANGES:
+        pytest.fail(f"Unsupported tier '{key}'. Expected one of {sorted(TIER_RANGES)}")  # noqa: PT009
+    return normalized
+
+
+def _tier_band(key: str) -> tuple[int, int]:
+    normalized = _normalize_tier(key)
+    return TIER_RANGES[normalized]
 
 
 def test_fixture_rubric_scores_company_without_openai():
@@ -337,3 +422,41 @@ def test_fixture_regression_scores_align_with_intuition():
     expected_order = [persona.persona_id for persona in sorted(fixture.personas, key=lambda p: p.expected_rank)]
     actual_order = [persona_id for persona_id, _ in sorted(scored, key=lambda row: row[1], reverse=True)]
     assert actual_order == expected_order, f"{context} unexpected ranking {actual_order}; expected {expected_order}"
+
+
+def test_bundle_regression_scores_align_with_human_tiers():
+    bundle_fixture = _load_bundle_regression_fixture()
+    engine = ChatGPTScoringEngine(
+        context=ScoringContext(
+            mode="fixture",
+            system_prompt="bundle-regression",
+            model="fixture-rubric",
+            temperature=0.0,
+        ),
+        proof_hydrator=ProofLinkHydrator(default_sources=DEFAULT_SOURCE_MAP),
+    )
+
+    tier_scores: dict[str, list[int]] = {tier: [] for tier in TIER_RANGES}
+    for entry in bundle_fixture.companies:
+        result = engine.score_company(entry.profile, scoring_run_id=f"bundle-{entry.entry_id}", force=True)
+        min_score, max_score = _tier_band(entry.tier)
+        assert min_score <= result.score <= max_score, (
+            f"{bundle_fixture.context} entry={entry.entry_id} ({entry.label}) expected {entry.tier.title()} band "
+            f"{min_score}-{max_score}, got {result.score}"
+        )
+        tier_scores[entry.tier].append(result.score)
+
+    for tier, scores in tier_scores.items():
+        assert scores, f"{bundle_fixture.context} missing {tier.title()} tier entries."
+
+    high_min = min(tier_scores["high"])
+    medium_max = max(tier_scores["medium"])
+    medium_min = min(tier_scores["medium"])
+    low_max = max(tier_scores["low"])
+
+    assert high_min > medium_max, (
+        f"{bundle_fixture.context} High tier drift: min_high={high_min} <= max_medium={medium_max}"
+    )
+    assert medium_min > low_max, (
+        f"{bundle_fixture.context} Medium tier drift: min_medium={medium_min} <= max_low={low_max}"
+    )

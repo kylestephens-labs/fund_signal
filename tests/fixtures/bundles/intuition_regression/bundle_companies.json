@@ -1,0 +1,169 @@
+{
+  "regression_bundle_version": "2025-11-13",
+  "bundle_id": "bundle-intuition-regression",
+  "captured_at": "2025-11-07T03:00:00Z",
+  "companies": [
+    {
+      "id": "alpha-high",
+      "label": "Alpha Signal Labs",
+      "human_tier": "High",
+      "notes": "Raised 45 days ago, 9 sales roles, full CRM stack",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000101",
+        "name": "Alpha Signal Labs",
+        "funding_amount": "$18M",
+        "funding_stage": "Series A",
+        "days_since_funding": 45,
+        "employee_count": 42,
+        "job_postings": 9,
+        "tech_stack": ["Salesforce", "HubSpot", "Apollo"],
+        "buying_signals": ["https://news.fundsignal.dev/alpha"],
+        "verified_sources": ["Exa", "You.com", "Tavily"]
+      }
+    },
+    {
+      "id": "beacon-high",
+      "label": "Beacon Analytics",
+      "human_tier": "High",
+      "notes": "Recent raise, 6 GTM roles, Salesforce + HubSpot",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000102",
+        "name": "Beacon Analytics",
+        "funding_amount": "$22M",
+        "funding_stage": "Series B",
+        "days_since_funding": 70,
+        "employee_count": 48,
+        "job_postings": 6,
+        "tech_stack": ["Salesforce", "HubSpot"],
+        "buying_signals": ["https://news.fundsignal.dev/beacon"],
+        "verified_sources": ["Exa", "You.com", "Tavily"]
+      }
+    },
+    {
+      "id": "catalyst-high",
+      "label": "Catalyst Cloud",
+      "human_tier": "High",
+      "notes": "Fresh press + 5 roles, premium CRM coverage",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000103",
+        "name": "Catalyst Cloud",
+        "funding_amount": "$16M",
+        "funding_stage": "Series A",
+        "days_since_funding": 30,
+        "employee_count": 38,
+        "job_postings": 5,
+        "tech_stack": ["Salesforce", "HubSpot", "Salesloft"],
+        "buying_signals": ["https://news.fundsignal.dev/catalyst"],
+        "verified_sources": ["Exa", "You.com", "Tavily"]
+      }
+    },
+    {
+      "id": "delta-medium",
+      "label": "Delta Systems",
+      "human_tier": "Medium",
+      "notes": "Funding getting stale but still hiring 3 reps",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000201",
+        "name": "Delta Systems",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 140,
+        "employee_count": 70,
+        "job_postings": 3,
+        "tech_stack": ["HubSpot", "Apollo"],
+        "buying_signals": ["https://news.fundsignal.dev/delta"],
+        "verified_sources": ["Exa", "You.com"]
+      }
+    },
+    {
+      "id": "echo-medium",
+      "label": "Echo Platforms",
+      "human_tier": "Medium",
+      "notes": "Older funding, 2 roles open, limited CRM stack",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000202",
+        "name": "Echo Platforms",
+        "funding_amount": "$12M",
+        "funding_stage": "Series A",
+        "days_since_funding": 165,
+        "employee_count": 92,
+        "job_postings": 2,
+        "tech_stack": ["Salesforce"],
+        "buying_signals": ["https://news.fundsignal.dev/echo"],
+        "verified_sources": ["Exa", "You.com"]
+      }
+    },
+    {
+      "id": "foxtrot-medium",
+      "label": "Foxtrot Ops",
+      "human_tier": "Medium",
+      "notes": "Funding still recent but only 1 hire and limited tooling",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000203",
+        "name": "Foxtrot Ops",
+        "funding_amount": "$11M",
+        "funding_stage": "Series A",
+        "days_since_funding": 95,
+        "employee_count": 110,
+        "job_postings": 1,
+        "tech_stack": ["Outreach"],
+        "buying_signals": ["https://news.fundsignal.dev/foxtrot"],
+        "verified_sources": ["Exa", "You.com"]
+      }
+    },
+    {
+      "id": "greyline-low",
+      "label": "Greyline Labs",
+      "human_tier": "Low",
+      "notes": "Old funding, no roles, no signals",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000301",
+        "name": "Greyline Labs",
+        "funding_amount": "$4M",
+        "funding_stage": "Seed",
+        "days_since_funding": 210,
+        "employee_count": 12,
+        "job_postings": 0,
+        "tech_stack": [],
+        "buying_signals": [],
+        "verified_sources": ["Exa"]
+      }
+    },
+    {
+      "id": "harbor-low",
+      "label": "Harbor AI",
+      "human_tier": "Low",
+      "notes": "No recent press, only 1 open role",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000302",
+        "name": "Harbor AI",
+        "funding_amount": "$5M",
+        "funding_stage": "Seed",
+        "days_since_funding": 320,
+        "employee_count": 18,
+        "job_postings": 1,
+        "tech_stack": ["Zoho CRM"],
+        "buying_signals": [],
+        "verified_sources": ["Exa"]
+      }
+    },
+    {
+      "id": "ion-low",
+      "label": "Ion Forge",
+      "human_tier": "Low",
+      "notes": "No hiring, limited tooling, stale funding",
+      "company": {
+        "company_id": "00000000-0000-0000-0000-000000000303",
+        "name": "Ion Forge",
+        "funding_amount": "$6M",
+        "funding_stage": "Seed",
+        "days_since_funding": 400,
+        "employee_count": 85,
+        "job_postings": 0,
+        "tech_stack": ["Apollo"],
+        "buying_signals": [],
+        "verified_sources": ["Exa"]
+      }
+    }
+  ]
+}

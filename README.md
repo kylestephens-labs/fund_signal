@@ -333,6 +333,8 @@ When a slugged signal is provided, the proof-link hydrator reuses every matching
 
 Regression guard: run `pytest tests/services/test_chatgpt_engine.py -k regression` to ensure the scoring rubric keeps the canonical high/medium/low personas in their expected bands. Update `tests/fixtures/scoring/regression_companies.json` (or set `SCORING_REGRESSION_FIXTURE`) whenever rubric weights or persona definitions change so the suite reflects the new intuition.
 
+Bundle regression guard: run `pytest tests/services/test_chatgpt_engine.py -k bundle_regression` to replay curated bundle excerpts with human-labeled tiers. Update `tests/fixtures/bundles/intuition_regression/bundle_companies.json` (or override `SCORING_BUNDLE_FIXTURE_DIR`) whenever new bundles are captured so drift detection mirrors production data.
+
 ***
 
 ## Deterministic Confidence Scoring
