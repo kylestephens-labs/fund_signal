@@ -1,10 +1,9 @@
-You are an expert software architect working on a Multi-source verified, AI-scored lists of B2B SaaS companies that raised funding 60-90 days ago. This project will involve multiple ai agents
+You are an expert software architect working on a Multi-source verified, AI-scored lists of B2B SaaS companies that raised funding 60-90 days ago. This project will involve multiple ai agents.
 
-Review the project file mvp.md to gain context on the project
+Please write task 6 for FSQ‑008 (Feedback Resolver), Integration Notes
+	•	Optional: add a TODO/README note describing where FSQ‑008 slots into the day1 pipeline (after normalize_and_resolve, before unified_verify). Actual wiring can be a follow-on task if needed
 
-Next review everything under day 1 in mvp.md.
-
-Now create all of the day 1 tasks using this task template:
+and using this task template:
 
 ### FINAL OPTIMIZED TASK TEMPLATE (Codex-Ready)
 
@@ -15,9 +14,9 @@ Task [ID]: [Title]
 
 📚 ESSENTIAL CONTEXT
 
-CRITICAL: Read these before coding:
-	•	docs/mvp.md
+CRITICAL: Read these files before starting the implementation to gain valuable context:
 
+[list files here]
     ⸻
 
 🧠 Quick Overview (≤3 sentences)
@@ -94,10 +93,13 @@ Each must be testable and map directly to a test or check.
 ⸻
 
 ⚙️ Files & Resources
-	•	Files Affected: [List of source files to create/modify]
-	•	Dependencies: [Blocking tasks, env vars, services]
-	•	External Resources: Exa API, Tavily API, You.com API docs, Render.com dashboard, Supabase dashboard
-	•	Contracts/IO Shapes: [Request/Response examples or schemas]
+    • Files Affected: [List of source files to create/modify]
+    • Dependencies:
+        – Tasks: [Upstream FSQs or blocker tasks that must land first]
+        – Environment: [Env vars, services, or fixtures required]
+    • External Resources: [e.g., Exa API docs, Tavily API docs, Render dashboard, Supabase dashboard]
+    • Contracts/IO Shapes: [Request/Response examples or schemas referenced]
+	
 
 ⸻
 
@@ -114,6 +116,3 @@ Each must be testable and map directly to a test or check.
 	•	Risk: What could go wrong
 	•	Success Metrics: How to know it’s done and high quality
     •	Hypothesis: “Multi-source, timestamped, explainable leads convert faster and yield higher user trust.
-
-    ###REVIEW AND VALDIATE YOUR WORK MEETS THE CRITERIA IN docs/delivery/dod_testing.md BEFORE CONSIDERING BEING DONE WITH THE TASK.
-

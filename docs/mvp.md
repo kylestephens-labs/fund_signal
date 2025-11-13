@@ -66,6 +66,8 @@ Last checked: Oct 29, 2025, 9:15 AM
 Confidence: HIGH ✅
 ```
 
+FUND_SIGNAL_MODE: fixture
+
 ### 2. Explainability Drawer
 
 Click "Why this score?" to see:
@@ -88,6 +90,8 @@ Pitch angle: "We help Series A SaaS scale outbound"
 [VIEW NEWS ARTICLE] [READ ANNOUNCEMENT]
 ```
 
+FUND_SIGNAL_MODE: fixture
+
 ### 3. Per-Lead Feedback
 
 Every lead has feedback buttons:
@@ -99,12 +103,16 @@ Was this lead relevant?
 
 Feedback trains next batch + triggers support for bad leads.
 
+FUND_SIGNAL_MODE: fixture
+
 ### 4. Concierge Backstop
 
 "Missed a company? Paste link below → we'll enrich it within 24h"
 
 - Turns data gaps into loyalty moments
 - Shows you hustle for outcomes
+
+FUND_SIGNAL_MODE: fixture
 
 ### 5. Multi-Channel Delivery
 
@@ -114,6 +122,8 @@ Choose your format:
 - CSV/Airtable export (one-click download)
 
 No forced Slack adoption—users get value immediately.
+
+FUND_SIGNAL_MODE: online (requires Slack/email integrations)
 
 ## 💰 Pricing Model
 
@@ -157,6 +167,8 @@ exa_results = exa.search_and_contents(
 # Extract: company name, funding amount, date, source URL
 ```
 
+FUND_SIGNAL_MODE: online
+
 ### 2. Set up You.com News API verification (2 hours)
 
 ```python
@@ -171,6 +183,8 @@ for company in exa_results:
         company.news_sources = [article.publisher for article in youcom_verify.results]
 ```
 
+FUND_SIGNAL_MODE: online
+
 ### 3. Set up Tavily confirmation (2 hours)
 
 ```python
@@ -184,6 +198,8 @@ for company in verified_companies:
         company.tavily_verified = True
         company.proof_links = tavily_result.top_sources
 ```
+
+FUND_SIGNAL_MODE: online
 
 ### 4. Build confidence scoring (1 hour)
 
@@ -200,6 +216,8 @@ elif sources_confirmed >= 2:
 else:
     company.confidence = "EXCLUDE ❌"
 ```
+
+FUND_SIGNAL_MODE: fixture (runs on captured data)
 
 **Definition of Done:**
 - ✅ 50+ B2B SaaS companies discovered
@@ -246,6 +264,8 @@ for company in verified_companies:
     company.breakdown = result['breakdown']
 ```
 
+FUND_SIGNAL_MODE: online (requires OpenAI API)
+
 ### 2. Add proof links to every signal (2 hours)
 
 ```python
@@ -258,6 +278,8 @@ for company in verified_companies:
     "timestamp": "2025-10-29T09:15:00Z"
 }
 ```
+
+FUND_SIGNAL_MODE: fixture (uses captured evidence)
 
 **Definition of Done:**
 - ✅ Every company has score 0-100
@@ -293,13 +315,19 @@ for company in verified_companies:
 2. [Next company]...
 ```
 
+FUND_SIGNAL_MODE: fixture (formatting only)
+
 ### 2. Build email digest (2 hours)
 - Same format as Slack but HTML
 - Include CSV download link at top
 
+FUND_SIGNAL_MODE: fixture (HTML rendering)
+
 ### 3. Build Airtable/CSV export (1 hour)
 - One-click "Download this week's prospects"
 - Columns: Company, Score, Confidence, Verified By, Funding, Hiring, Tech Stack, Proof Links
+
+FUND_SIGNAL_MODE: fixture (generate exports from captured bundle)
 
 ### 4. Set up n8n automation (2 hours)
 
@@ -312,6 +340,8 @@ Step 3: Send to customer Slack workspace
 Step 4: Send email digest
 Step 5: Generate CSV, upload to Airtable
 ```
+
+FUND_SIGNAL_MODE: online (requires Slack/email/Airtable connections)
 
 **Definition of Done:**
 - ✅ Slack alert sends Monday 9 AM
@@ -335,6 +365,8 @@ Was this lead relevant?
 (Optional) Tell us why: [text input]
 ```
 
+FUND_SIGNAL_MODE: fixture (UI + API mocks)
+
 ### 2. Build feedback tracking (2 hours)
 
 ```python
@@ -355,6 +387,8 @@ if signal.wrong_fit_correlation > 0.7:
     reduce_signal_weight()
 ```
 
+FUND_SIGNAL_MODE: fixture (local DB + seed data)
+
 ### 3. Build "Missed lead?" form (2 hours)
 
 ```
@@ -365,6 +399,8 @@ Paste announcement link: [input]
 We'll enrich it and add to your list within 24h.
 ```
 
+FUND_SIGNAL_MODE: fixture (form + local queue)
+
 ### 4. Set up manual enrichment workflow (1 hour)
 
 ```
@@ -374,6 +410,8 @@ When user submits link:
 3. Add to their next batch with "User-requested" tag
 4. Send them Slack notification: "We added [Company] based on your request"
 ```
+
+FUND_SIGNAL_MODE: online (needs Slack + notification hooks)
 
 **Definition of Done:**
 - ✅ Feedback buttons work on every lead
@@ -415,6 +453,8 @@ With proof links and explainable scores.
 
 **Guarantee:** "If you don't book 2 meetings in your first month, we'll refund you"
 
+FUND_SIGNAL_MODE: fixture (Carrd/content only)
+
 ### 2. Build signup flow (2 hours)
 
 ```
@@ -425,12 +465,16 @@ Step 4: Enter payment (14-day trial, no charge today)
 Step 5: Get first prospects within 5 minutes
 ```
 
+FUND_SIGNAL_MODE: fixture (local mock signup)
+
 ### 3. Set up Stripe checkout (1 hour)
 - Starter: $149/mo
 - Pro: $247/mo
 - Team: $499/mo
 - 14-day free trial
 - Cancel anytime
+
+FUND_SIGNAL_MODE: online (Stripe test/live keys)
 
 **Definition of Done:**
 - ✅ Landing page live at fundsignal.com
@@ -466,6 +510,8 @@ First 50 users get $49/mo for life (normally $149)
 Would love feedback from Clay community!"
 ```
 
+FUND_SIGNAL_MODE: online (requires posting to communities)
+
 ### 2. Launch in r/sales (1 hour)
 
 **Title:** "Built a tool that finds recently funded companies with multi-source news proof"
@@ -485,9 +531,13 @@ Free trial: fundsignal.com
 First 10 users get $49/mo for life."
 ```
 
+FUND_SIGNAL_MODE: online (Reddit post)
+
 ### 3. Direct outreach (2 hours)
 - Message 20 AEs/SDRs on LinkedIn
 - "Hey [Name], testing a new prospecting tool—takes 5 min to set up, shows recently funded companies with verified news coverage. Curious for your feedback?"
+
+FUND_SIGNAL_MODE: online (LinkedIn messaging)
 
 **Definition of Done:**
 - ✅ 3 community posts live
@@ -506,16 +556,22 @@ First 10 users get $49/mo for life."
 - Slack DM: "Your first 5 prospects are ready—click for explainability"
 - Schedule 15-min call with each user
 
+FUND_SIGNAL_MODE: online (real users)
+
 ### 2. Monitor engagement (2 hours)
 - % who click Slack alert
 - % who expand "Why this score?"
 - % who click feedback buttons
 - % who submit "missed lead" requests
 
+FUND_SIGNAL_MODE: online (live telemetry)
+
 ### 3. Iterate immediately (3 hours)
 - Fix #1 complaint within 24h
 - Update ChatGPT prompt if scores are off
 - Add most-requested feature
+
+FUND_SIGNAL_MODE: fixture (implement fixes locally, then redeploy)
 
 **Definition of Done:**
 - ✅ 10 trial signups onboarded

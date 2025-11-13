@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     exa_api_key: str | None = None
     youcom_api_key: str | None = None
     tavily_api_key: str | None = None
+    openai_api_key: str | None = None
+
+    # Scoring/Runtime
+    scoring_model: str = "gpt-4o-mini"
+    scoring_system_prompt_path: str = "configs/scoring/system_prompt.md"
+    scoring_temperature: float = 0.2
+    fund_signal_mode: str = "fixture"
+
+    # Storage
     supabase_url: str | None = None
     supabase_service_key: str | None = None
     supabase_bucket: str | None = None

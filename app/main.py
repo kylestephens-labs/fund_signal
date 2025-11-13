@@ -1,14 +1,21 @@
 import logging
 from contextlib import asynccontextmanager
 
-import sentry_sdk
+try:
+    import sentry_sdk
+except ModuleNotFoundError:  # Sentry optional in local/test envs
+    sentry_sdk = None
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
+try:
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+except ModuleNotFoundError:  # Sentry optional during local dev/tests
+    FastApiIntegration = None
+    LoggingIntegration = None
 
-from app.api.routes import example, health
+from app.api.routes import example, health, scores
 from app.config import settings
 from app.core.database import init_database
 from app.core.metrics import setup_metrics
@@ -28,7 +35,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
 
     # Initialize Sentry if DSN is provided
-    if settings.sentry_dsn:
+    if sentry_sdk and FastApiIntegration and LoggingIntegration and settings.sentry_dsn:
         sentry_sdk.init(
             dsn=settings.sentry_dsn,
             integrations=[
@@ -93,6 +100,7 @@ logger.info("Prometheus metrics enabled")
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["health"])
 app.include_router(example.router, prefix="/api", tags=["example"])
+app.include_router(scores.router, prefix="/api", tags=["scores"])
 
 
 @app.get("/")

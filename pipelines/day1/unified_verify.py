@@ -100,7 +100,14 @@ class LeadCandidate:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Merge You.com and Tavily verification into a unified artifact.")
-    parser.add_argument("--seed", type=Path, default=DEFAULT_SEED, help="Path to normalized Exa seed JSON.")
+    parser.add_argument(
+        "--seed",
+        "--seed-path",
+        dest="seed",
+        type=Path,
+        default=DEFAULT_SEED,
+        help="Path to normalized Exa seed JSON.",
+    )
     parser.add_argument(
         "--youcom",
         type=Path,

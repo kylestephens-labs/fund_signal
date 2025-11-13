@@ -9,11 +9,14 @@ help: ## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install dependencies with uv
-	uv sync
+install: ## Install base + dev dependencies with uv
+	uv pip install -r requirements.txt
+	uv pip install -r requirements-dev.txt
 
-dev: ## Run development server with uv
+serve: ## Run API server via uv
 	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+dev: serve ## Back-compat alias for serve
 
 test: ## Run tests with coverage using uv
 	$(PYTEST) tests/ -v --cov=app --cov-report=html --cov-report=term

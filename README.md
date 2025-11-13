@@ -224,6 +224,9 @@ EXA_API_KEY=""
 TAVILY_API_KEY=""
 TWITTER_API_KEY=""
 OPENAI_API_KEY=""
+SCORING_MODEL="gpt-4o-mini"
+SCORING_SYSTEM_PROMPT_PATH="configs/scoring/system_prompt.md"
+SCORING_TEMPERATURE="0.2"
 SLACK_BOT_TOKEN=""
 RESEND_API_KEY=""
 ```
@@ -258,6 +261,33 @@ RESEND_API_KEY=""
 - Inspect proof links: `python -m tools.peek leads/tavily_confirmed.json | head -n 50`.
 - Run the targeted tests: `pytest -k test_tavily_confirm`.
 - Proof-link strategy: dedupe by domain, keep the top confirming URLs, store them in `proof_links` for UX transparency.
+
+***
+
+## Day 2: ChatGPT Scoring Engine
+
+- Set `OPENAI_API_KEY`, `SCORING_MODEL`, and `SCORING_SYSTEM_PROMPT_PATH` inside `.env`. Run in fixture mode (`FUND_SIGNAL_MODE=fixture`) to use the deterministic rubric, or switch to `online` to call OpenAI.
+- Boot the API (`uvicorn app.main:app --reload`) and submit a scoring job:
+
+```bash
+curl -X POST http://localhost:8000/api/scores \
+  -H "Content-Type: application/json" \
+  -d '{
+    "company_id": "a5dcb3f4-29f3-4bb0-8d7f-81f5d93eeb01",
+    "name": "Acme SaaS",
+    "funding_amount": "$10M",
+    "funding_stage": "Series A",
+    "days_since_funding": 75,
+    "employee_count": 40,
+    "job_postings": 6,
+    "tech_stack": ["Salesforce", "HubSpot"],
+    "buying_signals": ["https://techcrunch.com/acme"],
+    "verified_sources": ["Exa", "You.com"],
+    "scoring_run_id": "daily-2024-10-29"
+  }'
+```
+
+The API responds with a persisted `CompanyScore` object (0–100 score, rubric breakdown, recommended approach, pitch angle). Results are cached by `company_id + scoring_run_id`; repeat calls reuse cached runs in ≤300 ms until `force=true` is supplied. Use `GET /api/scores/<company_id>?scoring_run_id=<run>` to retrieve stored outputs for downstream UI or delivery channels. Errors from OpenAI, Exa, You.com, or Tavily surfaces are logged with context and mapped to API codes (`429_RATE_LIMIT`, `502_OPENAI_UPSTREAM`, `422_INVALID_COMPANY_DATA`) without exposing secrets. The scoring system prompt lives at `configs/scoring/system_prompt.md` for quick updates.
 
 ***
 
