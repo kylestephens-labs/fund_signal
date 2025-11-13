@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     supabase_service_key: str | None = None
     supabase_bucket: str | None = None
     bundle_hmac_key: str | None = None
+    proof_storage_bucket: str | None = None
+    proof_cache_ttl_seconds: int = 300
 
     # Security
     secret_key: str = ""  # Will be generated if empty

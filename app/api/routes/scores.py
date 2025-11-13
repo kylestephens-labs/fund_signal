@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -37,7 +37,8 @@ async def create_score(
     engine: ChatGPTScoringEngine = Depends(get_scoring_engine),
 ) -> CompanyScore:
     """Trigger a scoring run for a company."""
-    scoring_run_id = payload.scoring_run_id or f"adhoc-{datetime.utcnow().date().isoformat()}"
+    default_run_id = datetime.now(timezone.utc).date().isoformat()
+    scoring_run_id = payload.scoring_run_id or f"adhoc-{default_run_id}"
     company = CompanyProfile(**payload.model_dump(exclude={"scoring_run_id"}))
     try:
         return engine.score_company(company, scoring_run_id=scoring_run_id, force=force)

@@ -13,6 +13,8 @@ from typing import Any, Callable, Final, Protocol, TypeVar
 
 from app.config import settings
 from app.models.company import BreakdownItem, CompanyProfile, CompanyScore
+from app.models.signal_breakdown import SignalProof
+from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
 
 try:  # pragma: no cover - import guard for optional dependency
     from openai import APIError as OpenAIAPIError
@@ -186,6 +188,7 @@ class ChatGPTScoringEngine:
         repository: ScoreRepository | None = None,
         client: OpenAIChatClient | None = None,
         context: ScoringContext | None = None,
+        proof_hydrator: ProofLinkHydrator | None = None,
         retry_attempts: int = 3,
         retry_backoff_seconds: float = 0.2,
     ) -> None:
@@ -195,6 +198,10 @@ class ChatGPTScoringEngine:
         self._context = resolved_context
         self._retry_attempts = retry_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
+        self._proof_links = proof_hydrator or ProofLinkHydrator(
+            default_sources=DEFAULT_SOURCE_MAP,
+            cache_ttl_seconds=float(settings.proof_cache_ttl_seconds),
+        )
 
     def score_company(
         self,
@@ -208,8 +215,8 @@ class ChatGPTScoringEngine:
             raise ScoringValidationError("scoring_run_id is required.", code="422_INVALID_COMPANY_DATA")
 
         company_key = str(company.company_id)
-        cache_key = self._repository.get(company_key, scoring_run_id)
-        if cache_key and not force:
+        cached_score = self._repository.get(company_key, scoring_run_id)
+        if cached_score and not force:
             logger.info(
                 "scoring.cache.hit",
                 extra={
@@ -218,7 +225,7 @@ class ChatGPTScoringEngine:
                     "mode": self._context.mode,
                 },
             )
-            return cache_key
+            return cached_score
 
         if self._context.mode == "online":
             result = self._score_with_openai(company, scoring_run_id=scoring_run_id)
@@ -300,10 +307,8 @@ class ChatGPTScoringEngine:
 
     def _execute_with_retry(self, func: Callable[[], _T]) -> _T:
         """Retry helper with exponential backoff."""
-        attempt = 0
         delay = self._retry_backoff_seconds
-        while True:
-            attempt += 1
+        for attempt in range(1, self._retry_attempts + 1):
             try:
                 return func()
             except ScoringProviderError as exc:
@@ -311,7 +316,7 @@ class ChatGPTScoringEngine:
                     "scoring.retry",
                     extra={"attempt": attempt, "code": exc.code},
                 )
-                if attempt >= self._retry_attempts or exc.code != "429_RATE_LIMIT":
+                if attempt == self._retry_attempts or exc.code != "429_RATE_LIMIT":
                     raise
                 time.sleep(delay)
                 delay *= 2
@@ -332,12 +337,15 @@ class ChatGPTScoringEngine:
 
         for slug, builder in rubric_components:
             reason, points = builder(company)
+            try:
+                proofs = self._proof_links.hydrate_many(company, slug)
+            except ProofLinkError as exc:
+                raise ScoringEngineError(str(exc), code=exc.code) from exc
             breakdown.append(
                 _build_breakdown_item(
-                    company,
-                    slug=slug,
                     reason=reason,
                     points=points,
+                    proofs=proofs,
                 )
             )
 
@@ -503,12 +511,6 @@ def _convert_payload_to_score(
     )
 
 
-def _resolve_source(company: CompanyProfile, slug: str) -> str:
-    if company.buying_signals:
-        return str(company.buying_signals[0])
-    return DEFAULT_SOURCE_MAP.get(slug, DEFAULT_SOURCE_MAP["signals"])
-
-
 def _parse_json_payload(raw_text: str) -> dict[str, Any]:
     """Best-effort JSON decoding that tolerates code fences or prose."""
     candidate = raw_text.strip()
@@ -524,18 +526,18 @@ def _parse_json_payload(raw_text: str) -> dict[str, Any]:
 
 
 def _build_breakdown_item(
-    company: CompanyProfile,
     *,
-    slug: str,
     reason: str,
     points: int,
+    proofs: list[SignalProof],
 ) -> BreakdownItem:
+    if not proofs:
+        raise ValueError("At least one proof is required.")
     return BreakdownItem(
         reason=reason,
         points=_clamp(points, -100, 100),
-        source_url=_resolve_source(company, slug),
-        verified_by=company.verified_sources,
-        timestamp=None,
+        proof=proofs[0],
+        proofs=proofs,
     )
 
 

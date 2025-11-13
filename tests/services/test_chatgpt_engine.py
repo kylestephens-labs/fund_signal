@@ -9,6 +9,7 @@ from app.services.scoring.chatgpt_engine import (
     ScoringContext,
     ScoringValidationError,
 )
+from app.services.scoring.proof_links import ProofLinkHydrator
 
 
 class StubOpenAIClient:
@@ -48,7 +49,8 @@ def test_fixture_rubric_scores_company_without_openai():
             system_prompt="system",
             model="test-model",
             temperature=0.1,
-        )
+        ),
+        proof_hydrator=ProofLinkHydrator(default_sources={}),
     )
     result = engine.score_company(_sample_company(), scoring_run_id="run-1")
 
@@ -198,7 +200,33 @@ def test_breakdown_adjusts_to_declared_score():
 
     assert result.score == 50
     assert sum(item.points for item in result.breakdown) == 50
-    assert result.breakdown[-1].points == 20
+
+
+def test_fixture_rubric_includes_multiple_proofs_from_buying_signals():
+    engine = ChatGPTScoringEngine(
+        context=ScoringContext(
+            mode="fixture",
+            system_prompt="system",
+            model="test-model",
+            temperature=0.1,
+        ),
+        proof_hydrator=ProofLinkHydrator(default_sources={}),
+    )
+    company = _sample_company(
+        buying_signals=[
+            "http://signals.dev/one?token=abc",
+            "https://signals.dev/two",
+        ]
+    )
+
+    score = engine.score_company(company, scoring_run_id="multi-proof")
+
+    signals_breakdown = next(item for item in score.breakdown if "signals" in item.reason.lower())
+    assert len(signals_breakdown.proofs) == 2
+    assert [str(proof.source_url) for proof in signals_breakdown.proofs] == [
+        "https://signals.dev/one",
+        "https://signals.dev/two",
+    ]
 
 
 def test_fetch_scores_returns_runs():

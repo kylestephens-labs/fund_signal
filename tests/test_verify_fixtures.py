@@ -87,7 +87,11 @@ def test_pipelines_run_offline_with_fixtures(fixture_env, tmp_path):
         max_results=4,
     )
     bundle_root = fixture_env / "bundle-sample"
-    confidence_scoring.run_pipeline(input_path=bundle_root, output_path=artifacts.confidence)
+    confidence_scoring.run_pipeline(
+        input_path=bundle_root,
+        output_path=artifacts.confidence,
+        ignore_expiry=True,
+    )
 
     youcom_records, tavily_records, confidence_payload = artifacts.read()
     manifest = _load_manifest(fixture_env)

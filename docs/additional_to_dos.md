@@ -5,3 +5,9 @@
 - **Unblock Tavily + confidence exports:** After a successful You.com pass, rerun `python -m pipelines.day1.tavily_confirm --input=leads/youcom_verified.json --min_confirmations=2` followed by `python -m pipelines.day1.confidence_scoring --input=leads/tavily_confirmed.json --output=leads/day1_output.json`.
 - **Validate artifacts:** Inspect each stage with `python -m tools.peek …` (or `jq`) to ensure counts and freshness metadata look correct before handing off to Day 2.
 - **Day 3 prep (FSQ‑019):** When we build the Slack/email/CSV delivery scripts, ensure they only emit rows with `final_label in {"VERIFIED","LIKELY"}` from `day1_scored.json`. Add that filter to the automation so EXCLUDE leads never reach customer-facing channels.
+
+## Task FS-D2-01: Build ChatGPT scoring engine
+Optimization Ideas
+
+Extract the OpenAI client/payload parsing behind an interface so higher-level tests can swap in deterministic stubs without touching the main engine.
+Introduce a persistence-backed ScoreRepository (e.g., SQLModel) to warm API caches across processes once the in-memory implementation is no longer sufficient.

@@ -4,15 +4,8 @@ Task: Refactor the changes made to <TASK_ID>: <TASK_TITLE> with emphasis on effi
 
 Apply only to the listed files.
 
-📚 ESSENTIAL CONTEXT
-CRITICAL references to read before refactoring:
-  • <doc 1>
-  • <doc 2>
-  • ...
 
 Code to review and refactor:
-
-
 
 
 
@@ -22,6 +15,12 @@ Please provide the following for all work completed in task <TASK_ID> so Refacto
 
 IMPLEMENTATION SUMMARY
 - [Brief bullet list describing exactly what was built or changed.]
+
+📚 ESSENTIAL CONTEXT
+CRITICAL references for Refactorer Codex to read to gain context before reviewing and refactoring:
+  • <doc 1>
+  • <doc 2>
+  • ...
 
 Files created: [list or “none”]
 Files modified: [list or “none”]

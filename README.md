@@ -81,6 +81,7 @@ curl http://localhost:8000/health     # Ensure you see a 200 response
 | `FUND_SIGNAL_FIXTURE_DIR` | `fixtures/sample` | Internal use; auto-set to `<bundle>/fixtures` in fixture mode. |
 | `FUND_SIGNAL_SUPABASE_BASE_URL` | _empty_ | Supabase storage endpoint (fixture fetch). |
 | `FUND_SIGNAL_SUPABASE_SERVICE_KEY` | _empty_ | Service key used by fixture sync tooling. |
+| `PROOF_CACHE_TTL_SECONDS` | `300` | Cache duration for hydrated proof links used by the scoring API. |
 
 In sandbox/CI, keep the defaults so no outbound network occurs. The capture job (GitHub Actions/runner) switches to `FUND_SIGNAL_MODE=online` and uploads new fixtures to Supabase before developers sync them down.
 
@@ -266,7 +267,7 @@ RESEND_API_KEY=""
 
 ## Day 2: ChatGPT Scoring Engine
 
-- Set `OPENAI_API_KEY`, `SCORING_MODEL`, and `SCORING_SYSTEM_PROMPT_PATH` inside `.env`. Run in fixture mode (`FUND_SIGNAL_MODE=fixture`) to use the deterministic rubric, or switch to `online` to call OpenAI.
+- Set `OPENAI_API_KEY`, `SCORING_MODEL`, and `SCORING_SYSTEM_PROMPT_PATH` inside `.env`. Run in fixture mode (`FUND_SIGNAL_MODE=fixture`) to use the deterministic rubric, or switch to `online` to call OpenAI. Tune `PROOF_CACHE_TTL_SECONDS` if you need longer-lived proof hydration results during load tests.
 - Boot the API (`uvicorn app.main:app --reload`) and submit a scoring job:
 
 ```bash
@@ -288,6 +289,47 @@ curl -X POST http://localhost:8000/api/scores \
 ```
 
 The API responds with a persisted `CompanyScore` object (0–100 score, rubric breakdown, recommended approach, pitch angle). Results are cached by `company_id + scoring_run_id`; repeat calls reuse cached runs in ≤300 ms until `force=true` is supplied. Use `GET /api/scores/<company_id>?scoring_run_id=<run>` to retrieve stored outputs for downstream UI or delivery channels. Errors from OpenAI, Exa, You.com, or Tavily surfaces are logged with context and mapped to API codes (`429_RATE_LIMIT`, `502_OPENAI_UPSTREAM`, `422_INVALID_COMPANY_DATA`) without exposing secrets. The scoring system prompt lives at `configs/scoring/system_prompt.md` for quick updates.
+
+Every breakdown item now carries a primary `proof` plus a `proofs` array so downstream UIs can render single or multi-link evidence per signal:
+
+```json
+{
+  "reason": "Raised $10M Series A (75 days ago)",
+  "points": 30,
+  "proof": {
+    "source_url": "https://techcrunch.com/acme",
+    "verified_by": ["Exa", "You.com", "Tavily"],
+    "timestamp": "2025-10-29T09:15:00Z"
+  },
+  "proofs": [
+    {
+      "source_url": "https://techcrunch.com/acme",
+      "verified_by": ["Exa", "You.com", "Tavily"],
+      "timestamp": "2025-10-29T09:15:00Z"
+    },
+    {
+      "source_url": "https://presswire.com/acme",
+      "verified_by": ["Exa", "Tavily"],
+      "timestamp": "2025-10-29T09:30:00Z"
+    }
+  ]
+}
+```
+
+Pass structured signal metadata in the scoring request via the optional `signals` array:
+
+```json
+"signals": [
+  {
+    "slug": "funding",
+    "source_url": "https://techcrunch.com/acme",
+    "timestamp": "2025-10-29T09:15:00Z",
+    "verified_by": ["Exa", "You.com"]
+  }
+]
+```
+
+When a slugged signal is provided, the proof-link hydrator reuses every matching piece of evidence; otherwise it falls back to the sanitized `buying_signals` list (deduped, order-preserving) or built-in default proof URLs. Each breakdown item exposes `proof` (legacy single entry) plus the full `proofs` array so UIs can render multiple links. Missing or unreachable evidence results in API errors using the `404_PROOF_NOT_FOUND` or `424_EVIDENCE_SOURCE_DOWN` codes so clients can remediate quickly.
 
 ***
 
