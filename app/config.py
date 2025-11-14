@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     proof_storage_bucket: str | None = None
     proof_cache_ttl_seconds: int = 300
 
+    # UI/Test harness
+    ui_base_url: str | None = None
+    api_base_url: str | None = None
+
     # Security
     secret_key: str = ""  # Will be generated if empty
     cors_origins: list[str] = []  # Empty by default for security

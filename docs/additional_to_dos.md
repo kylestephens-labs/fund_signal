@@ -41,8 +41,18 @@ Bundle fixtures remain static; consider version pinning or hashing to ensure upd
 
 Regression helpers now live inside this test file; moving them into a shared tests/utils module would allow reuse as more suites depend on bundle personas.
 
+Bundle fixtures are static; no automation to resync from real bundles or validate they match latest schema—future drift requires manual editing.
+
+Tier boundaries are hardcoded (High ≥80, etc.); consider centralizing to settings or metadata to avoid test duplication when business rules shift.
+
+Suite currently prints context via print; a structured logging helper might integrate better with CI output.
+
 Optimization Ideas
 
 Build a small factory on top of BundleRegressionFixture that returns parametrized pytest cases, so failures point directly at the offending persona/tier without scanning aggregated assertions.
 
 Cache parsed fixtures across tests (module-level functools.lru_cache) to avoid repeated file I/O if additional regression tests are added later.
+
+Extract shared fixture-loading/helpers into a dedicated test utility module so other scoring/drift tests (or future online-mode regressions) can reuse the parsing and context handling without touching the main regression test file.
+
+
