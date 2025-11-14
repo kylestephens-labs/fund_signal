@@ -1,0 +1,16 @@
+{
+  "name": "fund-signal-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright smoke tests for the FundSignal UI drawer",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "PLAYWRIGHT_HEADED=true playwright test --project=chromium --headed",
+    "test:ui:report": "playwright show-report artifacts/report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.6.3"
+  }
+}
