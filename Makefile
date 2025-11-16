@@ -18,7 +18,7 @@ serve: ## Run API server via uv
 
 dev: serve ## Back-compat alias for serve
 
-test: ## Run tests with coverage using uv
+test: install ## Run tests with coverage using uv (ensures deps are installed)
 	$(PYTEST) tests/ -v --cov=app --cov-report=html --cov-report=term
 
 test-integration: ## Run integration tests (expects DATABASE_URL); skips cleanly if not set
@@ -81,3 +81,13 @@ install-pip: ## Install dependencies with pip (legacy)
 
 dev-pip: ## Run development server with pip (legacy)
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+.PHONY: prove-quick prove-full
+
+# Fast feedback gate: run the test suite
+prove-quick:
+	pytest -q
+
+# Full gate: for now same as quick; later we can add linting, type checks, etc.
+prove-full:
+	pytest -q

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     bundle_hmac_key: str | None = None
     proof_storage_bucket: str | None = None
     proof_cache_ttl_seconds: int = 300
+    supabase_proof_qa_table: str | None = None
 
     # UI/Test harness
     ui_base_url: str | None = None
@@ -51,6 +52,13 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+
+    # Proof QA job
+    proof_qa_alert_webhook: str | None = None
+    proof_qa_disable_alerts: bool = False
+    proof_qa_concurrency: int = 25
+    proof_qa_retry_limit: int = 3
+    proof_qa_failure_threshold: float = 0.03
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

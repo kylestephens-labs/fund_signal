@@ -165,6 +165,11 @@ cython_debug/
 
 # VS Code
 .vscode/
+.project/
+terminal_test.txt
+test_cli.txt
+vscode_test.txt
+vscode_test2.txt
 
 # JetBrains
 .idea/

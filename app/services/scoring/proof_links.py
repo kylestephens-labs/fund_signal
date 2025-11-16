@@ -294,3 +294,8 @@ class ProofLinkHydrator:
             query=urlencode(filtered, doseq=True),
         )
         return urlunparse(sanitized)
+
+
+def sanitize_proof_url(url: str) -> str:
+    """Public helper that sanitizes proof URLs for downstream consumers."""
+    return ProofLinkHydrator._sanitize_url(url)

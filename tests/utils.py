@@ -13,7 +13,7 @@ def create_canonical_bundle(
     *,
     bundle_id: str = "bundle-test",
     captured_at: str = "2025-11-07T03:00:00Z",
-    expiry_days: int = 7,
+    expiry_days: int = 3650,
     youcom: Sequence[dict] | None = None,
     tavily: Sequence[dict] | None = None,
     exa: Sequence[dict] | None = None,

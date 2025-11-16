@@ -2,7 +2,7 @@
   "schema_version": 1,
   "bundle_id": "bundle-sample",
   "captured_at": "2025-11-06T00:00:00Z",
-  "expiry_days": 7,
+  "expiry_days": 3650,
   "git_commit": "abcdef1",
   "tool_version": "1.0.0",
   "providers": [
