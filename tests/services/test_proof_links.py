@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -9,6 +10,7 @@ from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring import proof_links as proof_links_module
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
+from tools import proof_links_load_test
 
 
 def _recent_timestamp(offset_days: int = 5) -> datetime:
@@ -198,3 +200,54 @@ def test_stale_proof_logs_and_raises(monkeypatch):
         hydrator.hydrate(company, "funding")
 
     assert excinfo.value.code == "422_PROOF_STALE"
+
+
+def test_proof_link_load_harness_generates_metrics(monkeypatch):
+    monkeypatch.setenv("FUND_SIGNAL_MODE", "fixture")
+    fixture_path = Path("tests/fixtures/scoring/regression_companies.json")
+    config = proof_links_load_test.LoadTestConfig(
+        companies_path=fixture_path,
+        concurrency=2,
+        iterations=2,
+        warm_cache=True,
+        report_path=None,
+        force_report=False,
+        scoring_run_id="unit-load",
+        p95_threshold_ms=500.0,
+    )
+
+    result = proof_links_load_test.run_load_test(config)
+
+    assert result["metadata"]["companies_count"] >= 1
+    assert result["cache_stats"]["hits"] >= 0
+    assert result["latency_ms"]["hydrator"]["overall"]["p95"] < 500
+
+
+def test_proof_link_load_harness_cli_threshold(monkeypatch):
+    monkeypatch.setenv("FUND_SIGNAL_MODE", "fixture")
+    fake_result = {
+        "latency_ms": {"hydrator": {"overall": {"p95": 1.0}}},
+        "cache_stats": {"hit_ratio": 0.5},
+        "throughput_qps": 10.0,
+        "error_summary": {},
+        "metadata": {"companies_count": 1, "iterations": 1},
+        "score_successes": 1,
+        "errors": [],
+    }
+    monkeypatch.setattr(proof_links_load_test, "run_load_test", lambda config: fake_result)
+    monkeypatch.setattr(proof_links_load_test, "_emit_summary_logs", lambda result: None)
+    args = [
+        "--input",
+        "tests/fixtures/scoring/regression_companies.json",
+        "--iterations",
+        "1",
+        "--concurrency",
+        "1",
+        "--p95-threshold-ms",
+        "0.0001",
+        "--no-warm-cache",
+    ]
+
+    exit_code = proof_links_load_test.main(args)
+
+    assert exit_code == 2

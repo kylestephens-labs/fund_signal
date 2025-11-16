@@ -55,4 +55,22 @@ Cache parsed fixtures across tests (module-level functools.lru_cache) to avoid r
 
 Extract shared fixture-loading/helpers into a dedicated test utility module so other scoring/drift tests (or future online-mode regressions) can reuse the parsing and context handling without touching the main regression test file.
 
+## FSQ-032: Evidence Integrity Verificatio
 
+Optimization Ideas:
+
+Expose a Make target (or CLI alias) that bootstraps the QA job with fixture inputs and a local SQLite sink so developers can exercise the whole pipeline without relying on Supabase.
+
+## Evidence Integrity Verification — Proof Timestamp Enforcement
+
+Optimization Ideas:
+
+Consider a lightweight test fixture that sets settings.proof_max_age_days explicitly, keeping unit tests insulated from future default changes.
+
+Cache the computed “age days” in SignalProof.ensure_fresh so downstream logging/metrics can reuse it without recomputing in hydrators or future consumers.
+
+## Task FSQ-034: Evidence Integrity Verification — Proof Domain Freshness Replay
+
+Optimization Ideas:
+
+Consider logging the dedupe key when a proof is skipped so ops can diagnose unexpected drops without re-running the full replay.

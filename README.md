@@ -329,6 +329,20 @@ Pass structured signal metadata in the scoring request via the optional `signals
 ]
 ```
 
+### ProofLinkHydrator Load Harness
+
+Run the synthetic load harness in fixture mode to prove the ≤300 ms P95 target and capture cache stats before deploying:
+
+```bash
+python -m tools.proof_links_load_test \
+  --input tests/fixtures/scoring/regression_companies.json \
+  --concurrency 16 \
+  --iterations 200 \
+  --report output/proof_hydrator_report.json
+```
+
+The CLI warms the hydrator cache, replays every scoring slug through `ChatGPTScoringEngine`, and prints a structured `proof_hydrator.load_test` log (plus optional JSON reports) that include cache hit/miss deltas, throughput, and latency percentiles per slug. Reports default to `PROOF_LOAD_REPORT_DIR` (if set)—point `--report` somewhere under `output/` or delete generated files to avoid clutter. CI fails with exit code `2` whenever warmed-cache P95 exceeds the configured threshold (default `300 ms`); override via `--p95-threshold-ms` when investigating regressions.
+
 When a slugged signal is provided, the proof-link hydrator reuses every matching piece of evidence; otherwise it falls back to the sanitized `buying_signals` list (deduped, order-preserving) or built-in default proof URLs. Each breakdown item exposes `proof` (legacy single entry) plus the full `proofs` array so UIs can render multiple links. Missing or unreachable evidence results in API errors using the `404_PROOF_NOT_FOUND` or `424_EVIDENCE_SOURCE_DOWN` codes so clients can remediate quickly.
 
 Regression guard: run `pytest tests/services/test_chatgpt_engine.py -k regression` to ensure the scoring rubric keeps the canonical high/medium/low personas in their expected bands. Update `tests/fixtures/scoring/regression_companies.json` (or set `SCORING_REGRESSION_FIXTURE`) whenever rubric weights or persona definitions change so the suite reflects the new intuition.
