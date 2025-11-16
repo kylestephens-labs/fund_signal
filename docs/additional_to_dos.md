@@ -74,3 +74,27 @@ Cache the computed “age days” in SignalProof.ensure_fresh so downstream logg
 Optimization Ideas:
 
 Consider logging the dedupe key when a proof is skipped so ops can diagnose unexpected drops without re-running the full replay.
+
+## Task FSQ-035A: ProofLinkHydrator Load Test Harness
+
+Optimization Ideas:
+
+Add a Make/CI target that runs tools.proof_links_load_test with sane defaults so ops folks don’t need to remember the CLI arguments.
+
+## Task FSQ-035B: Proof Providers Outage Simulation Suite
+
+Optimization Ideas:
+
+The identical _log_retry_event helpers in the three Day-1 pipelines could move into a shared utility to keep future provider additions consistent and easier to tweak.
+
+## Task FSQ-035C: ProofLink Cache Benchmark & Reporting
+
+Optimization Ideas:
+
+Teach tools/proof_links_benchmark.py (line 268) to optionally push the StatsD payload straight to Supabase or a metrics sink so FSQ-035D can wire alerts without additional wrappers.
+
+## Task FSQ-035D: ProofLink Metrics & Alert Wiring
+
+Optimization Ideas:
+
+Share a reusable stub metrics fixture across tests (instead of redefining _StubMetrics), which would simplify future instrumentation tests and keep expectations centralized.

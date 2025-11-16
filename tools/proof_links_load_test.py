@@ -20,6 +20,7 @@ from app.config import settings
 from app.models.company import CompanyProfile
 from app.services.scoring.chatgpt_engine import ChatGPTScoringEngine, ScoringEngineError
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
+from app.observability.metrics import metrics
 
 logger = logging.getLogger("tools.proof_links_load_test")
 
@@ -376,18 +377,54 @@ def _ensure_report_path(path: Path | None, *, force: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _emit_summary_logs(result: dict[str, Any]) -> None:
+def _emit_summary_logs(result: dict[str, Any], *, threshold_ms: float) -> None:
     hydrator_summary = result["latency_ms"]["hydrator"]["overall"]
+    metadata = result.get("metadata", {})
+    cache_stats = result["cache_stats"]
     payload = {
         "event": "proof_hydrator.load_test",
         "p95_ms": hydrator_summary["p95"],
-        "hit_ratio": result["cache_stats"]["hit_ratio"],
+        "hit_ratio": cache_stats["hit_ratio"],
         "throughput_qps": result["throughput_qps"],
         "errors": result["error_summary"],
-        "companies": result["metadata"]["companies_count"],
-        "iterations": result["metadata"]["iterations"],
+        "companies": metadata.get("companies_count"),
+        "iterations": metadata.get("iterations"),
     }
     logger.info("proof_hydrator.load_test %s", json.dumps(payload, sort_keys=True))
+    total_tasks = metadata.get("total_tasks") or 0
+    total_errors = len(result.get("errors", []))
+    error_rate = 0.0 if not total_tasks else round(total_errors / total_tasks, 4)
+    tags = {
+        "iterations": str(metadata.get("iterations")),
+        "companies": str(metadata.get("companies_count")),
+        "warm_cache": str(metadata.get("warm_cache")),
+    }
+    metrics.gauge("hydrator.latency_p50", hydrator_summary["p50"], tags=tags)
+    metrics.gauge("hydrator.latency_p95", hydrator_summary["p95"], tags=tags)
+    metrics.gauge("hydrator.latency_p99", hydrator_summary["p99"], tags=tags)
+    metrics.gauge("hydrator.cache_hit_ratio", cache_stats["hit_ratio"], tags=tags)
+    metrics.gauge("hydrator.error_rate", error_rate, tags=tags)
+    metrics.gauge("hydrator.throughput_qps", result["throughput_qps"], tags=tags)
+    logger.info(
+        "proof_links.latency_p95",
+        extra={"value_ms": hydrator_summary["p95"], "threshold_ms": threshold_ms, "tags": tags},
+    )
+    if hydrator_summary["p95"] > threshold_ms:
+        metrics.alert(
+            "hydrator.latency_p95",
+            value=hydrator_summary["p95"],
+            threshold=threshold_ms,
+            severity="critical",
+            tags=tags,
+        )
+    if error_rate > settings.render_alert_threshold_error:
+        metrics.alert(
+            "hydrator.error_rate",
+            value=error_rate,
+            threshold=settings.render_alert_threshold_error,
+            severity="warning",
+            tags=tags,
+        )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -422,7 +459,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     hydrator_p95 = result["latency_ms"]["hydrator"]["overall"]["p95"]
     if config.report_path:
         config.report_path.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
-    _emit_summary_logs(result)
+    _emit_summary_logs(result, threshold_ms=config.p95_threshold_ms)
     logger.info(
         "ProofLinkHydrator load test complete p95_ms=%.2f hit_ratio=%.2f successes=%s errors=%s",
         hydrator_p95,

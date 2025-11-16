@@ -36,3 +36,10 @@ If you need to debug without the forced “missing proof” mutation, set `UI_SM
 - Signal proofs must include timestamps fresher than `PROOF_MAX_AGE_DAYS` (default 90). Update fixtures or raise the limit temporarily via env vars only when validating legacy bundles; stale proofs now raise `422_PROOF_STALE` during hydration.
 - Domain replay: `python -m pipelines.qa.proof_domain_replay --scores scores/day2_fixture.json --bundle-id day2_fixture --supabase-table proof_domain_audits` replays stored `CompanyScore` payloads, follows redirects (default `PROOF_REPLAY_MAX_REDIRECTS=5`), flags domain/protocol drift, and publishes rows to Supabase plus alerts via `PROOF_REPLAY_ALERT_WEBHOOK`. Set `PROOF_REPLAY_DISABLE_ALERTS=true` for smoke tests; otherwise any insecure redirect triggers immediate notifications.
 - Seed data: use `leads/day1_output.json` or any scoring export that contains `proof_links`/`SignalProof` metadata. Add at least one intentionally broken URL when validating alert webhooks.
+
+## ProofLink Metrics Guardrails
+
+- Hydrator + scoring latency/error metrics emit automatically when `METRICS_BACKEND` is set (defaults to `stdout`). Keep `METRICS_NAMESPACE=proof_links` unless dashboards expect another prefix; disable emission entirely via `METRICS_DISABLE=true` for noisy test runs.
+- StatsD deployments should point `METRICS_STATSD_HOST/PORT` at the Render agent; stdout mode prints structured events (`proof_links.metric`, `proof_links.alert`) that mirror the StatsD packets for local debugging.
+- Alert thresholds come from `RENDER_ALERT_THRESHOLD_P95` (latency, default `300`) and `RENDER_ALERT_THRESHOLD_ERROR` (error rate, default `0.05`). Both `python -m tools.proof_links_load_test ...` and `pytest tests/benchmarks/test_proof_links_benchmark.py --benchmark-only` publish alerts whenever those SLOs are breached; Supabase dashboards key off `metrics_schema_version=proof-links.v1`.
+- Sampling defaults to `METRICS_SAMPLE_RATE=1.0`; drop it on noisy laptops while validating that scores still emit at least one `proof_links.metric` log per run.

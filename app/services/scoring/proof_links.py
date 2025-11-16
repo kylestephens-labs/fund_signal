@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from app.config import settings
 from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence, SignalProof, SignalProofValidationError
+from app.observability.metrics import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +78,15 @@ class ProofLinkHydrator:
         error_code: str | None = None
         status = "success"
 
-        def _tracked_lookup(key: str, factory: Callable[[], SignalProof]) -> SignalProof:
+        def _tracked_lookup(
+            key: str,
+            factory: Callable[[], SignalProof],
+            *,
+            slug: str | None = None,
+        ) -> SignalProof:
             nonlocal attempts
             attempts += 1
-            return self._cache_lookup(key, factory)
+            return self._cache_lookup(key, factory, slug=slug)
 
         proof_count = 0
         start = time.perf_counter()
@@ -122,10 +128,18 @@ class ProofLinkHydrator:
         except ProofLinkError as exc:
             status = "error"
             error_code = exc.code
+            metrics.increment(
+                "hydrator.errors",
+                tags={"slug": normalized_slug, "code": exc.code, "mode": settings.fund_signal_mode},
+            )
             raise
         except Exception as exc:
             status = "error"
             error_code = "424_EVIDENCE_SOURCE_DOWN"
+            metrics.increment(
+                "hydrator.errors",
+                tags={"slug": normalized_slug, "code": error_code, "mode": settings.fund_signal_mode},
+            )
             logger.exception(
                 "proof_links.unexpected_error",
                 extra={"company_id": str(company.company_id), "slug": slug},
@@ -136,6 +150,15 @@ class ProofLinkHydrator:
             ) from exc
         finally:
             elapsed_ms = (time.perf_counter() - start) * 1000
+            metric_tags = {
+                "slug": normalized_slug,
+                "company_id": str(company.company_id),
+                "status": status,
+                "mode": settings.fund_signal_mode,
+            }
+            metrics.timing("hydrator.latency_ms", elapsed_ms, tags=metric_tags)
+            metrics.gauge("hydrator.attempts", attempts, tags=metric_tags)
+            metrics.gauge("hydrator.proof_count", proof_count, tags=metric_tags)
             self._log_outage_event(
                 company_id=str(company.company_id),
                 slug=normalized_slug,
@@ -153,7 +176,7 @@ class ProofLinkHydrator:
         matches: list[SignalEvidence],
         limit: int | None,
         seen_hashes: set[str],
-        cache_lookup: Callable[[str, Callable[[], SignalProof]], SignalProof] | None = None,
+        cache_lookup: Callable[..., SignalProof] | None = None,
     ) -> list[SignalProof]:
         if limit == 0:
             return []
@@ -167,6 +190,7 @@ class ProofLinkHydrator:
                     company=company,
                     evidence=evidence,
                 ),
+                slug=evidence.slug,
             )
             appended = self._register_proof(proof, seen_hashes, proofs)
             if not appended:
@@ -182,7 +206,7 @@ class ProofLinkHydrator:
         slug: str,
         limit: int | None,
         seen_hashes: set[str],
-        cache_lookup: Callable[[str, Callable[[], SignalProof]], SignalProof] | None = None,
+        cache_lookup: Callable[..., SignalProof] | None = None,
     ) -> list[SignalProof]:
         if limit == 0:
             return []
@@ -200,6 +224,7 @@ class ProofLinkHydrator:
                     slug=slug,
                     url=url,
                 ),
+                slug=slug,
             )
             appended = self._register_proof(proof, seen_hashes, proofs)
             if not appended:
@@ -267,15 +292,30 @@ class ProofLinkHydrator:
             source_url=url,
         )
 
-    def _cache_lookup(self, key: str, factory: Callable[[], SignalProof]) -> SignalProof:
+    def _cache_lookup(
+        self,
+        key: str,
+        factory: Callable[[], SignalProof],
+        *,
+        slug: str | None = None,
+    ) -> SignalProof:
         now = time.time()
+        tag_slug = slug or "unknown"
         with self._lock:
             entry = self._cache.get(key)
             if entry and entry.expires_at > now:
                 self._cache_hits += 1
+                metrics.increment(
+                    "hydrator.cache_hit",
+                    tags={"slug": tag_slug, "mode": settings.fund_signal_mode},
+                )
                 logger.debug("proof_links.cache_hit", extra={"key": key})
                 return entry.proof
             self._cache_misses += 1
+        metrics.increment(
+            "hydrator.cache_miss",
+            tags={"slug": tag_slug, "mode": settings.fund_signal_mode},
+        )
         proof = factory()
         with self._lock:
             self._cache[key] = _CacheEntry(expires_at=time.time() + self._cache_ttl, proof=proof)

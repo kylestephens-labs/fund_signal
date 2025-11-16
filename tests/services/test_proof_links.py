@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
-
 import pytest
 
 from app.models.company import CompanyProfile
@@ -11,6 +10,7 @@ from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring import proof_links as proof_links_module
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
 from tools import proof_links_load_test
+from tests.helpers.metrics_stub import StubMetrics
 
 
 def _recent_timestamp(offset_days: int = 5) -> datetime:
@@ -33,6 +33,7 @@ def _company(**overrides) -> CompanyProfile:
     }
     payload.update(overrides)
     return CompanyProfile(**payload)
+
 
 
 def test_hydrate_prefers_structured_signal_metadata():
@@ -221,6 +222,28 @@ def test_proof_link_load_harness_generates_metrics(monkeypatch):
     assert result["metadata"]["companies_count"] >= 1
     assert result["cache_stats"]["hits"] >= 0
     assert result["latency_ms"]["hydrator"]["overall"]["p95"] < 500
+
+
+def test_hydrator_emits_metrics(monkeypatch):
+    stub = StubMetrics()
+    monkeypatch.setattr(proof_links_module, "metrics", stub)
+    fresh_timestamp = _recent_timestamp()
+    evidence = SignalEvidence(
+        slug="funding",
+        source_url="https://techcrunch.com/acme",
+        timestamp=fresh_timestamp,
+        verified_by=["Exa"],
+    )
+    company = _company(signals=[evidence])
+    hydrator = ProofLinkHydrator(default_sources={})
+
+    hydrator.hydrate(company, "funding")
+    hydrator.hydrate(company, "funding")
+
+    assert any(call["metric"].endswith("hydrator.latency_ms") for call in stub.timing_calls)
+    assert any(call["metric"].endswith("hydrator.cache_miss") for call in stub.increment_calls)
+    assert any(call["metric"].endswith("hydrator.cache_hit") for call in stub.increment_calls)
+    assert any(call["metric"].endswith("hydrator.proof_count") for call in stub.gauge_calls)
 
 
 def test_proof_link_load_harness_cli_threshold(monkeypatch):

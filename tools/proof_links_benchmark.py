@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from app.models.company import CompanyProfile
+from app.config import settings
 from tools import proof_links_load_test
+from app.observability.metrics import metrics
 
 logger = logging.getLogger("tools.proof_links_benchmark")
 
@@ -90,6 +92,7 @@ def run_benchmark(config: ProofLinksBenchmarkConfig) -> dict[str, Any]:
         warm=warm_result,
     )
     _log_metrics(metrics)
+    _emit_benchmark_metrics(metrics, threshold=config.p95_threshold_ms)
     if config.report_path:
         config.report_path.parent.mkdir(parents=True, exist_ok=True)
         config.report_path.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
@@ -286,6 +289,42 @@ def _build_metrics(
         "warm": warm_payload,
         "statsd_payload": statsd_payload,
     }
+
+
+def _emit_benchmark_metrics(summary: dict[str, Any], *, threshold: float) -> None:
+    warm = summary.get("warm")
+    if not warm:
+        return
+    latency = warm["latency_ms"]
+    tags = {
+        "sample_size": str(summary.get("sample_size")),
+        "runs": str(summary.get("runs")),
+    }
+    metrics.gauge("benchmark.latency_p50", latency["p50"], tags=tags)
+    metrics.gauge("benchmark.latency_p95", latency["p95"], tags=tags)
+    metrics.gauge("benchmark.latency_p99", latency["p99"], tags=tags)
+    metrics.gauge("benchmark.cache_hit_ratio", warm["cache_hit_ratio"], tags=tags)
+    metrics.gauge("benchmark.throughput_qps", warm["throughput_qps"], tags=tags)
+    total_tasks = (summary.get("sample_size") or 0) * (summary.get("runs") or 0)
+    error_count = sum(warm.get("errors", {}).values()) if warm.get("errors") else 0
+    error_rate = 0.0 if not total_tasks else round(error_count / total_tasks, 4)
+    metrics.gauge("benchmark.error_rate", error_rate, tags=tags)
+    if latency["p95"] > threshold:
+        metrics.alert(
+            "benchmark.latency_p95",
+            value=latency["p95"],
+            threshold=threshold,
+            severity="critical",
+            tags=tags,
+        )
+    if error_rate > settings.render_alert_threshold_error:
+        metrics.alert(
+            "benchmark.error_rate",
+            value=error_rate,
+            threshold=settings.render_alert_threshold_error,
+            severity="warning",
+            tags=tags,
+        )
 
 
 def _phase_payload(result: dict[str, Any]) -> dict[str, Any]:

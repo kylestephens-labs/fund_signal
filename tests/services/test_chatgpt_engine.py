@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 
 import app.services.scoring.proof_links as proof_links_module
+import app.services.scoring.chatgpt_engine as chatgpt_engine_module
 from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring.chatgpt_engine import (
@@ -19,6 +20,7 @@ from app.services.scoring.chatgpt_engine import (
     ScoringValidationError,
 )
 from app.services.scoring.proof_links import ProofLinkHydrator
+from tests.helpers.metrics_stub import StubMetrics
 
 REGRESSION_FIXTURE_ENV = "SCORING_REGRESSION_FIXTURE"
 DEFAULT_REGRESSION_FIXTURE = Path("tests/fixtures/scoring/regression_companies.json")
@@ -495,4 +497,37 @@ def test_bundle_regression_scores_align_with_human_tiers():
     )
     assert medium_min > low_max, (
         f"{bundle_fixture.context} Medium tier drift: min_medium={medium_min} <= max_low={low_max}"
+    )
+
+
+def test_scoring_engine_emits_metrics(monkeypatch):
+    stub = StubMetrics()
+    monkeypatch.setattr(chatgpt_engine_module, "metrics", stub)
+    engine = ChatGPTScoringEngine()
+    company = _sample_company()
+
+    engine.score_company(company, scoring_run_id="metrics-test", force=True)
+    engine.score_company(company, scoring_run_id="metrics-test", force=False)
+
+    assert any(call["metric"].endswith("scoring.latency_ms") for call in stub.timing_calls)
+    assert any(call["metric"].endswith("scoring.cache_miss") for call in stub.increment_calls)
+    assert any(call["metric"].endswith("scoring.cache_hit") for call in stub.increment_calls)
+
+
+def test_scoring_engine_records_error_metrics(monkeypatch):
+    stub = StubMetrics()
+    monkeypatch.setattr(chatgpt_engine_module, "metrics", stub)
+    engine = ChatGPTScoringEngine()
+
+    def _boom(*_: Any, **__: Any):
+        raise ScoringEngineError("boom", code="TEST_METRIC")
+
+    monkeypatch.setattr(engine, "_score_with_rubric", _boom)
+
+    with pytest.raises(ScoringEngineError):
+        engine.score_company(_sample_company(), scoring_run_id="metrics-error", force=True)
+
+    assert any(
+        call["metric"].endswith("scoring.errors") and call["tags"].get("code") == "TEST_METRIC"
+        for call in stub.increment_calls
     )

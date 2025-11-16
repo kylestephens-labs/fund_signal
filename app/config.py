@@ -67,6 +67,15 @@ class Settings(BaseSettings):
     proof_replay_max_redirects: int = 5
     proof_replay_failure_threshold: float = 0.01
     proof_replay_schedule_cron: str | None = None
+    metrics_backend: str = "stdout"
+    metrics_namespace: str = "proof_links"
+    metrics_disable: bool = False
+    metrics_sample_rate: float = 1.0
+    metrics_statsd_host: str = "127.0.0.1"
+    metrics_statsd_port: int = 8125
+    metrics_schema_version: str = "proof-links.v1"
+    render_alert_threshold_p95: float = 300.0
+    render_alert_threshold_error: float = 0.05
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

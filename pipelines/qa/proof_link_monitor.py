@@ -607,7 +607,16 @@ def _build_target(payload: Mapping[str, Any], *, bundle_id: str | None) -> Proof
     source_url = payload.get("source_url")
     if not source_url:
         return None
-    timestamp = _parse_timestamp(payload.get("timestamp"))
+    raw_timestamp = payload.get("timestamp")
+    timestamp = _parse_timestamp(raw_timestamp)
+    if raw_timestamp is not None and timestamp is None:
+        raise ProofLinkMonitorError(
+            "Invalid proof timestamp provided.",
+            code="422_INVALID_PROOF_PAYLOAD",
+        )
+    if timestamp is None:
+        # Leads exports omit timestamps; reuse available metadata or fall back to "now".
+        timestamp = _fallback_timestamp(payload)
     try:
         proof = SignalProof(
             source_url=source_url,
@@ -642,6 +651,15 @@ def _parse_timestamp(value: Any) -> datetime | None:
     except ValueError:
         logger.warning("proof_qa.timestamp_parse_failed", extra={"value": value})
         return None
+
+
+def _fallback_timestamp(payload: Mapping[str, Any]) -> datetime:
+    for field in ("captured_at", "bundle_captured_at", "created_at"):
+        fallback_value = payload.get(field)
+        parsed = _parse_timestamp(fallback_value)
+        if parsed:
+            return parsed
+    return datetime.now(UTC)
 
 
 async def _run_async(args: argparse.Namespace, targets: list[ProofCheckTarget]) -> ProofMonitorSummary:

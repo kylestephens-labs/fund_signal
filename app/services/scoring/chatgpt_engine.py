@@ -15,6 +15,7 @@ from app.config import settings
 from app.models.company import BreakdownItem, CompanyProfile, CompanyScore
 from app.models.signal_breakdown import SignalProof
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
+from app.observability.metrics import metrics
 
 try:  # pragma: no cover - import guard for optional dependency
     from openai import APIError as OpenAIAPIError
@@ -215,34 +216,61 @@ class ChatGPTScoringEngine:
             raise ScoringValidationError("scoring_run_id is required.", code="422_INVALID_COMPANY_DATA")
 
         company_key = str(company.company_id)
-        cached_score = self._repository.get(company_key, scoring_run_id)
-        if cached_score and not force:
+        cache_state = "miss"
+        metrics_tags = {"mode": self._context.mode, "company_id": company_key}
+        start = time.perf_counter()
+        try:
+            cached_score = self._repository.get(company_key, scoring_run_id)
+            if cached_score and not force:
+                cache_state = "hit"
+                metrics.increment("scoring.cache_hit", tags=metrics_tags)
+                logger.info(
+                    "scoring.cache.hit",
+                    extra={
+                        "company_id": company_key,
+                        "scoring_run_id": scoring_run_id,
+                        "mode": self._context.mode,
+                    },
+                )
+                return cached_score
+
+            metrics.increment("scoring.cache_miss", tags=metrics_tags)
+            if self._context.mode == "online":
+                result = self._score_with_openai(company, scoring_run_id=scoring_run_id)
+            else:
+                result = self._score_with_rubric(company, scoring_run_id=scoring_run_id)
+
+            persisted = self._repository.save(result)
+            metrics.increment("scoring.success", tags=metrics_tags)
             logger.info(
-                "scoring.cache.hit",
+                "scoring.persisted",
                 extra={
                     "company_id": company_key,
+                    "score": persisted.score,
                     "scoring_run_id": scoring_run_id,
                     "mode": self._context.mode,
                 },
             )
-            return cached_score
-
-        if self._context.mode == "online":
-            result = self._score_with_openai(company, scoring_run_id=scoring_run_id)
-        else:
-            result = self._score_with_rubric(company, scoring_run_id=scoring_run_id)
-
-        persisted = self._repository.save(result)
-        logger.info(
-            "scoring.persisted",
-            extra={
-                "company_id": company_key,
-                "score": persisted.score,
-                "scoring_run_id": scoring_run_id,
-                "mode": self._context.mode,
-            },
-        )
-        return persisted
+            return persisted
+        except ScoringEngineError as exc:
+            metrics.increment(
+                "scoring.errors",
+                tags={**metrics_tags, "code": exc.code},
+            )
+            raise
+        except Exception as exc:  # pragma: no cover - defensive guard
+            metrics.increment(
+                "scoring.errors",
+                tags={**metrics_tags, "code": getattr(exc, "code", "SCORING_ENGINE_ERROR")},
+            )
+            raise
+        finally:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            metrics.timing(
+                "scoring.latency_ms",
+                elapsed_ms,
+                tags={**metrics_tags, "cache": cache_state},
+            )
 
     def score_companies(
         self,

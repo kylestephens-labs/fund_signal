@@ -34,6 +34,7 @@ def test_load_proof_targets_supports_leads_payload(tmp_path: Path):
     assert len(targets) == 2
     assert targets[0].company_name == "Acme Corp"
     assert targets[0].bundle_id == "bundle-123"
+    assert targets[0].timestamp is not None
 
 
 def test_load_proof_targets_allows_null_proof_links(tmp_path: Path):
@@ -69,6 +70,22 @@ def test_load_proof_targets_rejects_non_mapping_lead(tmp_path: Path):
 def test_load_proof_targets_rejects_non_mapping_record(tmp_path: Path):
     payload = ["https://example.com/not-a-dict"]
     input_path = tmp_path / "invalid-record.json"
+    input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(monitor.ProofLinkMonitorError) as excinfo:
+        monitor.load_proof_targets(input_path)
+
+    assert excinfo.value.code == "422_INVALID_PROOF_PAYLOAD"
+
+
+def test_load_proof_targets_rejects_invalid_timestamp(tmp_path: Path):
+    payload = [
+        {
+            "source_url": "https://news.example.com/acme",
+            "timestamp": "not-a-date",
+        }
+    ]
+    input_path = tmp_path / "invalid-timestamp.json"
     input_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(monitor.ProofLinkMonitorError) as excinfo:

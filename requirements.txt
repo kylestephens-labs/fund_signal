@@ -11,3 +11,4 @@ httpx==0.28.1
 PyYAML==6.0.2
 openai==1.55.3
 click==8.1.7
+statsd==4.0.1

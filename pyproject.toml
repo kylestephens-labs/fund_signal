@@ -32,6 +32,7 @@ dependencies = [
     "PyYAML>=6.0.0",
     "openai>=1.55.0",
     "click>=8.1.7",
+    "statsd>=4.0.1",
 ]
 
 [project.optional-dependencies]

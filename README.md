@@ -352,6 +352,15 @@ The pytest benchmark + CLI in `tools/proof_links_benchmark.py` hardens the cache
 - **Env toggles:** `BENCHMARK_RUNS`, `BENCHMARK_COLD_RUNS`, `PROOF_BENCH_SAMPLE_SIZE`, `PROOF_BENCH_SKIP_COLD`, `PROOF_BENCH_CONCURRENCY`, and `PROOF_BENCH_P95_THRESHOLD_MS` control workload size. Developers on laptops can drop iterations or skip the cold phase, while CI keeps the defaults to validate the ≤300 ms SLO and ≥80% cache hit ratio.
 - **Interpreting results:** The CLI/test prints `proof_links.benchmark {"warm_p95_ms":..., "warm_hit_ratio":..., "fixture_hash":...}` plus `statsd_payload` fields (`proof_links.latency_p50/p95/p99`, `proof_links.cache_hit_ratio`, `proof_links.throughput_qps`). Copy the emitted JSON to Supabase for trend analysis and feed the log payload into Render alerts referenced by FSQ-035B/035D.
 
+### ProofLink Metrics & Alerts (FSQ-035D)
+
+Enable structured metrics and alerting for hydrator + scoring flows via the new `METRICS_*` env vars (defaults shown in `.env.example`):
+
+- `METRICS_BACKEND=stdout|statsd`, `METRICS_NAMESPACE=proof_links`, `METRICS_SAMPLE_RATE`, `METRICS_DISABLE`, and optional `METRICS_STATSD_HOST/PORT`. StatsD timers/counters publish `proof_links.hydrator.latency_ms`, `proof_links.scoring.latency_ms`, cache hits/misses, retries, and provider error codes. When running locally, leave `METRICS_BACKEND=stdout` to view structured `proof_links.metric` and `proof_links.alert` logs.
+- Thresholds live in `RENDER_ALERT_THRESHOLD_P95` (default `300`) and `RENDER_ALERT_THRESHOLD_ERROR` (`0.05`). Whenever the load harness or benchmark reports P95 above the limit, both CLIs log `proof_links.latency_p95 {"value_ms":...}` and emit a `proof_links.alert` payload (`metrics_schema_version=proof-links.v1`, severity `critical`). Error rates above 5% trigger `proof_links.alert` with severity `warning`.
+- The hydrator/scoring services emit per-request timings and cache counters, while `tools.proof_links_load_test` + `tools.proof_links_benchmark` publish aggregated gauges (latency percentiles, cache hit ratio, throughput, error rate) plus alerts that Render/Supabase dashboards ingest. Run `METRICS_BACKEND=stdout python -m tools.proof_links_load_test ...` or `pytest tests/benchmarks/test_proof_links_benchmark.py --benchmark-only` to validate the wiring locally.
+- All alerts include `metrics_schema_version` so Supabase renderers can validate payload shape; bump this version whenever the JSON changes and update downstream dashboards accordingly.
+
 ### Provider Outage Simulation Suite
 
 Run the deterministic outage simulations to validate retries, timeout handling, and structured logs for Exa/You.com/Tavily:
