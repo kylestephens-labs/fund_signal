@@ -73,6 +73,17 @@ class ProofLinkHydrator:
         proofs: list[SignalProof] = []
         seen_hashes: set[str] = set()
         evidence_matches = self._match_evidence(company.signals, normalized_slug)
+        attempts = 0
+        error_code: str | None = None
+        status = "success"
+
+        def _tracked_lookup(key: str, factory: Callable[[], SignalProof]) -> SignalProof:
+            nonlocal attempts
+            attempts += 1
+            return self._cache_lookup(key, factory)
+
+        proof_count = 0
+        start = time.perf_counter()
         try:
             if evidence_matches:
                 proofs.extend(
@@ -81,6 +92,7 @@ class ProofLinkHydrator:
                         matches=evidence_matches,
                         limit=limit,
                         seen_hashes=seen_hashes,
+                        cache_lookup=_tracked_lookup,
                     )
                 )
 
@@ -92,11 +104,28 @@ class ProofLinkHydrator:
                         slug=normalized_slug,
                         limit=remaining,
                         seen_hashes=seen_hashes,
+                        cache_lookup=_tracked_lookup,
                     )
                 )
-        except ProofLinkError:
+            if not proofs:
+                logger.error(
+                    "proof_links.missing",
+                    extra={"company_id": str(company.company_id), "slug": slug},
+                )
+                raise ProofLinkError(
+                    f"No proof metadata available for '{slug}'",
+                    code="404_PROOF_NOT_FOUND",
+                )
+            result = proofs[:limit] if limit else proofs
+            proof_count = len(result)
+            return result
+        except ProofLinkError as exc:
+            status = "error"
+            error_code = exc.code
             raise
         except Exception as exc:
+            status = "error"
+            error_code = "424_EVIDENCE_SOURCE_DOWN"
             logger.exception(
                 "proof_links.unexpected_error",
                 extra={"company_id": str(company.company_id), "slug": slug},
@@ -105,17 +134,17 @@ class ProofLinkHydrator:
                 f"Unable to hydrate proof metadata: {exc}",
                 code="424_EVIDENCE_SOURCE_DOWN",
             ) from exc
-
-        if not proofs:
-            logger.error(
-                "proof_links.missing",
-                extra={"company_id": str(company.company_id), "slug": slug},
+        finally:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            self._log_outage_event(
+                company_id=str(company.company_id),
+                slug=normalized_slug,
+                status=status,
+                attempts=attempts,
+                latency_ms=round(elapsed_ms, 4),
+                proof_count=proof_count,
+                error_code=error_code,
             )
-            raise ProofLinkError(
-                f"No proof metadata available for '{slug}'",
-                code="404_PROOF_NOT_FOUND",
-            )
-        return proofs[:limit] if limit else proofs
 
     def _hydrate_from_evidence(
         self,
@@ -124,13 +153,15 @@ class ProofLinkHydrator:
         matches: list[SignalEvidence],
         limit: int | None,
         seen_hashes: set[str],
+        cache_lookup: Callable[[str, Callable[[], SignalProof]], SignalProof] | None = None,
     ) -> list[SignalProof]:
         if limit == 0:
             return []
+        lookup = cache_lookup or self._cache_lookup
         proofs: list[SignalProof] = []
         for evidence in matches:
             key = evidence.proof_hash or self._cache_key(str(evidence.source_url), evidence.timestamp)
-            proof = self._cache_lookup(
+            proof = lookup(
                 key,
                 lambda evidence=evidence: self._from_evidence(
                     company=company,
@@ -151,6 +182,7 @@ class ProofLinkHydrator:
         slug: str,
         limit: int | None,
         seen_hashes: set[str],
+        cache_lookup: Callable[[str, Callable[[], SignalProof]], SignalProof] | None = None,
     ) -> list[SignalProof]:
         if limit == 0:
             return []
@@ -158,9 +190,10 @@ class ProofLinkHydrator:
         proofs: list[SignalProof] = []
         if not urls:
             return proofs
+        lookup = cache_lookup or self._cache_lookup
         for url in urls:
             key = self._cache_key(url, None)
-            proof = self._cache_lookup(
+            proof = lookup(
                 key,
                 lambda url=url: self._build_fallback_proof(
                     company=company,
@@ -294,6 +327,30 @@ class ProofLinkHydrator:
     def _cache_key(source_url: str, timestamp: Any) -> str:
         value = f"{source_url}|{timestamp.isoformat() if timestamp else ''}"
         return value
+
+    def _log_outage_event(
+        self,
+        *,
+        company_id: str,
+        slug: str,
+        status: str,
+        attempts: int,
+        latency_ms: float,
+        proof_count: int,
+        error_code: str | None,
+    ) -> None:
+        logger.info(
+            "proof_hydrator.outage_sim",
+            extra={
+                "company_id": company_id,
+                "slug": slug,
+                "status": status,
+                "attempts": attempts,
+                "latency_ms": latency_ms,
+                "proof_count": proof_count,
+                "error_code": error_code,
+            },
+        )
 
     @staticmethod
     def _sanitize_url(url: str) -> str:

@@ -31,6 +31,28 @@ TavilyResponse = Mapping[str, Any]
 SleepFn = Callable[[float], None]
 _P95_TARGET = 0.95
 
+
+def _log_retry_event(
+    *,
+    provider: str,
+    code: str,
+    attempt: int,
+    max_attempts: int,
+    delay: float,
+    query: str,
+) -> None:
+    logger.warning(
+        "provider.retry",
+        extra={
+            "provider": provider,
+            "code": code,
+            "attempt": attempt,
+            "max_attempts": max_attempts,
+            "delay_ms": round(delay * 1000, 2),
+            "query": query[:120],
+        },
+    )
+
 @dataclass
 class TavilyResult:
     """Normalized Tavily search result."""
@@ -170,12 +192,13 @@ def discover_with_retries(
         except (TavilyRateLimitError, TavilyTimeoutError) as exc:
             if attempt >= max_attempts:
                 raise
-            logger.warning(
-                "Tavily transient error (%s). Attempt %s/%s; retrying in %.1fs.",
-                exc.code,
-                attempt,
-                max_attempts,
-                delay,
+            _log_retry_event(
+                provider="tavily",
+                code=exc.code,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                delay=delay,
+                query=query,
             )
             sleeper(delay)
     raise TavilyError("Unable to complete Tavily confirmation after retries.")

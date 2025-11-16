@@ -40,6 +40,28 @@ EXA_TEXT_FIELDS = ("title", "summary", "text", "raw_content")
 MIN_REQUIRED_COMPANIES = 50
 
 
+def _log_retry_event(
+    *,
+    provider: str,
+    code: str,
+    attempt: int,
+    max_attempts: int,
+    delay: float,
+    query: str,
+) -> None:
+    logger.warning(
+        "provider.retry",
+        extra={
+            "provider": provider,
+            "code": code,
+            "attempt": attempt,
+            "max_attempts": max_attempts,
+            "delay_ms": round(delay * 1000, 2),
+            "query": query[:120],
+        },
+    )
+
+
 def build_query(days_min: int, days_max: int) -> str:
     """Compose a focused Exa query string."""
     return DEFAULT_QUERY_TEMPLATE.format(days_min=days_min, days_max=days_max)
@@ -50,7 +72,7 @@ def discover_with_retries(
     *,
     query: str,
     days_min: int,
-   days_max: int,
+    days_max: int,
     limit: int,
     max_attempts: int = 5,
     sleep: SleepFn | None = None,
@@ -71,12 +93,13 @@ def discover_with_retries(
         except (ExaRateLimitError, ExaTimeoutError) as exc:
             if attempt >= max_attempts:
                 raise
-            logger.warning(
-                "Exa transient error (%s). Attempt %s/%s; retrying in %.1fs.",
-                exc.code,
-                attempt,
-                max_attempts,
-                delay,
+            _log_retry_event(
+                provider="exa",
+                code=exc.code,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                delay=delay,
+                query=query,
             )
             sleeper(delay)
     raise ExaError("Unable to complete Exa discovery after retries.")
