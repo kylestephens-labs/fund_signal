@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
 from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
+from app.services.scoring import proof_links as proof_links_module
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
+
+
+def _recent_timestamp(offset_days: int = 5) -> datetime:
+    return datetime.now(UTC) - timedelta(days=offset_days)
 
 
 def _company(**overrides) -> CompanyProfile:
@@ -29,10 +34,11 @@ def _company(**overrides) -> CompanyProfile:
 
 
 def test_hydrate_prefers_structured_signal_metadata():
+    fresh_timestamp = _recent_timestamp()
     evidence = SignalEvidence(
         slug="funding",
         source_url="http://techcrunch.com/acme?api_key=secret&view=1",
-        timestamp=datetime(2025, 1, 5, 12, 0, tzinfo=UTC),
+        timestamp=fresh_timestamp,
         verified_by=["Exa", "Tavily", "exa"],
         source_hint="TechCrunch",
     )
@@ -43,7 +49,7 @@ def test_hydrate_prefers_structured_signal_metadata():
 
     assert str(proof.source_url) == "https://techcrunch.com/acme?view=1"
     assert proof.verified_by == ["Exa", "Tavily"]
-    assert proof.timestamp == datetime(2025, 1, 5, 12, 0, tzinfo=UTC)
+    assert proof.timestamp == fresh_timestamp
     assert proof.proof_hash
 
 
@@ -71,7 +77,7 @@ def test_cache_hits_are_tracked() -> None:
     evidence = SignalEvidence(
         slug="signals",
         source_url="https://exa.ai/record/acme",
-        timestamp=datetime(2025, 1, 5, 12, 0, tzinfo=UTC),
+        timestamp=_recent_timestamp(),
         verified_by=["Exa"],
     )
     company = _company(signals=[evidence])
@@ -129,11 +135,13 @@ def test_hydrate_many_respects_limit():
 
 
 def test_structured_evidence_multiple_entries():
+    first_ts = _recent_timestamp(6)
+    second_ts = _recent_timestamp(5)
     evidence = [
         SignalEvidence(
             slug="funding",
             source_url="https://techcrunch.com/acme",
-            timestamp=datetime(2025, 1, 5, 12, 0, tzinfo=UTC),
+            timestamp=first_ts,
             verified_by=["Exa"],
             source_hint="TechCrunch",
             proof_hash="funding-1",
@@ -141,7 +149,7 @@ def test_structured_evidence_multiple_entries():
         SignalEvidence(
             slug="funding",
             source_url="https://press.dev/acme?token=secret",
-            timestamp=datetime(2025, 1, 6, 12, 0, tzinfo=UTC),
+            timestamp=second_ts,
             verified_by=["You.com"],
             source_hint="PressWire",
             proof_hash="funding-2",
@@ -156,3 +164,37 @@ def test_structured_evidence_multiple_entries():
         "https://techcrunch.com/acme",
         "https://press.dev/acme",
     ]
+
+
+def test_missing_timestamp_raises_proof_error():
+    evidence = SignalEvidence(
+        slug="funding",
+        source_url="https://techcrunch.com/acme",
+        timestamp=None,
+        verified_by=["Exa"],
+    )
+    company = _company(signals=[evidence])
+    hydrator = ProofLinkHydrator(default_sources={})
+
+    with pytest.raises(ProofLinkError) as excinfo:
+        hydrator.hydrate(company, "funding")
+
+    assert excinfo.value.code == "422_PROOF_MISSING_TIMESTAMP"
+
+
+def test_stale_proof_logs_and_raises(monkeypatch):
+    stale_timestamp = datetime.now(UTC) - timedelta(days=200)
+    evidence = SignalEvidence(
+        slug="funding",
+        source_url="https://techcrunch.com/acme",
+        timestamp=stale_timestamp,
+        verified_by=["Exa"],
+    )
+    company = _company(signals=[evidence])
+    hydrator = ProofLinkHydrator(default_sources={})
+    monkeypatch.setattr(proof_links_module.settings, "proof_max_age_days", 90)
+
+    with pytest.raises(ProofLinkError) as excinfo:
+        hydrator.hydrate(company, "funding")
+
+    assert excinfo.value.code == "422_PROOF_STALE"

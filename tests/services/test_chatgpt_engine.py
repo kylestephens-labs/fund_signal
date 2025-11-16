@@ -1,16 +1,20 @@
 import json
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import pytest
 
+import app.services.scoring.proof_links as proof_links_module
 from app.models.company import CompanyProfile
+from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring.chatgpt_engine import (
     DEFAULT_SOURCE_MAP,
     ChatGPTScoringEngine,
+    ScoringEngineError,
     ScoringContext,
     ScoringValidationError,
 )
@@ -205,6 +209,32 @@ def test_fixture_rubric_scores_company_without_openai():
     assert result.pitch_angle
 
 
+def test_scoring_rejects_stale_proof(monkeypatch):
+    stale_timestamp = datetime.now(UTC) - timedelta(days=200)
+    evidence = SignalEvidence(
+        slug="funding",
+        source_url="https://techcrunch.com/acme",
+        timestamp=stale_timestamp,
+        verified_by=["Exa"],
+    )
+    company = _sample_company(signals=[evidence])
+    engine = ChatGPTScoringEngine(
+        context=ScoringContext(
+            mode="fixture",
+            system_prompt="system",
+            model="test-model",
+            temperature=0.1,
+        ),
+        proof_hydrator=ProofLinkHydrator(default_sources={}),
+    )
+    monkeypatch.setattr(proof_links_module.settings, "proof_max_age_days", 90)
+
+    with pytest.raises(ScoringEngineError) as excinfo:
+        engine.score_company(company, scoring_run_id="run-stale")
+
+    assert excinfo.value.code == "422_PROOF_STALE"
+
+
 def test_online_mode_uses_cache_when_not_forced():
     response_body = json.dumps(
         {
@@ -216,12 +246,14 @@ def test_online_mode_uses_cache_when_not_forced():
                     "points": 28,
                     "source_url": "https://techcrunch.com/acme",
                     "verified_by": ["Exa"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
                 {
                     "reason": "5+ sales roles open",
                     "points": 60,
                     "source_url": "https://greenhouse.io/acme",
                     "verified_by": ["You.com"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             ],
             "recommended_approach": "Contact the founder via LinkedIn.",
@@ -258,12 +290,14 @@ def test_forced_run_invokes_provider_again():
                     "points": 30,
                     "source_url": "https://techcrunch.com/acme",
                     "verified_by": ["Exa"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
                 {
                     "reason": "Hiring velocity",
                     "points": 40,
                     "source_url": "https://greenhouse.io/acme",
                     "verified_by": ["You.com"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             ],
             "recommended_approach": "Reach out to the VP of Sales.",
@@ -317,12 +351,14 @@ def test_breakdown_adjusts_to_declared_score():
                     "points": 30,
                     "source_url": "https://techcrunch.com/acme",
                     "verified_by": ["Exa"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
                 {
                     "reason": "Hiring velocity",
                     "points": 10,
                     "source_url": "https://greenhouse.io/acme",
                     "verified_by": ["You.com"],
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             ],
             "recommended_approach": "Email the GTM lead.",

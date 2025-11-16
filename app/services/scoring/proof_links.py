@@ -6,12 +6,14 @@ import logging
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from app.config import settings
 from app.models.company import CompanyProfile
-from app.models.signal_breakdown import SignalEvidence, SignalProof
+from app.models.signal_breakdown import SignalEvidence, SignalProof, SignalProofValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +176,19 @@ class ProofLinkHydrator:
         return proofs
 
     def _from_evidence(self, *, company: CompanyProfile, evidence: SignalEvidence) -> SignalProof:
+        if evidence.timestamp is None:
+            logger.error(
+                "proof_links.missing_timestamp",
+                extra={
+                    "company_id": str(company.company_id),
+                    "slug": evidence.slug,
+                    "source_url": str(evidence.source_url),
+                },
+            )
+            raise ProofLinkError(
+                f"Proof timestamp missing for slug '{evidence.slug}'.",
+                code="422_PROOF_MISSING_TIMESTAMP",
+            )
         sanitized_url = self._sanitize_url(str(evidence.source_url))
         proof = SignalProof(
             source_url=sanitized_url,
@@ -182,15 +197,12 @@ class ProofLinkHydrator:
             proof_hash=evidence.proof_hash,
             source_hint=evidence.source_hint,
         )
-        logger.info(
-            "proof_links.hydrated",
-            extra={
-                "company_id": str(company.company_id),
-                "slug": evidence.slug,
-                "cache": "miss",
-            },
+        return self._validate_proof(
+            proof,
+            company=company,
+            slug=evidence.slug,
+            source_url=sanitized_url,
         )
-        return proof
 
     def _match_evidence(
         self,
@@ -209,13 +221,18 @@ class ProofLinkHydrator:
         proof = SignalProof(
             source_url=url,
             verified_by=company.verified_sources,
-            timestamp=None,
+            timestamp=_utcnow(),
         )
         logger.info(
             "proof_links.fallback_used",
             extra={"company_id": str(company.company_id), "slug": slug},
         )
-        return proof
+        return self._validate_proof(
+            proof,
+            company=company,
+            slug=slug,
+            source_url=url,
+        )
 
     def _cache_lookup(self, key: str, factory: Callable[[], SignalProof]) -> SignalProof:
         now = time.time()
@@ -294,6 +311,41 @@ class ProofLinkHydrator:
             query=urlencode(filtered, doseq=True),
         )
         return urlunparse(sanitized)
+
+    def _validate_proof(
+        self,
+        proof: SignalProof,
+        *,
+        company: CompanyProfile,
+        slug: str,
+        source_url: str,
+    ) -> SignalProof:
+        try:
+            proof.ensure_fresh(settings.proof_max_age_days)
+        except SignalProofValidationError as exc:
+            log_payload = {
+                "company_id": str(company.company_id),
+                "slug": slug,
+                "source_url": source_url,
+                "timestamp": proof.timestamp.isoformat(),
+                **exc.context,
+            }
+            event = "proof_links.stale_proof" if exc.code == "422_PROOF_STALE" else "proof_links.invalid_proof"
+            logger.warning(event, extra=log_payload)
+            raise ProofLinkError(str(exc), code=exc.code) from exc
+        logger.info(
+            "proof_links.hydrated",
+            extra={
+                "company_id": str(company.company_id),
+                "slug": slug,
+                "cache": "miss",
+            },
+        )
+        return proof
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 def sanitize_proof_url(url: str) -> str:

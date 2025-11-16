@@ -10,7 +10,7 @@ To keep local environments healthy and reproducible, follow the repo’s baked-i
 ## Make Targets
 
 - `make install` – Installs runtime + dev dependencies using `uv pip` (with `UV_CACHE_DIR` exported by the Makefile). Run this after cloning or whenever requirements change.
-- `make test` – Automatically runs `make install` first to guarantee pytest is present, then executes the full suite through `uv run` so the `.venv` stays consistent.
+- `make test` – Executes the full pytest suite through `uv run`; run `make install` beforehand so the `.venv` always has the latest deps.
 - `make serve` (alias `make dev`) – Starts the FastAPI server via `uv run uvicorn …`, so the same interpreter/venv powers the API.
 
 Because these commands wrap `uv`, you never have to remember to set `UV_CACHE_DIR` or avoid raw `pip`. Stick to the Make targets to prevent environment drift and keep CI parity.
@@ -33,4 +33,5 @@ If you need to debug without the forced “missing proof” mutation, set `UI_SM
 - Run `python -m pipelines.qa.proof_link_monitor --input leads/day1_output.json --supabase-table proof_link_audits` whenever a new bundle ships. The CLI dedupes URLs per run, issues concurrent HEAD requests (default `PROOF_QA_CONCURRENCY=25`), falls back to GET on 405s, and records every attempt (status, latency, retry_count, company_id, slug) in the `proof_link_audits` Supabase table.
 - Configure env vars in `.env`/CI: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_PROOF_QA_TABLE`, `PROOF_QA_RETRY_LIMIT`, `PROOF_QA_FAILURE_THRESHOLD`, and optional `PROOF_QA_ALERT_WEBHOOK`. Set `PROOF_QA_DISABLE_ALERTS=true` as a kill switch during rollouts or dry runs.
 - Alerts trigger when ≥3% of proofs fail in a run or the same proof fails twice inside 24h; payloads only include sanitized URLs + company/proof slug so secrets never leak. Failures bubble up as `ProofLinkMonitorError` with codes (`504_HEAD_TIMEOUT`, `523_TLS_HANDSHAKE_FAILED`, `598_TOO_MANY_FAILURES`) for CI visibility.
+- Signal proofs must include timestamps fresher than `PROOF_MAX_AGE_DAYS` (default 90). Update fixtures or raise the limit temporarily via env vars only when validating legacy bundles; stale proofs now raise `422_PROOF_STALE` during hydration.
 - Seed data: use `leads/day1_output.json` or any scoring export that contains `proof_links`/`SignalProof` metadata. Add at least one intentionally broken URL when validating alert webhooks.

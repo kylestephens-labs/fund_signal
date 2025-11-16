@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
-from typing import Iterable
+from datetime import UTC, datetime, timedelta
+from typing import Any, Iterable
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -31,12 +31,21 @@ def _compute_hash(source_url: str, timestamp: datetime | None) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+class SignalProofValidationError(ValueError):
+    """Raised when proof metadata is invalid."""
+
+    def __init__(self, message: str, code: str, *, context: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.context = context or {}
+
+
 class SignalProof(BaseModel):
     """Proof metadata that backs a single scoring signal."""
 
     source_url: HttpUrl
     verified_by: list[str] = Field(default_factory=list)
-    timestamp: datetime | None = None
+    timestamp: datetime
     proof_hash: str | None = Field(
         default=None,
         description="Deterministic hash used for caching/deduplication.",
@@ -49,10 +58,28 @@ class SignalProof(BaseModel):
     @model_validator(mode="after")
     def _finalize(self) -> "SignalProof":
         self.verified_by = _normalized_labels(self.verified_by)
+        if self.timestamp.tzinfo is None:
+            self.timestamp = self.timestamp.replace(tzinfo=UTC)
+        else:
+            self.timestamp = self.timestamp.astimezone(UTC)
         if not self.proof_hash:
             self.proof_hash = _compute_hash(str(self.source_url), self.timestamp)
         if any(token in (self.source_hint or "").lower() for token in _SENSITIVE_LABELS):
             self.source_hint = "redacted"
+        return self
+
+    def ensure_fresh(self, max_age_days: int) -> "SignalProof":
+        """Raise if proof is older than the configured freshness window."""
+        if max_age_days <= 0:
+            return self
+        now = datetime.now(UTC)
+        age = now - self.timestamp
+        if age > timedelta(days=max_age_days):
+            raise SignalProofValidationError(
+                f"Proof timestamp {self.timestamp.isoformat()} older than {max_age_days} days.",
+                code="422_PROOF_STALE",
+                context={"age_days": round(age.total_seconds() / 86400, 2)},
+            )
         return self
 
 
