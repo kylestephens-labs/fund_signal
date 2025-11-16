@@ -353,6 +353,8 @@ Bundle regression guard: run `pytest tests/services/test_chatgpt_engine.py -k bu
 - Observability: every run logs `proof_qa.checks_total`/`proof_qa.failures_total` and alerts whenever ≥3% of links fail or a proof fails twice inside 24h. Alert payloads summarize the affected company + slug without leaking webhook URLs or Supabase secrets.
 - Error semantics: timeouts map to `504_HEAD_TIMEOUT`, TLS failures to `523_TLS_HANDSHAKE_FAILED`, and systemic issues raise `ProofLinkMonitorError` with codes like `598_TOO_MANY_FAILURES` so Render/CI can gate deployments.
 - Downstream readers (explainability drawers, Supabase dashboards) can now pull `last_checked_at`, `last_success_at`, and `http_status` per proof, ensuring dead links are hidden before Slack/email bundles go out.
+- Run the domain freshness replay nightly via `python -m pipelines.qa.proof_domain_replay --scores scores/day2_fixture.json --bundle-id day2_fixture --supabase-table proof_domain_audits`. The CLI fetches stored `CompanyScore` payloads, resolves each proof’s redirect chain with `PROOF_REPLAY_CONCURRENCY` workers, records drift (domain change, protocol downgrade, non-2xx), and upserts the results to Supabase for dashboards/alerts (`proof_replay.checked_total`, `proof_replay.domain_mismatch_total`).
+- Env vars: `PROOF_REPLAY_CONCURRENCY`, `PROOF_REPLAY_MAX_REDIRECTS`, `PROOF_REPLAY_FAILURE_THRESHOLD`, `PROOF_REPLAY_ALERT_WEBHOOK`, `PROOF_REPLAY_DISABLE_ALERTS`, `SUPABASE_PROOF_REPLAY_TABLE`, plus optional `PROOF_REPLAY_SCHEDULE_CRON` for job schedulers. Set `PROOF_REPLAY_DISABLE_ALERTS=true` during dry runs; leave false so insecure redirects trigger notifications immediately.
 
 ## Retention & Compression Policy
 

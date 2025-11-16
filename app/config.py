@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     proof_storage_bucket: str | None = None
     proof_cache_ttl_seconds: int = 300
     supabase_proof_qa_table: str | None = None
+    supabase_proof_replay_table: str | None = None
     proof_max_age_days: int = 90
 
     # UI/Test harness
@@ -60,6 +61,12 @@ class Settings(BaseSettings):
     proof_qa_concurrency: int = 25
     proof_qa_retry_limit: int = 3
     proof_qa_failure_threshold: float = 0.03
+    proof_replay_alert_webhook: str | None = None
+    proof_replay_disable_alerts: bool = False
+    proof_replay_concurrency: int = 10
+    proof_replay_max_redirects: int = 5
+    proof_replay_failure_threshold: float = 0.01
+    proof_replay_schedule_cron: str | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
