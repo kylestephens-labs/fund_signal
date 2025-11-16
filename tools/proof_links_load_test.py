@@ -291,9 +291,19 @@ def load_companies(path: Path) -> tuple[list[CompanyProfile], str]:
     return companies, fixture_version
 
 
-def run_load_test(config: LoadTestConfig) -> dict[str, Any]:
-    """Entrypoint used by both CLI and tests."""
-    companies, fixture_version = load_companies(config.companies_path)
+def run_load_test(
+    config: LoadTestConfig,
+    *,
+    companies: list[CompanyProfile] | None = None,
+    fixture_version: str | None = None,
+) -> dict[str, Any]:
+    """Entrypoint used by both CLI/tests and downstream benchmarks."""
+    if companies is None:
+        companies, resolved_fixture_version = load_companies(config.companies_path)
+    else:
+        resolved_fixture_version = fixture_version or "unknown"
+    if not companies:
+        raise ValueError("Fixture file contained no companies.")
     recorder = LatencyRecorder(keyed=True)
     hydrator = InstrumentedProofLinkHydrator(recorder=recorder, cache_ttl_seconds=settings.proof_cache_ttl_seconds)
     engine = ChatGPTScoringEngine(proof_hydrator=hydrator)
@@ -303,7 +313,7 @@ def run_load_test(config: LoadTestConfig) -> dict[str, Any]:
         companies=companies,
         recorder=recorder,
         config=config,
-        fixture_version=fixture_version,
+        fixture_version=resolved_fixture_version,
     )
     return runner.run()
 

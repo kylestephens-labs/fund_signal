@@ -343,6 +343,15 @@ python -m tools.proof_links_load_test \
 
 The CLI warms the hydrator cache, replays every scoring slug through `ChatGPTScoringEngine`, and prints a structured `proof_hydrator.load_test` log (plus optional JSON reports) that include cache hit/miss deltas, throughput, and latency percentiles per slug. Reports default to `PROOF_LOAD_REPORT_DIR` (if set)—point `--report` somewhere under `output/` or delete generated files to avoid clutter. CI fails with exit code `2` whenever warmed-cache P95 exceeds the configured threshold (default `300 ms`); override via `--p95-threshold-ms` when investigating regressions.
 
+### ProofLink Cache Benchmark (FSQ-035C)
+
+The pytest benchmark + CLI in `tools/proof_links_benchmark.py` hardens the cache SLO by replaying ≥50 fixture companies, capturing cold vs. warm stats, and asserting warmed-cache P95 stays ≤300 ms.
+
+- **Pytest hook:** `pytest tests/benchmarks/test_proof_links_benchmark.py --benchmark-only`. Uses `pytest-benchmark` to run one cold and one warm phase (default `BENCHMARK_COLD_RUNS=25`, `BENCHMARK_RUNS=200`) and fails when `proof_links.latency_p95` exceeds `PROOF_BENCH_P95_THRESHOLD_MS` (default `300`). Cache hit ratio must remain ≥0.80, and tests emit structured log events `proof_links.benchmark` + `proof_links.latency_p95` for Render/Supabase ingestion.
+- **CLI wrapper:** `python -m tools.proof_links_benchmark --input tests/fixtures/scoring/proof_links_benchmark_companies.json --report output/proof_links_metrics.json`. Reports land in `BENCHMARK_REPORT_DIR` (defaults to `output/`) with the schema `{"benchmark_version","fixture_hash","cold":{...},"warm":{...},"statsd_payload":{"proof_links.latency_p50":...}}`. JSON includes latency percentiles, cache hits/misses, throughput_qps, and a StatsD-ready payload reused by FSQ-035D alert wiring.
+- **Env toggles:** `BENCHMARK_RUNS`, `BENCHMARK_COLD_RUNS`, `PROOF_BENCH_SAMPLE_SIZE`, `PROOF_BENCH_SKIP_COLD`, `PROOF_BENCH_CONCURRENCY`, and `PROOF_BENCH_P95_THRESHOLD_MS` control workload size. Developers on laptops can drop iterations or skip the cold phase, while CI keeps the defaults to validate the ≤300 ms SLO and ≥80% cache hit ratio.
+- **Interpreting results:** The CLI/test prints `proof_links.benchmark {"warm_p95_ms":..., "warm_hit_ratio":..., "fixture_hash":...}` plus `statsd_payload` fields (`proof_links.latency_p50/p95/p99`, `proof_links.cache_hit_ratio`, `proof_links.throughput_qps`). Copy the emitted JSON to Supabase for trend analysis and feed the log payload into Render alerts referenced by FSQ-035B/035D.
+
 ### Provider Outage Simulation Suite
 
 Run the deterministic outage simulations to validate retries, timeout handling, and structured logs for Exa/You.com/Tavily:

@@ -1,0 +1,2706 @@
+{
+  "benchmark_version": "2025-02-20",
+  "fixture_version": "proof-links-benchmark-v1",
+  "companies": [
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000001",
+        "name": "Benchmark Co 01",
+        "funding_amount": "$6M",
+        "funding_stage": "Series A",
+        "days_since_funding": 31,
+        "employee_count": 21,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-1?token=0001",
+          "https://press.fundsignal.dev/company-1?key=0001"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-1",
+            "timestamp": "2030-01-14T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-1",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000002",
+        "name": "Benchmark Co 02",
+        "funding_amount": "$7M",
+        "funding_stage": "Series B",
+        "days_since_funding": 32,
+        "employee_count": 22,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-2?token=0002",
+          "https://press.fundsignal.dev/company-2?key=0002"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-2",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-2",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000003",
+        "name": "Benchmark Co 03",
+        "funding_amount": "$8M",
+        "funding_stage": "Seed",
+        "days_since_funding": 33,
+        "employee_count": 23,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-3?token=0003",
+          "https://press.fundsignal.dev/company-3?key=0003"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-3",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-3",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000004",
+        "name": "Benchmark Co 04",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 34,
+        "employee_count": 24,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-4?token=0004",
+          "https://press.fundsignal.dev/company-4?key=0004"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-4",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-4",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000005",
+        "name": "Benchmark Co 05",
+        "funding_amount": "$10M",
+        "funding_stage": "Series B",
+        "days_since_funding": 35,
+        "employee_count": 25,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-5?token=0005",
+          "https://press.fundsignal.dev/company-5?key=0005"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-5",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-5",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000006",
+        "name": "Benchmark Co 06",
+        "funding_amount": "$11M",
+        "funding_stage": "Seed",
+        "days_since_funding": 36,
+        "employee_count": 26,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-6?token=0006",
+          "https://press.fundsignal.dev/company-6?key=0006"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-6",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-6",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000007",
+        "name": "Benchmark Co 07",
+        "funding_amount": "$12M",
+        "funding_stage": "Series A",
+        "days_since_funding": 37,
+        "employee_count": 27,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-7?token=0007",
+          "https://press.fundsignal.dev/company-7?key=0007"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-7",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-7",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000008",
+        "name": "Benchmark Co 08",
+        "funding_amount": "$13M",
+        "funding_stage": "Series B",
+        "days_since_funding": 38,
+        "employee_count": 28,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-8?token=0008",
+          "https://press.fundsignal.dev/company-8?key=0008"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-8",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-8",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000009",
+        "name": "Benchmark Co 09",
+        "funding_amount": "$14M",
+        "funding_stage": "Seed",
+        "days_since_funding": 39,
+        "employee_count": 29,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-9?token=0009",
+          "https://press.fundsignal.dev/company-9?key=0009"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-9",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-9",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000010",
+        "name": "Benchmark Co 10",
+        "funding_amount": "$15M",
+        "funding_stage": "Series A",
+        "days_since_funding": 40,
+        "employee_count": 30,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-10?token=0010",
+          "https://press.fundsignal.dev/company-10?key=0010"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-10",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-10",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000011",
+        "name": "Benchmark Co 11",
+        "funding_amount": "$16M",
+        "funding_stage": "Series B",
+        "days_since_funding": 41,
+        "employee_count": 31,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-11?token=0011",
+          "https://press.fundsignal.dev/company-11?key=0011"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-11",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-11",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000012",
+        "name": "Benchmark Co 12",
+        "funding_amount": "$17M",
+        "funding_stage": "Seed",
+        "days_since_funding": 42,
+        "employee_count": 32,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-12?token=0012",
+          "https://press.fundsignal.dev/company-12?key=0012"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-12",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-12",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000013",
+        "name": "Benchmark Co 13",
+        "funding_amount": "$18M",
+        "funding_stage": "Series A",
+        "days_since_funding": 43,
+        "employee_count": 33,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-13?token=0013",
+          "https://press.fundsignal.dev/company-13?key=0013"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-13",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-13",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000014",
+        "name": "Benchmark Co 14",
+        "funding_amount": "$19M",
+        "funding_stage": "Series B",
+        "days_since_funding": 44,
+        "employee_count": 34,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-14?token=0014",
+          "https://press.fundsignal.dev/company-14?key=0014"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-14",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-14",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000015",
+        "name": "Benchmark Co 15",
+        "funding_amount": "$5M",
+        "funding_stage": "Seed",
+        "days_since_funding": 45,
+        "employee_count": 35,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-15?token=0015",
+          "https://press.fundsignal.dev/company-15?key=0015"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-15",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-15",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000016",
+        "name": "Benchmark Co 16",
+        "funding_amount": "$6M",
+        "funding_stage": "Series A",
+        "days_since_funding": 46,
+        "employee_count": 36,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-16?token=0016",
+          "https://press.fundsignal.dev/company-16?key=0016"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-16",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-16",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000017",
+        "name": "Benchmark Co 17",
+        "funding_amount": "$7M",
+        "funding_stage": "Series B",
+        "days_since_funding": 47,
+        "employee_count": 37,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-17?token=0017",
+          "https://press.fundsignal.dev/company-17?key=0017"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-17",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-17",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000018",
+        "name": "Benchmark Co 18",
+        "funding_amount": "$8M",
+        "funding_stage": "Seed",
+        "days_since_funding": 48,
+        "employee_count": 38,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-18?token=0018",
+          "https://press.fundsignal.dev/company-18?key=0018"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-18",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-18",
+            "timestamp": "2029-12-27T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000019",
+        "name": "Benchmark Co 19",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 49,
+        "employee_count": 39,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-19?token=0019",
+          "https://press.fundsignal.dev/company-19?key=0019"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-19",
+            "timestamp": "2029-12-27T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-19",
+            "timestamp": "2029-12-26T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000020",
+        "name": "Benchmark Co 20",
+        "funding_amount": "$10M",
+        "funding_stage": "Series B",
+        "days_since_funding": 50,
+        "employee_count": 40,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-20?token=0020",
+          "https://press.fundsignal.dev/company-20?key=0020"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-20",
+            "timestamp": "2029-12-26T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-20",
+            "timestamp": "2029-12-25T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000021",
+        "name": "Benchmark Co 21",
+        "funding_amount": "$11M",
+        "funding_stage": "Seed",
+        "days_since_funding": 51,
+        "employee_count": 41,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-21?token=0021",
+          "https://press.fundsignal.dev/company-21?key=0021"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-21",
+            "timestamp": "2030-01-15T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-21",
+            "timestamp": "2030-01-14T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000022",
+        "name": "Benchmark Co 22",
+        "funding_amount": "$12M",
+        "funding_stage": "Series A",
+        "days_since_funding": 52,
+        "employee_count": 42,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-22?token=0022",
+          "https://press.fundsignal.dev/company-22?key=0022"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-22",
+            "timestamp": "2030-01-14T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-22",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000023",
+        "name": "Benchmark Co 23",
+        "funding_amount": "$13M",
+        "funding_stage": "Series B",
+        "days_since_funding": 53,
+        "employee_count": 43,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-23?token=0023",
+          "https://press.fundsignal.dev/company-23?key=0023"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-23",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-23",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000024",
+        "name": "Benchmark Co 24",
+        "funding_amount": "$14M",
+        "funding_stage": "Seed",
+        "days_since_funding": 54,
+        "employee_count": 44,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-24?token=0024",
+          "https://press.fundsignal.dev/company-24?key=0024"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-24",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-24",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000025",
+        "name": "Benchmark Co 25",
+        "funding_amount": "$15M",
+        "funding_stage": "Series A",
+        "days_since_funding": 55,
+        "employee_count": 45,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-25?token=0025",
+          "https://press.fundsignal.dev/company-25?key=0025"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-25",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-25",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000026",
+        "name": "Benchmark Co 26",
+        "funding_amount": "$16M",
+        "funding_stage": "Series B",
+        "days_since_funding": 56,
+        "employee_count": 46,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-26?token=0026",
+          "https://press.fundsignal.dev/company-26?key=0026"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-26",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-26",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000027",
+        "name": "Benchmark Co 27",
+        "funding_amount": "$17M",
+        "funding_stage": "Seed",
+        "days_since_funding": 57,
+        "employee_count": 47,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-27?token=0027",
+          "https://press.fundsignal.dev/company-27?key=0027"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-27",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-27",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000028",
+        "name": "Benchmark Co 28",
+        "funding_amount": "$18M",
+        "funding_stage": "Series A",
+        "days_since_funding": 58,
+        "employee_count": 48,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-28?token=0028",
+          "https://press.fundsignal.dev/company-28?key=0028"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-28",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-28",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000029",
+        "name": "Benchmark Co 29",
+        "funding_amount": "$19M",
+        "funding_stage": "Series B",
+        "days_since_funding": 59,
+        "employee_count": 49,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-29?token=0029",
+          "https://press.fundsignal.dev/company-29?key=0029"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-29",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-29",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000030",
+        "name": "Benchmark Co 30",
+        "funding_amount": "$5M",
+        "funding_stage": "Seed",
+        "days_since_funding": 60,
+        "employee_count": 50,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-30?token=0030",
+          "https://press.fundsignal.dev/company-30?key=0030"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-30",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-30",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000031",
+        "name": "Benchmark Co 31",
+        "funding_amount": "$6M",
+        "funding_stage": "Series A",
+        "days_since_funding": 61,
+        "employee_count": 51,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-31?token=0031",
+          "https://press.fundsignal.dev/company-31?key=0031"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-31",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-31",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000032",
+        "name": "Benchmark Co 32",
+        "funding_amount": "$7M",
+        "funding_stage": "Series B",
+        "days_since_funding": 62,
+        "employee_count": 52,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-32?token=0032",
+          "https://press.fundsignal.dev/company-32?key=0032"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-32",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-32",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000033",
+        "name": "Benchmark Co 33",
+        "funding_amount": "$8M",
+        "funding_stage": "Seed",
+        "days_since_funding": 63,
+        "employee_count": 53,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-33?token=0033",
+          "https://press.fundsignal.dev/company-33?key=0033"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-33",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-33",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000034",
+        "name": "Benchmark Co 34",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 64,
+        "employee_count": 54,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-34?token=0034",
+          "https://press.fundsignal.dev/company-34?key=0034"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-34",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-34",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000035",
+        "name": "Benchmark Co 35",
+        "funding_amount": "$10M",
+        "funding_stage": "Series B",
+        "days_since_funding": 65,
+        "employee_count": 55,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-35?token=0035",
+          "https://press.fundsignal.dev/company-35?key=0035"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-35",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-35",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000036",
+        "name": "Benchmark Co 36",
+        "funding_amount": "$11M",
+        "funding_stage": "Seed",
+        "days_since_funding": 66,
+        "employee_count": 56,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-36?token=0036",
+          "https://press.fundsignal.dev/company-36?key=0036"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-36",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-36",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000037",
+        "name": "Benchmark Co 37",
+        "funding_amount": "$12M",
+        "funding_stage": "Series A",
+        "days_since_funding": 67,
+        "employee_count": 57,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-37?token=0037",
+          "https://press.fundsignal.dev/company-37?key=0037"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-37",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-37",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000038",
+        "name": "Benchmark Co 38",
+        "funding_amount": "$13M",
+        "funding_stage": "Series B",
+        "days_since_funding": 68,
+        "employee_count": 58,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-38?token=0038",
+          "https://press.fundsignal.dev/company-38?key=0038"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-38",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-38",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000039",
+        "name": "Benchmark Co 39",
+        "funding_amount": "$14M",
+        "funding_stage": "Seed",
+        "days_since_funding": 69,
+        "employee_count": 59,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-39?token=0039",
+          "https://press.fundsignal.dev/company-39?key=0039"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-39",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-39",
+            "timestamp": "2029-12-27T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000040",
+        "name": "Benchmark Co 40",
+        "funding_amount": "$15M",
+        "funding_stage": "Series A",
+        "days_since_funding": 70,
+        "employee_count": 60,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-40?token=0040",
+          "https://press.fundsignal.dev/company-40?key=0040"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-40",
+            "timestamp": "2029-12-27T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-40",
+            "timestamp": "2029-12-26T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000041",
+        "name": "Benchmark Co 41",
+        "funding_amount": "$16M",
+        "funding_stage": "Series B",
+        "days_since_funding": 71,
+        "employee_count": 61,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-41?token=0041",
+          "https://press.fundsignal.dev/company-41?key=0041"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-41",
+            "timestamp": "2029-12-26T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-41",
+            "timestamp": "2029-12-25T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000042",
+        "name": "Benchmark Co 42",
+        "funding_amount": "$17M",
+        "funding_stage": "Seed",
+        "days_since_funding": 72,
+        "employee_count": 62,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-42?token=0042",
+          "https://press.fundsignal.dev/company-42?key=0042"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-42",
+            "timestamp": "2030-01-15T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-42",
+            "timestamp": "2030-01-14T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000043",
+        "name": "Benchmark Co 43",
+        "funding_amount": "$18M",
+        "funding_stage": "Series A",
+        "days_since_funding": 73,
+        "employee_count": 63,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-43?token=0043",
+          "https://press.fundsignal.dev/company-43?key=0043"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-43",
+            "timestamp": "2030-01-14T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-43",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000044",
+        "name": "Benchmark Co 44",
+        "funding_amount": "$19M",
+        "funding_stage": "Series B",
+        "days_since_funding": 74,
+        "employee_count": 64,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-44?token=0044",
+          "https://press.fundsignal.dev/company-44?key=0044"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-44",
+            "timestamp": "2030-01-13T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-44",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000045",
+        "name": "Benchmark Co 45",
+        "funding_amount": "$5M",
+        "funding_stage": "Seed",
+        "days_since_funding": 75,
+        "employee_count": 65,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-45?token=0045",
+          "https://press.fundsignal.dev/company-45?key=0045"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-45",
+            "timestamp": "2030-01-12T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-45",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000046",
+        "name": "Benchmark Co 46",
+        "funding_amount": "$6M",
+        "funding_stage": "Series A",
+        "days_since_funding": 76,
+        "employee_count": 66,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-46?token=0046",
+          "https://press.fundsignal.dev/company-46?key=0046"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-46",
+            "timestamp": "2030-01-11T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-46",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000047",
+        "name": "Benchmark Co 47",
+        "funding_amount": "$7M",
+        "funding_stage": "Series B",
+        "days_since_funding": 77,
+        "employee_count": 67,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-47?token=0047",
+          "https://press.fundsignal.dev/company-47?key=0047"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-47",
+            "timestamp": "2030-01-10T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-47",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000048",
+        "name": "Benchmark Co 48",
+        "funding_amount": "$8M",
+        "funding_stage": "Seed",
+        "days_since_funding": 78,
+        "employee_count": 68,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-48?token=0048",
+          "https://press.fundsignal.dev/company-48?key=0048"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-48",
+            "timestamp": "2030-01-09T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-48",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000049",
+        "name": "Benchmark Co 49",
+        "funding_amount": "$9M",
+        "funding_stage": "Series A",
+        "days_since_funding": 79,
+        "employee_count": 69,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-49?token=0049",
+          "https://press.fundsignal.dev/company-49?key=0049"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-49",
+            "timestamp": "2030-01-08T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-49",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000050",
+        "name": "Benchmark Co 50",
+        "funding_amount": "$10M",
+        "funding_stage": "Series B",
+        "days_since_funding": 80,
+        "employee_count": 70,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-50?token=0050",
+          "https://press.fundsignal.dev/company-50?key=0050"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-50",
+            "timestamp": "2030-01-07T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-50",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000051",
+        "name": "Benchmark Co 51",
+        "funding_amount": "$11M",
+        "funding_stage": "Seed",
+        "days_since_funding": 81,
+        "employee_count": 71,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-51?token=0051",
+          "https://press.fundsignal.dev/company-51?key=0051"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-51",
+            "timestamp": "2030-01-06T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-51",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000052",
+        "name": "Benchmark Co 52",
+        "funding_amount": "$12M",
+        "funding_stage": "Series A",
+        "days_since_funding": 82,
+        "employee_count": 72,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-52?token=0052",
+          "https://press.fundsignal.dev/company-52?key=0052"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-52",
+            "timestamp": "2030-01-05T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-52",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000053",
+        "name": "Benchmark Co 53",
+        "funding_amount": "$13M",
+        "funding_stage": "Series B",
+        "days_since_funding": 83,
+        "employee_count": 73,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-53?token=0053",
+          "https://press.fundsignal.dev/company-53?key=0053"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-53",
+            "timestamp": "2030-01-04T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-53",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000054",
+        "name": "Benchmark Co 54",
+        "funding_amount": "$14M",
+        "funding_stage": "Seed",
+        "days_since_funding": 84,
+        "employee_count": 74,
+        "job_postings": 6,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-54?token=0054",
+          "https://press.fundsignal.dev/company-54?key=0054"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-54",
+            "timestamp": "2030-01-03T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-54",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000055",
+        "name": "Benchmark Co 55",
+        "funding_amount": "$15M",
+        "funding_stage": "Series A",
+        "days_since_funding": 85,
+        "employee_count": 75,
+        "job_postings": 7,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-55?token=0055",
+          "https://press.fundsignal.dev/company-55?key=0055"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-55",
+            "timestamp": "2030-01-02T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-55",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000056",
+        "name": "Benchmark Co 56",
+        "funding_amount": "$16M",
+        "funding_stage": "Series B",
+        "days_since_funding": 86,
+        "employee_count": 76,
+        "job_postings": 1,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-56?token=0056",
+          "https://press.fundsignal.dev/company-56?key=0056"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-56",
+            "timestamp": "2030-01-01T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-56",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000057",
+        "name": "Benchmark Co 57",
+        "funding_amount": "$17M",
+        "funding_stage": "Seed",
+        "days_since_funding": 87,
+        "employee_count": 77,
+        "job_postings": 2,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-57?token=0057",
+          "https://press.fundsignal.dev/company-57?key=0057"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-57",
+            "timestamp": "2029-12-31T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-57",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000058",
+        "name": "Benchmark Co 58",
+        "funding_amount": "$18M",
+        "funding_stage": "Series A",
+        "days_since_funding": 88,
+        "employee_count": 78,
+        "job_postings": 3,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-58?token=0058",
+          "https://press.fundsignal.dev/company-58?key=0058"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-58",
+            "timestamp": "2029-12-30T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-58",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000059",
+        "name": "Benchmark Co 59",
+        "funding_amount": "$19M",
+        "funding_stage": "Series B",
+        "days_since_funding": 89,
+        "employee_count": 79,
+        "job_postings": 4,
+        "tech_stack": [
+          "Salesforce",
+          "HubSpot",
+          "Snowflake"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-59?token=0059",
+          "https://press.fundsignal.dev/company-59?key=0059"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-59",
+            "timestamp": "2029-12-29T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-59",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    },
+    {
+      "profile": {
+        "company_id": "55555555-0000-4000-8000-000000000060",
+        "name": "Benchmark Co 60",
+        "funding_amount": "$5M",
+        "funding_stage": "Seed",
+        "days_since_funding": 90,
+        "employee_count": 80,
+        "job_postings": 5,
+        "tech_stack": [
+          "Salesforce"
+        ],
+        "buying_signals": [
+          "https://news.fundsignal.dev/company-60?token=0060",
+          "https://press.fundsignal.dev/company-60?key=0060"
+        ],
+        "verified_sources": [
+          "Exa",
+          "You.com",
+          "Tavily"
+        ],
+        "signals": [
+          {
+            "slug": "funding",
+            "source_url": "https://press.fundsignal.dev/company-60",
+            "timestamp": "2029-12-28T12:00:00Z",
+            "verified_by": [
+              "Exa",
+              "Tavily"
+            ],
+            "source_hint": "PressWire"
+          },
+          {
+            "slug": "team",
+            "source_url": "https://careers.fundsignal.dev/company-60",
+            "timestamp": "2029-12-27T12:00:00Z",
+            "verified_by": [
+              "You.com"
+            ],
+            "source_hint": "Careers"
+          }
+        ]
+      }
+    }
+  ]
+}
