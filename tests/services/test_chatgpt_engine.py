@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-import app.services.scoring.proof_links as proof_links_module
 import app.services.scoring.chatgpt_engine as chatgpt_engine_module
+import app.services.scoring.proof_links as proof_links_module
 from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring.chatgpt_engine import (
@@ -20,6 +20,7 @@ from app.services.scoring.chatgpt_engine import (
     ScoringValidationError,
 )
 from app.services.scoring.proof_links import ProofLinkHydrator
+from app.services.scoring.repositories import InMemoryScoreRepository, SupabaseScoreRepository
 from tests.helpers.metrics_stub import StubMetrics
 
 REGRESSION_FIXTURE_ENV = "SCORING_REGRESSION_FIXTURE"
@@ -195,6 +196,7 @@ def _tier_band(key: str) -> tuple[int, int]:
 
 def test_fixture_rubric_scores_company_without_openai():
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="system",
@@ -221,6 +223,7 @@ def test_scoring_rejects_stale_proof(monkeypatch):
     )
     company = _sample_company(signals=[evidence])
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="system",
@@ -264,6 +267,7 @@ def test_online_mode_uses_cache_when_not_forced():
     )
     stub_client = StubOpenAIClient([response_body])
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         client=stub_client,
         context=ScoringContext(
             mode="online",
@@ -308,6 +312,7 @@ def test_forced_run_invokes_provider_again():
     )
     stub_client = StubOpenAIClient([response_body])
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         client=stub_client,
         context=ScoringContext(
             mode="online",
@@ -327,6 +332,7 @@ def test_forced_run_invokes_provider_again():
 def test_invalid_json_from_openai_raises_validation_error():
     stub_client = StubOpenAIClient(["not-json"])
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         client=stub_client,
         context=ScoringContext(
             mode="online",
@@ -369,6 +375,7 @@ def test_breakdown_adjusts_to_declared_score():
     )
     stub_client = StubOpenAIClient([response_body])
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         client=stub_client,
         context=ScoringContext(
             mode="online",
@@ -387,6 +394,7 @@ def test_breakdown_adjusts_to_declared_score():
 
 def test_fixture_rubric_includes_multiple_proofs_from_buying_signals():
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="system",
@@ -414,6 +422,7 @@ def test_fixture_rubric_includes_multiple_proofs_from_buying_signals():
 
 def test_fetch_scores_returns_runs():
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="system",
@@ -433,12 +442,43 @@ def test_fetch_scores_returns_runs():
     assert run_1[0].scoring_run_id == "run-1"
 
 
+def test_supabase_repository_persists_across_instances(tmp_path):
+    db_path = tmp_path / "scores.db"
+    database_url = f"sqlite:///{db_path}"
+    hydrator = ProofLinkHydrator(default_sources={})
+    context = ScoringContext(
+        mode="fixture",
+        system_prompt="system",
+        model="fixture-rubric",
+        temperature=0.0,
+    )
+    company = _sample_company()
+    run_id = "daily-2024-10-29"
+
+    repo_a = SupabaseScoreRepository(database_url, auto_create_schema=True)
+    engine_a = ChatGPTScoringEngine(repository=repo_a, context=context, proof_hydrator=hydrator)
+    first = engine_a.score_company(company, scoring_run_id=run_id, force=True)
+    repo_a.dispose()
+
+    repo_b = SupabaseScoreRepository(database_url, auto_create_schema=False)
+    engine_b = ChatGPTScoringEngine(repository=repo_b, context=context, proof_hydrator=hydrator)
+    cached = engine_b.score_company(company, scoring_run_id=run_id)
+    fetched = engine_b.fetch_scores(str(company.company_id), scoring_run_id=run_id)
+
+    assert cached.id == first.id
+    assert cached.score == first.score
+    assert len(cached.breakdown) == len(first.breakdown)
+    assert fetched and fetched[0].id == cached.id
+    repo_b.dispose()
+
+
 def test_fixture_regression_scores_align_with_intuition():
     fixture = _load_regression_fixture()
     context = fixture.context
     assert len(fixture.personas) >= 3, f"{context} expected at least three regression personas."
 
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="regression-system",
@@ -465,6 +505,7 @@ def test_fixture_regression_scores_align_with_intuition():
 def test_bundle_regression_scores_align_with_human_tiers():
     bundle_fixture = _load_bundle_regression_fixture()
     engine = ChatGPTScoringEngine(
+        repository=InMemoryScoreRepository(),
         context=ScoringContext(
             mode="fixture",
             system_prompt="bundle-regression",
@@ -503,7 +544,7 @@ def test_bundle_regression_scores_align_with_human_tiers():
 def test_scoring_engine_emits_metrics(monkeypatch):
     stub = StubMetrics()
     monkeypatch.setattr(chatgpt_engine_module, "metrics", stub)
-    engine = ChatGPTScoringEngine()
+    engine = ChatGPTScoringEngine(repository=InMemoryScoreRepository())
     company = _sample_company()
 
     engine.score_company(company, scoring_run_id="metrics-test", force=True)
@@ -517,7 +558,7 @@ def test_scoring_engine_emits_metrics(monkeypatch):
 def test_scoring_engine_records_error_metrics(monkeypatch):
     stub = StubMetrics()
     monkeypatch.setattr(chatgpt_engine_module, "metrics", stub)
-    engine = ChatGPTScoringEngine()
+    engine = ChatGPTScoringEngine(repository=InMemoryScoreRepository())
 
     def _boom(*_: Any, **__: Any):
         raise ScoringEngineError("boom", code="TEST_METRIC")

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     supabase_db_port: int | None = None
     supabase_db_user: str | None = None
     supabase_db_password: str | None = None
+    pooled_supabase_dsn: str | None = None
+    db_pool_min_size: int = 1
+    db_pool_max_size: int = 5
 
     # Providers
     exa_api_key: str | None = None

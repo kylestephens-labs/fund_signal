@@ -11,6 +11,7 @@ from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring.chatgpt_engine import ChatGPTScoringEngine, ScoringEngineError
 from app.services.scoring.proof_links import ProofLinkHydrator
+from app.services.scoring.repositories import InMemoryScoreRepository
 from pipelines.day1 import exa_discovery, tavily_confirm, youcom_verify
 from tests.outages.fake_providers import (
     FakeExaClient,
@@ -144,7 +145,7 @@ def test_proof_hydrator_logs_success_on_fallback(caplog):
 def test_scoring_engine_surfaces_missing_proof_outage(caplog):
     caplog.set_level(logging.INFO, logger="app.services.scoring.proof_links")
     hydrator = ProofLinkHydrator(default_sources={})
-    engine = ChatGPTScoringEngine(proof_hydrator=hydrator)
+    engine = ChatGPTScoringEngine(repository=InMemoryScoreRepository(), proof_hydrator=hydrator)
     company = _company(buying_signals=[], signals=[])
 
     with pytest.raises(ScoringEngineError) as excinfo:

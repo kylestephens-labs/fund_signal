@@ -98,3 +98,52 @@ Teach tools/proof_links_benchmark.py (line 268) to optionally push the StatsD pa
 Optimization Ideas:
 
 Share a reusable stub metrics fixture across tests (instead of redefining _StubMetrics), which would simplify future instrumentation tests and keep expectations centralized.
+
+
+
+## Post-MVP ⚠️ Error/latency budgets
+
+Hydrator caches proofs and raises alerts (see README.md:292-319), but there’s still no mention of Render/Supabase dashboards, no benchmarking or metrics confirming <300 ms P95, and no tests that simulate Exa/You/Tavily outages.
+
+Prove metrics wiring end-to-end – Still need to run tools.proof_links_load_test/tools.proof_links_benchmark with METRICS_BACKEND=stdout and hit a real StatsD sink to confirm alert payloads and packet formatting. Post-MVP: docs/mvp.md focuses on shipping verified leads within 7 days; instrumentation polish can follow once core delivery works.
+
+Add/verify optional StatsD / Supabase hooks in proof_links_load_test – Builder flagged this as pending after FSQ‑035D; without it, latency/error telemetry never reaches ops dashboards. Post-MVP: valuable for SLO tracking, but the MVP only promises functioning lead delivery, not full observability.
+
+Replay job should fetch score exports from Supabase instead of assuming local files, eliminating manual prep steps. Post-MVP: MVP scope tolerates manual artifacts so long as leads ship (docs/mvp.md “What You’re Building”).
+
+Guard against oversized proof_hash in (…) queries – Batch Supabase lookups so very large bundles don’t exceed URL limits. Post-MVP: MVP bundles are small (25‑75 leads/week), so the current approach suffices short term.
+
+Stream/Chunk large fixture loads – Entire fixture buffering may spike memory for future-scale runs; add backpressure. Post-MVP: not required for the initial 7-day build where data volumes stay modest.
+
+Wire outage simulation env vars into real CLIs/telemetry – Today they only affect fake clients; extend to actual tooling. Post-MVP: outage toggles are nice-to-have resilience levers beyond MVP commitments.
+
+Provide a lighter “smoke” preset for the benchmark – Current suite takes ~3.6 s for 60 companies; allow reduced sample sizes automatically when laptops struggle. Post-MVP: developer convenience, not customer-facing functionality.
+Speed up the Tavily slow-response test – Replace the ~1.2 s sleep with a stubbed timer so the suite scales better. Post-MVP: purely test ergonomics.
+
+
+## Post-MVP ⚠️ Supabase replay automation
+
+Replay job still assumes score exports are provided locally; wiring a Supabase fetcher (as noted in Builder’s follow-ups) would eliminate that manual step.
+
+CLI flag to pull scores from Supabase: post-MVP (nice-to-have automation; MVP already satisfied by existing replay CLI using local data).
+
+Supabase REST fetcher (load scores via API): post-MVP (automation convenience; not required to ship Day-2 promise).
+
+Headers/auth handling for REST fetcher: post-MVP (only needed once the fetcher exists).
+
+Pagination support for Supabase fetch: post-MVP (depends on the fetcher; not part of MVP scope).
+
+README/docs updates describing Supabase replay mode: post-MVP (documentation change once fetcher is live).
+
+Tests covering the REST fetcher/pagination: post-MVP (tied to the fetcher work itself).
+
+The MVP only requires the replay job to exist and run (which current CLI + proof-domain monitor already cover); moving score-loading automation to Supabase is a follow-on enhancement.
+
+
+## Post-MVP ⚠️ Monitoring + docs
+
+README now explains the proof schema (README.md:292-319), but there’s still no mention of Render/Supabase dashboards or log wiring for proof metrics; no monitoring configuration or dashboard references were updated. Clarify whether the following deliverables can remain post-MVP:
+
+- FSQ-037C: Monitoring runbook – add structured logging/metrics emitters in scoring + proof QA jobs (success/error counters, latency gauges) and expose them via Render-compatible sinks.
+- FSQ-037B: Supabase dashboards & alerts – create/update Supabase dashboards/tables for proof/scoring metrics, configure alert policies (e.g., failure thresholds, stale proofs), and document how to view them.
+- FSQ-037C: Monitoring runbook update – expand README/docs/dev_workflow with monitoring setup steps, expected metrics, alert escalation paths, and schema snapshot/versioning instructions (Pact or stored JSON).

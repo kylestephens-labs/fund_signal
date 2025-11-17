@@ -16,11 +16,8 @@ from sqlalchemy.engine.url import make_url
 from app.config import Settings
 from app.models.company import CompanyProfile
 from app.models.score_record import ScoreRecord
-from app.services.scoring.chatgpt_engine import (
-    ChatGPTScoringEngine,
-    InMemoryScoreRepository,
-    ScoringContext,
-)
+from app.services.scoring.chatgpt_engine import ChatGPTScoringEngine, ScoringContext
+from app.services.scoring.repositories import InMemoryScoreRepository
 
 logger = logging.getLogger("scripts.seed_scores")
 

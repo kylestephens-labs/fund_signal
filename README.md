@@ -336,6 +336,8 @@ Pass structured signal metadata in the scoring request via the optional `signals
 - Start Postgres via `docker compose up -d db` or point `DATABASE_URL` at Supabase, then apply migrations: `alembic upgrade head`. Migrations emit `scoring.migration.applied` logs on success. When adding new schema later, run `alembic revision --autogenerate -m "create <table>"` so JSON columns stay typed as `sqlalchemy.dialects.postgresql.JSONB`.
 - Seed a deterministic score to unblock the Day-2 drawer smoke tests: `python scripts/seed_scores.py --fixture tests/fixtures/scoring/regression_companies.json --scoring-run-id ui-smoke`. Pass `--force` to overwrite the `(company_id, scoring_run_id)` pair if the row already exists.
 - Repository writes now log `scoring.persistence.persisted` and reuse the `(company_id, scoring_run_id)` unique constraint so GETs stay ≤300 ms with ~1k rows. Use Supabase SQL to verify `breakdown` JSONB payloads, timestamps, and unique indexes via `EXPLAIN ANALYZE SELECT * FROM scores WHERE company_id = '...' AND scoring_run_id = '...'`.
+- Enable the async DSN via `DATABASE_URL=postgresql+asyncpg://...` then let the API convert it to sync psycopg when building the SQLModel repository. Tune pooling with `DB_POOL_MIN_SIZE` / `DB_POOL_MAX_SIZE` (maps to SQLAlchemy `pool_size` / `max_overflow`) so Render workers reuse warm Supabase connections.
+- After POSTing a score, restart the API and run `curl "http://localhost:8000/api/scores/<company_id>?scoring_run_id=<run>"`. The response returns instantly using the persisted JSON payload—no ChatGPT recompute—and logs `scoring.persistence.hit` so Supabase dashboards confirm cache hits survive process restarts.
 
 ### ProofLinkHydrator Load Harness
 

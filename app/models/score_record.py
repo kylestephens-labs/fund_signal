@@ -7,8 +7,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from sqlalchemy import Column, DateTime, Integer, String, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy import Column, DateTime, Integer, String, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql import expression
 from sqlmodel import Field, SQLModel
 
 from app.models.company import BreakdownItem, CompanyScore
@@ -16,6 +18,26 @@ from app.models.company import BreakdownItem, CompanyScore
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+JSON_BACKING_TYPE = sa.JSON().with_variant(JSONB(astext_type=sa.Text()), "postgresql")
+
+
+class UtcNow(expression.FunctionElement):
+    """Dialect-aware server default that pins timestamps to UTC."""
+
+    type = DateTime(timezone=True)
+    inherit_cache = True
+
+
+@compiles(UtcNow)
+def _utc_now_default(element, compiler, **kwargs) -> str:  # pragma: no cover - trivial sql generator
+    return "CURRENT_TIMESTAMP"
+
+
+@compiles(UtcNow, "postgresql")
+def _utc_now_default_postgres(element, compiler, **kwargs) -> str:  # pragma: no cover - trivial sql generator
+    return "timezone('utc', now())"
 
 
 class ScoreRecord(SQLModel, table=True):
@@ -30,10 +52,10 @@ class ScoreRecord(SQLModel, table=True):
 
     id: UUID = Field(
         default_factory=uuid4,
-        sa_column=Column(PGUUID(as_uuid=True), primary_key=True, nullable=False),
+        sa_column=Column(Uuid(as_uuid=True), primary_key=True, nullable=False),
     )
     company_id: UUID = Field(
-        sa_column=Column(PGUUID(as_uuid=True), nullable=False),
+        sa_column=Column(Uuid(as_uuid=True), nullable=False),
     )
     scoring_run_id: str = Field(
         sa_column=Column(String(length=255), nullable=False),
@@ -41,7 +63,7 @@ class ScoreRecord(SQLModel, table=True):
     score: int = Field(sa_column=Column(Integer, nullable=False))
     breakdown: list[dict[str, Any]] = Field(
         default_factory=list,
-        sa_column=Column(JSONB, nullable=False),
+        sa_column=Column(JSON_BACKING_TYPE, nullable=False),
     )
     recommended_approach: str = Field(
         sa_column=Column(String(length=512), nullable=False),
@@ -57,7 +79,7 @@ class ScoreRecord(SQLModel, table=True):
         sa_column=Column(
             DateTime(timezone=True),
             nullable=False,
-            server_default=text("timezone('utc', now())"),
+            server_default=UtcNow(),
         ),
     )
     updated_at: datetime = Field(
@@ -65,8 +87,8 @@ class ScoreRecord(SQLModel, table=True):
         sa_column=Column(
             DateTime(timezone=True),
             nullable=False,
-            server_default=text("timezone('utc', now())"),
-            onupdate=text("timezone('utc', now())"),
+            server_default=UtcNow(),
+            onupdate=UtcNow(),
         ),
     )
 

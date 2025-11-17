@@ -8,7 +8,6 @@ import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
 from typing import Any, Callable, Final, Protocol, TypeVar
 
 from app.config import settings
@@ -16,6 +15,13 @@ from app.models.company import BreakdownItem, CompanyProfile, CompanyScore
 from app.models.signal_breakdown import SignalProof
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
 from app.observability.metrics import metrics
+from app.services.scoring.errors import (
+    ScorePersistenceError,
+    ScoringEngineError,
+    ScoringProviderError,
+    ScoringValidationError,
+)
+from app.services.scoring.repositories import InMemoryScoreRepository, ScoreRepository, SupabaseScoreRepository
 
 try:  # pragma: no cover - import guard for optional dependency
     from openai import APIError as OpenAIAPIError
@@ -37,39 +43,6 @@ DEFAULT_SOURCE_MAP: Final[dict[str, str]] = {
     "team": "https://fundsignal.local/proof/team-size",
     "signals": "https://fundsignal.local/proof/buying-signal",
 }
-
-
-class ScoringEngineError(RuntimeError):
-    """Base exception raised by the ChatGPT scoring engine."""
-
-    def __init__(self, message: str, code: str = "SCORING_ENGINE_ERROR") -> None:
-        super().__init__(message)
-        self.code = code
-
-
-class ScoringProviderError(ScoringEngineError):
-    """Raised when an upstream AI provider fails."""
-
-
-class ScoringValidationError(ScoringEngineError):
-    """Raised when a model response cannot be parsed safely."""
-
-
-class ScorePersistenceError(ScoringEngineError):
-    """Raised when the repository fails to save or retrieve scores."""
-
-
-class ScoreRepository(Protocol):
-    """Persistence contract for scoring results."""
-
-    def get(self, company_id: str, scoring_run_id: str) -> CompanyScore | None:
-        ...
-
-    def save(self, result: CompanyScore) -> CompanyScore:
-        ...
-
-    def list(self, company_id: str) -> list[CompanyScore]:
-        ...
 
 
 class OpenAIChatClient(Protocol):
@@ -146,34 +119,6 @@ def _extract_response_text(response: Any) -> str:
     )
 
 
-class InMemoryScoreRepository:
-    """Thread-safe repository used for API/local development."""
-
-    def __init__(self) -> None:
-        self._scores: dict[tuple[str, str], CompanyScore] = {}
-        self._company_index: dict[str, list[str]] = {}
-        self._lock = Lock()
-
-    def get(self, company_id: str, scoring_run_id: str) -> CompanyScore | None:
-        key = (company_id, scoring_run_id)
-        with self._lock:
-            return self._scores.get(key)
-
-    def save(self, result: CompanyScore) -> CompanyScore:
-        key = (str(result.company_id), result.scoring_run_id)
-        with self._lock:
-            self._scores[key] = result
-            self._company_index.setdefault(str(result.company_id), [])
-            if result.scoring_run_id not in self._company_index[str(result.company_id)]:
-                self._company_index[str(result.company_id)].append(result.scoring_run_id)
-        return result
-
-    def list(self, company_id: str) -> list[CompanyScore]:
-        with self._lock:
-            scoring_run_ids = self._company_index.get(company_id, [])
-            return [self._scores[(company_id, run_id)] for run_id in scoring_run_ids]
-
-
 @dataclass(frozen=True)
 class ScoringContext:
     """Configuration bundle for the scoring engine."""
@@ -198,7 +143,7 @@ class ChatGPTScoringEngine:
         retry_backoff_seconds: float = 0.2,
     ) -> None:
         resolved_context = context or _build_context()
-        self._repository = repository or InMemoryScoreRepository()
+        self._repository = repository or _build_repository()
         self._client = client
         self._context = resolved_context
         self._retry_attempts = retry_attempts
@@ -271,15 +216,6 @@ class ChatGPTScoringEngine:
                 )
                 raise ScorePersistenceError("Failed to persist scoring result.") from exc
             metrics.increment("scoring.success", tags=metrics_tags)
-            logger.info(
-                "scoring.persistence.persisted",
-                extra={
-                    "company_id": company_key,
-                    "score": persisted.score,
-                    "scoring_run_id": scoring_run_id,
-                    "mode": self._context.mode,
-                },
-            )
             return persisted
         except ScoringEngineError as exc:
             metrics.increment(
@@ -623,6 +559,24 @@ def _align_breakdown_with_score(
 
 def _clamp(value: int, lower: int, upper: int) -> int:
     return max(lower, min(upper, value))
+
+
+def _build_repository() -> ScoreRepository:
+    """Select repository backend based on DATABASE_URL configuration."""
+    if not settings.database_url:
+        logger.info("scoring.repository.initialized", extra={"backend": "memory"})
+        return InMemoryScoreRepository()
+    try:
+        repository = SupabaseScoreRepository(
+            settings.database_url,
+            pool_min_size=settings.db_pool_min_size,
+            pool_max_size=settings.db_pool_max_size,
+        )
+        logger.info("scoring.repository.initialized", extra={"backend": "database"})
+        return repository
+    except Exception:
+        logger.exception("scoring.repository.init_failed", extra={"backend": "database"})
+        raise
 
 
 _ENGINE_INSTANCE: ChatGPTScoringEngine | None = None
