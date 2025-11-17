@@ -55,6 +55,10 @@ class ScoringValidationError(ScoringEngineError):
     """Raised when a model response cannot be parsed safely."""
 
 
+class ScorePersistenceError(ScoringEngineError):
+    """Raised when the repository fails to save or retrieve scores."""
+
+
 class ScoreRepository(Protocol):
     """Persistence contract for scoring results."""
 
@@ -240,10 +244,35 @@ class ChatGPTScoringEngine:
             else:
                 result = self._score_with_rubric(company, scoring_run_id=scoring_run_id)
 
-            persisted = self._repository.save(result)
+            try:
+                persisted = self._repository.save(result)
+            except ScorePersistenceError as exc:
+                metrics.increment(
+                    "scoring.errors",
+                    tags={**metrics_tags, "code": exc.code},
+                )
+                logger.error(
+                    "scoring.persistence.error",
+                    extra={
+                        "company_id": company_key,
+                        "scoring_run_id": scoring_run_id,
+                        "code": exc.code,
+                    },
+                )
+                raise
+            except Exception as exc:  # pragma: no cover - repository breach
+                logger.exception(
+                    "scoring.persistence.error",
+                    extra={
+                        "company_id": company_key,
+                        "scoring_run_id": scoring_run_id,
+                        "mode": self._context.mode,
+                    },
+                )
+                raise ScorePersistenceError("Failed to persist scoring result.") from exc
             metrics.increment("scoring.success", tags=metrics_tags)
             logger.info(
-                "scoring.persisted",
+                "scoring.persistence.persisted",
                 extra={
                     "company_id": company_key,
                     "score": persisted.score,

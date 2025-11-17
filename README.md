@@ -329,6 +329,14 @@ Pass structured signal metadata in the scoring request via the optional `signals
 ]
 ```
 
+### Score Persistence & Supabase Setup (FSQ-036A)
+
+- Add `DATABASE_URL` (e.g., `postgresql+asyncpg://postgres:password@localhost:5432/fastapi_db`) plus the Supabase host creds (`SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`) to `.env`. When targeting Supabase via asyncpg, use the pooled DSN format `postgresql+asyncpg://postgres:<password>@<project>.supabase.co:6543/postgres`—the Alembic env forces TLS when it detects a Supabase host and allows you to override the CA bundle via `ALEMBIC_SUPABASE_CA_FILE` (or set `ALEMBIC_SUPABASE_TLS_INSECURE=1` only when a corporate proxy terminates TLS). Store the Supabase password in Render/GitHub env vars instead of source control.
+- Alembic resolves `app.config` and `.env` based on `PYTHONPATH`. Remove any duplicate FundSignal checkouts (e.g., an outdated Desktop copy) or export `PYTHONPATH=/Users/<you>/repo/fund_signal_vscode` before running Alembic so it always loads the active repo’s configuration.
+- Start Postgres via `docker compose up -d db` or point `DATABASE_URL` at Supabase, then apply migrations: `alembic upgrade head`. Migrations emit `scoring.migration.applied` logs on success. When adding new schema later, run `alembic revision --autogenerate -m "create <table>"` so JSON columns stay typed as `sqlalchemy.dialects.postgresql.JSONB`.
+- Seed a deterministic score to unblock the Day-2 drawer smoke tests: `python scripts/seed_scores.py --fixture tests/fixtures/scoring/regression_companies.json --scoring-run-id ui-smoke`. Pass `--force` to overwrite the `(company_id, scoring_run_id)` pair if the row already exists.
+- Repository writes now log `scoring.persistence.persisted` and reuse the `(company_id, scoring_run_id)` unique constraint so GETs stay ≤300 ms with ~1k rows. Use Supabase SQL to verify `breakdown` JSONB payloads, timestamps, and unique indexes via `EXPLAIN ANALYZE SELECT * FROM scores WHERE company_id = '...' AND scoring_run_id = '...'`.
+
 ### ProofLinkHydrator Load Harness
 
 Run the synthetic load harness in fixture mode to prove the ≤300 ms P95 target and capture cache stats before deploying:

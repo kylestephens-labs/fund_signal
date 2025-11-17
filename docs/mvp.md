@@ -287,67 +287,33 @@ FUND_SIGNAL_MODE: fixture (uses captured evidence)
 - ✅ Scores align with intuition (funded + hiring = high)
 - ✅ "Why this score?" expandable drawer works
 
-## Day 3: Multi-Channel Delivery
+## Day 3: Email Delivery
 
-**Goal:** Users can get value via Slack, Email, or CSV instantly
+**Goal:** Users can get value via automated email digests.
 
 **Tasks:**
 
-### 1. Build Slack alert format (2 hours)
-
-```
-🔔 FundSignal • 25 New Prospects • Week of Oct 29
-
-1. [Company Name] (Score: 88 - CONTACT THIS WEEK)
-   
-   Freshness: Funding 75 days ago • Confidence: VERIFIED ✅ • Last verified: Oct 29
-   
-   Why now:
-   ✓ Raised $10M Series A (TechCrunch, BusinessWire)
-   ✓ Posted 5 sales roles (Greenhouse)
-   ✓ Uses Salesforce + HubSpot (BuiltWith)
-   
-   Recommended: Contact founder via LinkedIn
-   Pitch: "We help Series A SaaS scale outbound"
-   
-   [CREATE CRM TASK] [WHY THIS SCORE?] [NOT RELEVANT]
-
-2. [Next company]...
-```
-
-FUND_SIGNAL_MODE: fixture (formatting only)
-
-### 2. Build email digest (2 hours)
+### 1. Build email digest (2 hours)
 - Same format as Slack but HTML
 - Include CSV download link at top
 
 FUND_SIGNAL_MODE: fixture (HTML rendering)
 
-### 3. Build Airtable/CSV export (1 hour)
-- One-click "Download this week's prospects"
-- Columns: Company, Score, Confidence, Verified By, Funding, Hiring, Tech Stack, Proof Links
-
-FUND_SIGNAL_MODE: fixture (generate exports from captured bundle)
-
-### 4. Set up n8n automation (2 hours)
+### 2. Set up email automation (2 hours)
 
 ```
 Trigger: Monday 9 AM Pacific
 
 Step 1: Pull top 25 VERIFIED companies
-Step 2: Format Slack message
-Step 3: Send to customer Slack workspace
-Step 4: Send email digest
-Step 5: Generate CSV, upload to Airtable
+Step 2: Render HTML email digest
+Step 3: Send to customer distribution list
 ```
 
-FUND_SIGNAL_MODE: online (requires Slack/email/Airtable connections)
+FUND_SIGNAL_MODE: online (requires email connection)
 
 **Definition of Done:**
-- ✅ Slack alert sends Monday 9 AM
-- ✅ Email digest sends simultaneously
-- ✅ CSV/Airtable export available
-- ✅ All three formats have same data
+- ✅ Email digest sends Monday 9 AM
+- ✅ Email content matches latest scoring data
 - ✅ Zero manual work required
 
 ## Day 4: Feedback Loop + Concierge
@@ -619,6 +585,52 @@ FUND_SIGNAL_MODE: fixture (implement fixes locally, then redeploy)
 2. Fix top 3 complaints from Week 1
 3. Add most-requested integration (Salesforce or HubSpot)
 4. Launch referral: "Invite teammate, both get +10 leads/week"
+
+# Post-MVP
+
+### Build Slack alert format (2 hours)
+
+```
+🔔 FundSignal • 25 New Prospects • Week of Oct 29
+
+1. [Company Name] (Score: 88 - CONTACT THIS WEEK)
+   
+   Freshness: Funding 75 days ago • Confidence: VERIFIED ✅ • Last verified: Oct 29
+   
+   Why now:
+   ✓ Raised $10M Series A (TechCrunch, BusinessWire)
+   ✓ Posted 5 sales roles (Greenhouse)
+   ✓ Uses Salesforce + HubSpot (BuiltWith)
+   
+   Recommended: Contact founder via LinkedIn
+   Pitch: "We help Series A SaaS scale outbound"
+   
+   [CREATE CRM TASK] [WHY THIS SCORE?] [NOT RELEVANT]
+
+2. [Next company]...
+```
+
+FUND_SIGNAL_MODE: fixture (formatting only)
+
+### Build Airtable/CSV export (1 hour)
+- One-click "Download this week's prospects"
+- Columns: Company, Score, Confidence, Verified By, Funding, Hiring, Tech Stack, Proof Links
+
+FUND_SIGNAL_MODE: fixture (generate exports from captured bundle)
+
+### Set up Slack + CSV automation (2 hours)
+
+```
+Trigger: Monday 9 AM Pacific
+
+Step 1: Pull top 25 VERIFIED companies
+Step 2: Format Slack message
+Step 3: Send to customer Slack workspace
+Step 4: Send email digest
+Step 5: Generate CSV, upload to Airtable
+```
+
+FUND_SIGNAL_MODE: online (requires Slack/email/Airtable connections)
 
 ---
 

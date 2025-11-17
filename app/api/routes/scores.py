@@ -64,6 +64,8 @@ async def list_scores(
 
 
 def _map_error_code(code: str) -> int:
+    if code == "409_SCORE_ALREADY_EXISTS":
+        return status.HTTP_409_CONFLICT
     if code == "429_RATE_LIMIT":
         return status.HTTP_429_TOO_MANY_REQUESTS
     if code == "422_INVALID_COMPANY_DATA":

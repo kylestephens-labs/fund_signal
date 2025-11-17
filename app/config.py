@@ -16,6 +16,10 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str | None = None
+    supabase_db_host: str | None = None
+    supabase_db_port: int | None = None
+    supabase_db_user: str | None = None
+    supabase_db_password: str | None = None
 
     # Providers
     exa_api_key: str | None = None

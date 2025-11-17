@@ -92,6 +92,7 @@ def _utcnow() -> datetime:
 class CompanyScore(BaseModel):
     """Persisted result of the scoring engine."""
 
+    id: UUID | None = None
     company_id: UUID
     score: conint(ge=0, le=100)  # type: ignore[valid-type]
     breakdown: list[BreakdownItem]
@@ -100,3 +101,10 @@ class CompanyScore(BaseModel):
     scoring_model: str
     scoring_run_id: str
     created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _default_updated_at(self) -> "CompanyScore":
+        if self.updated_at is None or self.updated_at < self.created_at:
+            self.updated_at = self.created_at
+        return self
