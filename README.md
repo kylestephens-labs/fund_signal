@@ -131,6 +131,56 @@ python -m tools.sync_fixtures --source fixtures/sample/bundle-sample --dest-root
 
 This copies the bundle, validates it, and updates `fixtures/latest/latest.json`. Pipelines running in fixture mode automatically resolve this pointer, enforce freshness/integrity, and log the bundle ID/age before processing.
 
+### Day-3 Delivery Pipelines (Persistence-Aware)
+
+1. **Seed deterministic scores**
+
+   ```bash
+   uv run python scripts/seed_scores.py \
+     --fixture tests/fixtures/scoring/regression_companies.json \
+     --scoring-run demo-day3 \
+     --seed-all \
+     --force
+   ```
+
+   The CLI now seeds every persona (or a specific `--company-id`) directly into Supabase/Postgres so Day-3 pipelines, Supabase dashboards, and the UI drawer all read the same persisted `CompanyScore` payloads after API restarts.
+
+2. **Render the email digest from Supabase**
+
+   ```bash
+   export DELIVERY_SCORING_RUN=demo-day3
+   uv run python -m pipelines.day3.email_delivery --output output/email_demo.md
+   ```
+
+   The email renderer fetches cached scores through `SupabaseScoreRepository.list_run`, logs `delivery.supabase.query`, and writes Markdown including recommended approaches, pitch angles, and every `proof/proofs` URL.
+
+3. **Generate the Slack payload**
+
+   ```bash
+   uv run python -m pipelines.day3.slack_delivery --output output/slack_demo.json
+   ```
+
+   Slack payloads contain full Block Kit sections for each company plus a metadata block with serialized scores (proof arrays included). Post to your webhook via `curl -X POST -H "Content-Type: application/json" --data @output/slack_demo.json $SLACK_WEBHOOK_URL`.
+
+Key environment variables (see `.env.example`):
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Required for Supabase/Postgres reads. |
+| `DELIVERY_SCORING_RUN` | Default scoring run used by the delivery CLIs. |
+| `DELIVERY_FORCE_REFRESH` | Records when a delivery job intentionally bypasses cached scores (mirrors `force=true`). |
+| `DELIVERY_OUTPUT_DIR` | Base directory for rendered Markdown/JSON artifacts. |
+| `EMAIL_FROM` / `EMAIL_SMTP_URL` | Document future email delivery wiring. |
+| `SLACK_WEBHOOK_URL` | Optional webhook recorded in Slack metadata/logs. |
+
+Helpful targets:
+
+```bash
+make seed-scores        # seeds demo-day3 deterministically
+make email-demo         # renders output/email_delivery.md
+make slack-demo         # renders output/slack_delivery.json
+```
+
 **Fixture storage policy**
 
 - `fixtures/sample/`: small anonymized fixtures checked into Git for CI/unit tests (≤5 fake companies). Default when `FUND_SIGNAL_SOURCE=local`.

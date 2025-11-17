@@ -74,6 +74,15 @@ check-freshness: ## Enforce freshness/integrity gates for fixtures
 online-contract-test: ## Minimal live API contract test (requires provider keys)
 	FUND_SIGNAL_MODE=online $(PYTEST) tests/test_online_contract.py -m contract -q
 
+seed-scores: ## Seed deterministic scoring runs into Supabase/Postgres for delivery jobs
+	uv run python scripts/seed_scores.py --fixture tests/fixtures/scoring/regression_companies.json --scoring-run $${DELIVERY_SCORING_RUN:-demo-day3} --seed-all --force
+
+email-demo: ## Render the Day-3 email digest from persisted scores
+	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_delivery --output output/email_demo.md
+
+slack-demo: ## Render the Day-3 Slack payload from persisted scores
+	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.slack_delivery --output output/slack_demo.json
+
 # Legacy pip commands (for reference)
 install-pip: ## Install dependencies with pip (legacy)
 	pip install -r requirements.txt

@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     ui_base_url: str | None = None
     api_base_url: str | None = None
 
+    # Delivery / Day-3 pipelines
+    delivery_scoring_run: str | None = None
+    delivery_force_refresh: bool = False
+    delivery_output_dir: str = "output"
+    email_from: str | None = None
+    email_smtp_url: str | None = None
+    slack_webhook_url: str | None = None
+
     # Security
     secret_key: str = ""  # Will be generated if empty
     cors_origins: list[str] = []  # Empty by default for security

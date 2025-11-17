@@ -3,10 +3,18 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
 
+from app.config import settings
+from app.models.company import BreakdownItem, CompanyScore
+from app.models.signal_breakdown import SignalProof
+from app.services.scoring.repositories import InMemoryScoreRepository
+import pipelines.day3 as day3_module
+from pipelines.day3.email_delivery import render_email
+from pipelines.day3.slack_delivery import build_slack_payload
 from pipelines.qa import proof_domain_replay as replay
 
 
@@ -155,3 +163,73 @@ async def test_replay_succeeds_without_redirects():
     assert summary.failures == 0
     assert alerts.events == []
     assert store.rows[0].final_url == "https://news.example.com/acme"
+
+
+# --- Day-3 delivery helpers -------------------------------------------------
+
+
+def _delivery_score(*, score: int, run_id: str = "demo-run") -> CompanyScore:
+    proof = SignalProof(
+        source_url="https://news.example.com/proof",
+        verified_by=["Exa", "Tavily"],
+        timestamp=datetime.now(UTC),
+    )
+    breakdown = [
+        BreakdownItem(
+            reason="Funding momentum",
+            points=score,
+            proof=proof,
+            proofs=[proof],
+        )
+    ]
+    return CompanyScore(
+        company_id=uuid4(),
+        score=score,
+        breakdown=breakdown,
+        recommended_approach="Reach out with a tailored email.",
+        pitch_angle="Help them convert the new round into pipeline.",
+        scoring_model="fixture",
+        scoring_run_id=run_id,
+    )
+
+
+def test_day3_fetch_scores_sorted(monkeypatch: pytest.MonkeyPatch):
+    repo = InMemoryScoreRepository()
+    repo.save(_delivery_score(score=88))
+    repo.save(_delivery_score(score=92))
+    monkeypatch.setattr(settings, "database_url", "sqlite+aiosqlite:///memory", raising=False)
+    monkeypatch.setattr(day3_module, "build_score_repository", lambda: repo, raising=False)
+
+    results = day3_module.fetch_scores_for_delivery("demo-run", limit=1)
+
+    assert len(results) == 1
+    assert results[0].score == 92
+
+
+def test_day3_in_memory_repository_limit_zero():
+    repo = InMemoryScoreRepository()
+    repo.save(_delivery_score(score=55))
+    repo.save(_delivery_score(score=65))
+
+    assert repo.list_run("demo-run", limit=0) == []
+
+
+def test_email_renderer_includes_proofs():
+    run_id = "demo-run"
+    score = _delivery_score(score=84, run_id=run_id)
+
+    payload = render_email(run_id, [score])
+
+    assert str(score.company_id) in payload
+    assert "https://news.example.com/proof" in payload
+    assert run_id in payload
+
+
+def test_slack_payload_tracks_metadata():
+    scores = [_delivery_score(score=90), _delivery_score(score=76)]
+
+    payload = build_slack_payload("demo-run", scores, webhook_url="https://hooks.slack.test")
+
+    assert payload["metadata"]["company_count"] == 2
+    assert payload["metadata"]["scores"][0]["score"] == 90
+    assert any("<https://news.example.com/proof|" in block["text"]["text"] for block in payload["blocks"] if block["type"] == "section")

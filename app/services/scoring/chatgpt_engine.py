@@ -21,7 +21,7 @@ from app.services.scoring.errors import (
     ScoringProviderError,
     ScoringValidationError,
 )
-from app.services.scoring.repositories import InMemoryScoreRepository, ScoreRepository, SupabaseScoreRepository
+from app.services.scoring.repositories import ScoreRepository, build_score_repository
 
 try:  # pragma: no cover - import guard for optional dependency
     from openai import APIError as OpenAIAPIError
@@ -143,7 +143,7 @@ class ChatGPTScoringEngine:
         retry_backoff_seconds: float = 0.2,
     ) -> None:
         resolved_context = context or _build_context()
-        self._repository = repository or _build_repository()
+        self._repository = repository or build_score_repository()
         self._client = client
         self._context = resolved_context
         self._retry_attempts = retry_attempts
@@ -559,24 +559,6 @@ def _align_breakdown_with_score(
 
 def _clamp(value: int, lower: int, upper: int) -> int:
     return max(lower, min(upper, value))
-
-
-def _build_repository() -> ScoreRepository:
-    """Select repository backend based on DATABASE_URL configuration."""
-    if not settings.database_url:
-        logger.info("scoring.repository.initialized", extra={"backend": "memory"})
-        return InMemoryScoreRepository()
-    try:
-        repository = SupabaseScoreRepository(
-            settings.database_url,
-            pool_min_size=settings.db_pool_min_size,
-            pool_max_size=settings.db_pool_max_size,
-        )
-        logger.info("scoring.repository.initialized", extra={"backend": "database"})
-        return repository
-    except Exception:
-        logger.exception("scoring.repository.init_failed", extra={"backend": "database"})
-        raise
 
 
 _ENGINE_INSTANCE: ChatGPTScoringEngine | None = None

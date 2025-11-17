@@ -29,13 +29,19 @@ def _render_database_url(url: str) -> str:
         return "<invalid DATABASE_URL>"
 
 
-def _load_company_profile(fixture_path: Path, company_id: UUID) -> CompanyProfile:
+def _load_company_profiles(fixture_path: Path, company_id: UUID | None) -> list[CompanyProfile]:
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    profiles: list[CompanyProfile] = []
     for entry in payload.get("companies", []):
         profile = entry.get("profile") or {}
-        if profile.get("company_id") == str(company_id):
-            return CompanyProfile(**profile)
-    raise ValueError(f"Company {company_id} not found in {fixture_path}")
+        if company_id and profile.get("company_id") != str(company_id):
+            continue
+        profiles.append(CompanyProfile(**profile))
+    if company_id and not profiles:
+        raise ValueError(f"Company {company_id} not found in {fixture_path}")
+    if not profiles:
+        raise ValueError(f"No companies found in {fixture_path}")
+    return profiles
 
 
 def _build_context(settings: Settings) -> ScoringContext:
@@ -83,8 +89,15 @@ def _parse_args() -> argparse.Namespace:
         help="Company ID to seed. Defaults to the UI smoke persona.",
     )
     parser.add_argument(
+        "--seed-all",
+        action="store_true",
+        help="Seed every company in the fixture instead of a single ID.",
+    )
+    parser.add_argument(
+        "--scoring-run",
         "--scoring-run-id",
         type=str,
+        dest="scoring_run_id",
         default="ui-smoke",
         help="Scoring run identifier stored alongside the score.",
     )
@@ -110,19 +123,27 @@ async def main() -> None:
         raise RuntimeError("DATABASE_URL is required to seed scores.")
     logger.info("Using DATABASE_URL=%s", _render_database_url(database_url))
 
-    profile = _load_company_profile(args.fixture, args.company_id)
+    target_company = None if args.seed_all else args.company_id
+    profiles = _load_company_profiles(args.fixture, target_company)
     context = _build_context(local_settings)
     engine = ChatGPTScoringEngine(repository=InMemoryScoreRepository(), context=context)
-    score = engine.score_company(profile, scoring_run_id=args.scoring_run_id, force=True)
-    record = ScoreRecord.from_company_score(score)
-    await _persist_score(database_url, record, force=args.force)
+    seeded = 0
+    for profile in profiles:
+        score = engine.score_company(profile, scoring_run_id=args.scoring_run_id, force=True)
+        record = ScoreRecord.from_company_score(score)
+        await _persist_score(database_url, record, force=args.force)
+        seeded += 1
+        logger.info(
+            "scoring.persistence.persisted",
+            extra={
+                "company_id": str(record.company_id),
+                "scoring_run_id": record.scoring_run_id,
+                "score": record.score,
+            },
+        )
     logger.info(
-        "scoring.persistence.persisted",
-        extra={
-            "company_id": str(record.company_id),
-            "scoring_run_id": record.scoring_run_id,
-            "score": record.score,
-        },
+        "seed_scores.complete",
+        extra={"count": seeded, "scoring_run_id": args.scoring_run_id, "fixture": str(args.fixture)},
     )
 
 

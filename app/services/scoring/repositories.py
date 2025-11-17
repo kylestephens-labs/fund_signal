@@ -34,6 +34,9 @@ class ScoreRepository(Protocol):
     def list(self, company_id: str) -> list[CompanyScore]:
         ...
 
+    def list_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
+        ...
+
 
 class InMemoryScoreRepository(ScoreRepository):
     """Thread-safe repository used for API/local development."""
@@ -78,6 +81,18 @@ class InMemoryScoreRepository(ScoreRepository):
         with self._lock:
             scoring_run_ids = self._company_index.get(company_id, [])
             return [self._scores[(company_id, run_id)] for run_id in scoring_run_ids]
+
+    def list_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
+        with self._lock:
+            matches = [score for (_, run_id), score in self._scores.items() if run_id == scoring_run_id]
+        ordered = sorted(
+            matches,
+            key=lambda entry: (entry.score, entry.updated_at or entry.created_at),
+            reverse=True,
+        )
+        if limit is not None:
+            return ordered[: max(0, limit)]
+        return ordered
 
 
 class SupabaseScoreRepository(ScoreRepository):
@@ -163,6 +178,25 @@ class SupabaseScoreRepository(ScoreRepository):
         except SQLAlchemyError as exc:  # pragma: no cover - defensive guard
             logger.exception(
                 "scoring.persistence.error", extra={"company_id": company_id, "backend": "database"}
+            )
+            raise ScorePersistenceError("Failed to list persisted scores.", code="500_INTERNAL") from exc
+
+    def list_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
+        try:
+            with self._session() as session:
+                statement = (
+                    select(ScoreRecord)
+                    .where(ScoreRecord.scoring_run_id == scoring_run_id)
+                    .order_by(ScoreRecord.score.desc(), ScoreRecord.created_at.desc())
+                )
+                if limit is not None and limit >= 0:
+                    statement = statement.limit(limit)
+                records = session.exec(statement).all()
+                return [record.to_company_score() for record in records]
+        except SQLAlchemyError as exc:  # pragma: no cover - defensive guard
+            logger.exception(
+                "scoring.persistence.error",
+                extra={"scoring_run_id": scoring_run_id, "backend": "database"},
             )
             raise ScorePersistenceError("Failed to list persisted scores.", code="500_INTERNAL") from exc
 
@@ -272,3 +306,22 @@ def _resolve_metrics_tag(url: URL, drivername: str) -> str:
     if drivername.startswith("sqlite"):
         return "sqlite"
     return "postgres"
+
+
+def build_score_repository(database_url: str | None = None) -> ScoreRepository:
+    """Instantiate a ScoreRepository using DATABASE_URL when available."""
+    resolved_url = database_url or settings.database_url
+    if not resolved_url:
+        logger.info("scoring.repository.initialized", extra={"backend": "memory"})
+        return InMemoryScoreRepository()
+    try:
+        repository = SupabaseScoreRepository(
+            resolved_url,
+            pool_min_size=settings.db_pool_min_size,
+            pool_max_size=settings.db_pool_max_size,
+        )
+        logger.info("scoring.repository.initialized", extra={"backend": "database"})
+        return repository
+    except Exception:
+        logger.exception("scoring.repository.init_failed", extra={"backend": "database"})
+        raise
