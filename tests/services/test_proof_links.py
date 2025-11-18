@@ -258,7 +258,7 @@ def test_proof_link_load_harness_cli_threshold(monkeypatch):
         "errors": [],
     }
     monkeypatch.setattr(proof_links_load_test, "run_load_test", lambda config: fake_result)
-    monkeypatch.setattr(proof_links_load_test, "_emit_summary_logs", lambda result: None)
+    monkeypatch.setattr(proof_links_load_test, "_emit_summary_logs", lambda result, threshold_ms=None: None)
     args = [
         "--input",
         "tests/fixtures/scoring/regression_companies.json",

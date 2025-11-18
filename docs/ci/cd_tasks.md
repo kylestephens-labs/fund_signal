@@ -11,3 +11,5 @@ Codify smoke tests in CI/CD: e.g., after deploying to staging, run uvicorn ... h
 Document the prove gates: update Makefile/PR template so engineers run make lint test locally and know CI will enforce the same; this keeps local+CI parity and avoids “works on my machine” drift.
 
 If we tackle those, GitHub becomes the enforcement point rather than relying on everyone to remember all commands, and Render deployments stop lagging behind main. Let me know if you’d like a dedicated FSQ to plan the CI/CD overhaul.
+
+Now that FSQ-037A exists, wire a scheduled `email-demo-deliver` job (or Render cron) that exports `EMAIL_SMTP_URL`, `EMAIL_FROM`, `EMAIL_TO`, and `DELIVERY_EMAIL_FORCE_RUN=true` so staging automatically exercises the SMTP path nightly. Capture the emitted `delivery.email.sent` metric/log in whatever dashboard we settle on to confirm the channel stays green before shipping to customers, and remind operators they can pass `--no-deliver` locally to bypass the forced send when debugging.

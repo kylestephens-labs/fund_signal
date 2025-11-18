@@ -321,6 +321,11 @@ FUND_SIGNAL_MODE: online (requires email connection)
 - Delivery adapters read directly from the database via `python -m pipelines.day3.email_delivery --scoring-run demo-day3` and `python -m pipelines.day3.slack_delivery --scoring-run demo-day3`, logging `delivery.supabase.query` so ops can verify reads on Supabase dashboards.
 - `.env.example` now documents `DELIVERY_SCORING_RUN`, `DELIVERY_FORCE_REFRESH`, `EMAIL_FROM`, `EMAIL_SMTP_URL`, `SLACK_WEBHOOK_URL`, and `DELIVERY_OUTPUT_DIR` so staging/prod jobs can toggle force=true behavior, webhook targets, and output locations without editing the scripts.
 
+**FSQ-037A Implementation Notes**
+- `pipelines.day3.email_delivery` exposes `--deliver`; keep running `uv run python -m pipelines.day3.email_delivery --output output/email_demo.md --deliver` once `EMAIL_SMTP_URL`, `EMAIL_FROM`, and `EMAIL_TO` are set (Mailtrap/Papercut recommended for staging). Pass `--no-deliver` to suppress a send when `DELIVERY_EMAIL_FORCE_RUN=true`.
+- The CLI writes Markdown first, then sends via SMTP, logs `delivery.email.sent`, and records a latency metric so Render/GitHub monitors can confirm emails were transmitted.
+- `.env.example`/README outline `EMAIL_TO`, `EMAIL_CC`, `EMAIL_BCC`, `EMAIL_SUBJECT`, `EMAIL_DISABLE_TLS`, and `DELIVERY_EMAIL_FORCE_RUN`; the last one lets cron jobs opt into send mode without passing `--deliver` every time.
+
 **FSQ-036D Implementation Notes**
 - `make ui-smoke-seed` wraps `scripts/seed_scores.py` so operators can rehydrate the UI smoke persona (`UI_SMOKE_COMPANY_ID`, `UI_SMOKE_SCORING_RUN_ID`) with a single command; each insert logs `ui_smoke.seed.success` to help correlate with Supabase dashboards.
 - Playwright lives in `frontend/tests/playwright/why-this-score.spec.ts`; run `npx playwright test --config frontend/tests/playwright.config.ts --grep "Why this score"` after seeding and starting both the API (`API_BASE_URL`) and UI (`UI_BASE_URL`) to assert the drawer renders persisted score, proof links, verified sources, timestamps, and recommended approach copy.

@@ -50,13 +50,21 @@ class Settings(BaseSettings):
     # UI/Test harness
     ui_base_url: str | None = None
     api_base_url: str | None = None
+    next_public_api_base_url: str | None = None
+    pgsslmode: str | None = None
 
     # Delivery / Day-3 pipelines
     delivery_scoring_run: str | None = None
     delivery_force_refresh: bool = False
     delivery_output_dir: str = "output"
     email_from: str | None = None
+    email_to: str | None = None
+    email_cc: str | None = None
+    email_bcc: str | None = None
+    email_subject: str | None = None
     email_smtp_url: str | None = None
+    email_disable_tls: bool = False
+    delivery_email_force_run: bool = False
     slack_webhook_url: str | None = None
 
     # Security

@@ -154,6 +154,17 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
 
    The email renderer fetches cached scores through `SupabaseScoreRepository.list_run`, logs `delivery.supabase.query`, and writes Markdown including recommended approaches, pitch angles, and every `proof/proofs` URL.
 
+   Add `--deliver` once SMTP credentials are configured (or set `DELIVERY_EMAIL_FORCE_RUN=true`; pass `--no-deliver` to skip a forced send) to send the digest automatically:
+
+   ```bash
+   export EMAIL_SMTP_URL=smtp://user:pass@mailtrap.io:2525
+   export EMAIL_FROM="FundSignal <alerts@fundsignal.dev>"
+   export EMAIL_TO=ops@fundsignal.dev,revops@example.com
+   uv run python -m pipelines.day3.email_delivery --output output/email_demo.md --deliver
+   ```
+
+   The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and still writes the Markdown artifact for auditing.
+
 3. **Generate the Slack payload**
 
    ```bash
@@ -169,8 +180,12 @@ Key environment variables (see `.env.example`):
 | `DATABASE_URL` | Required for Supabase/Postgres reads. |
 | `DELIVERY_SCORING_RUN` | Default scoring run used by the delivery CLIs. |
 | `DELIVERY_FORCE_REFRESH` | Records when a delivery job intentionally bypasses cached scores (mirrors `force=true`). |
+| `DELIVERY_EMAIL_FORCE_RUN` | Defaults the CLI `--deliver` flag for cron jobs that always send (`--no-deliver` overrides per run). |
 | `DELIVERY_OUTPUT_DIR` | Base directory for rendered Markdown/JSON artifacts. |
-| `EMAIL_FROM` / `EMAIL_SMTP_URL` | Document future email delivery wiring. |
+| `EMAIL_SMTP_URL` / `EMAIL_FROM` | SMTP endpoint + sender identity. |
+| `EMAIL_TO` / `EMAIL_CC` / `EMAIL_BCC` | Recipient lists (comma-separated). |
+| `EMAIL_SUBJECT` | Optional subject override (defaults to `FundSignal Delivery — <run>`). |
+| `EMAIL_DISABLE_TLS` | Set to `true` only when TLS must be skipped (local debug servers). |
 | `SLACK_WEBHOOK_URL` | Optional webhook recorded in Slack metadata/logs. |
 
 Helpful targets:
@@ -178,6 +193,7 @@ Helpful targets:
 ```bash
 make seed-scores        # seeds demo-day3 deterministically
 make email-demo         # renders output/email_delivery.md
+make email-demo-deliver # renders + sends via SMTP (--deliver)
 make slack-demo         # renders output/slack_delivery.json
 ```
 

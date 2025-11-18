@@ -1,24 +1,51 @@
-.PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration
+.PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration maybe-install
 
 export UV_CACHE_DIR ?= $(abspath .uv-cache)
+USE_UV ?= 1
+SKIP_INSTALL ?= 0
+
+ifeq ($(USE_UV),1)
 PYTEST ?= uv run pytest
 RUFF ?= uv run ruff
+else
+PYTEST ?= python -m pytest
+RUFF ?= ruff
+endif
 
 # Default target
 help: ## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install base + dev dependencies with uv
-	uv pip install -r requirements.txt
-	uv pip install -r requirements-dev.txt
+install: ## Install base + dev dependencies
+	@if [ "$(USE_UV)" = "1" ] && command -v uv >/dev/null 2>&1; then \
+		echo "Installing requirements.txt via uv"; \
+		UV_CACHE_DIR=$${UV_CACHE_DIR:-.uv-cache} uv pip install -r requirements.txt || pip install -r requirements.txt; \
+		echo "Installing requirements-dev.txt via uv"; \
+		UV_CACHE_DIR=$${UV_CACHE_DIR:-.uv-cache} uv pip install -r requirements-dev.txt || pip install -r requirements-dev.txt; \
+	else \
+		if [ "$(USE_UV)" != "1" ]; then \
+			echo "USE_UV=0; skipping uv and using pip installs"; \
+		else \
+			echo "uv not found; falling back to pip installs"; \
+		fi; \
+		pip install -r requirements.txt; \
+		pip install -r requirements-dev.txt; \
+	fi
+
+maybe-install:
+	@if [ "$(SKIP_INSTALL)" = "1" ]; then \
+		echo "Skipping dependency install (SKIP_INSTALL=1)"; \
+	else \
+		$(MAKE) --no-print-directory install; \
+	fi
 
 serve: ## Run API server via uv
 	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 dev: serve ## Back-compat alias for serve
 
-test: install ## Run tests with coverage using uv (ensures deps are installed)
+test: maybe-install ## Run tests with coverage using uv (ensures deps are installed unless SKIP_INSTALL=1)
 	$(PYTEST) tests/ -v --cov=app --cov-report=html --cov-report=term
 
 test-integration: ## Run integration tests (expects DATABASE_URL); skips cleanly if not set
@@ -94,6 +121,9 @@ ui-smoke-seed: ## Seed the UI smoke persona (requires DATABASE_URL + UI_SMOKE en
 
 email-demo: ## Render the Day-3 email digest from persisted scores
 	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_delivery --output output/email_demo.md
+
+email-demo-deliver: ## Render and send the Day-3 email digest via SMTP (--deliver flag)
+	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_delivery --output output/email_demo.md --deliver
 
 slack-demo: ## Render the Day-3 Slack payload from persisted scores
 	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.slack_delivery --output output/slack_demo.json
