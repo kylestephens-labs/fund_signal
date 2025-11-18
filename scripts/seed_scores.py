@@ -128,19 +128,26 @@ async def main() -> None:
     context = _build_context(local_settings)
     engine = ChatGPTScoringEngine(repository=InMemoryScoreRepository(), context=context)
     seeded = 0
+    is_ui_smoke = not args.seed_all
     for profile in profiles:
         score = engine.score_company(profile, scoring_run_id=args.scoring_run_id, force=True)
         record = ScoreRecord.from_company_score(score)
-        await _persist_score(database_url, record, force=args.force)
+        payload = {
+            "company_id": str(record.company_id),
+            "scoring_run_id": record.scoring_run_id,
+            "score": record.score,
+        }
+        try:
+            await _persist_score(database_url, record, force=args.force)
+        except Exception as exc:  # pragma: no cover - defensive logging wrapper
+            logger.exception("scoring.persistence.persist_failed", extra=payload)
+            if is_ui_smoke:
+                logger.error("ui_smoke.seed.failure", extra=payload)
+            raise SystemExit(1) from exc
         seeded += 1
-        logger.info(
-            "scoring.persistence.persisted",
-            extra={
-                "company_id": str(record.company_id),
-                "scoring_run_id": record.scoring_run_id,
-                "score": record.score,
-            },
-        )
+        logger.info("scoring.persistence.persisted", extra=payload)
+        if is_ui_smoke:
+            logger.info("ui_smoke.seed.success", extra=payload)
     logger.info(
         "seed_scores.complete",
         extra={"count": seeded, "scoring_run_id": args.scoring_run_id, "fixture": str(args.fixture)},

@@ -1,0 +1,61 @@
+name: UI Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CI_UI_SMOKE_ENABLED: ${{ vars.CI_UI_SMOKE_ENABLED || secrets.CI_UI_SMOKE_ENABLED || 'false' }}
+
+jobs:
+  why-this-score:
+    if: ${{ toLower(env.CI_UI_SMOKE_ENABLED) == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.UI_SMOKE_DATABASE_URL }}
+      UI_BASE_URL: ${{ secrets.UI_SMOKE_UI_BASE_URL || vars.UI_SMOKE_UI_BASE_URL || 'http://localhost:3000' }}
+      API_BASE_URL: ${{ secrets.UI_SMOKE_API_BASE_URL || vars.UI_SMOKE_API_BASE_URL || 'http://localhost:8000' }}
+      UI_SMOKE_COMPANY_ID: ${{ secrets.UI_SMOKE_COMPANY_ID || vars.UI_SMOKE_COMPANY_ID || '11111111-0000-0000-0000-000000000001' }}
+      UI_SMOKE_COMPANY_NAME: ${{ secrets.UI_SMOKE_COMPANY_NAME || vars.UI_SMOKE_COMPANY_NAME || 'High Growth SaaS' }}
+      UI_SMOKE_SCORING_RUN_ID: ${{ secrets.UI_SMOKE_SCORING_RUN_ID || vars.UI_SMOKE_SCORING_RUN_ID || 'ui-smoke' }}
+      PLAYWRIGHT_HEADED: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright deps
+        run: |
+          npm ci --prefix frontend
+          npx playwright install --with-deps
+
+      - name: Seed deterministic drawer score
+        run: make ui-smoke-seed
+
+      - name: Run Playwright drawer smoke test
+        run: npx playwright test --config frontend/tests/playwright.config.ts --grep "Why this score"
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-artifacts
+          if-no-files-found: warn
+          path: |
+            frontend/artifacts/test-results
+            frontend/artifacts/report

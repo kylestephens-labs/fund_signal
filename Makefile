@@ -77,6 +77,21 @@ online-contract-test: ## Minimal live API contract test (requires provider keys)
 seed-scores: ## Seed deterministic scoring runs into Supabase/Postgres for delivery jobs
 	uv run python scripts/seed_scores.py --fixture tests/fixtures/scoring/regression_companies.json --scoring-run $${DELIVERY_SCORING_RUN:-demo-day3} --seed-all --force
 
+ui-smoke-seed: ## Seed the UI smoke persona (requires DATABASE_URL + UI_SMOKE env vars)
+	@if [ -z "$$DATABASE_URL" ]; then \
+		echo "DATABASE_URL must be set before running ui-smoke-seed."; \
+		exit 1; \
+	fi
+	@if [ -z "$$UI_SMOKE_COMPANY_ID" ]; then \
+		echo "UI_SMOKE_COMPANY_ID must be set before running ui-smoke-seed."; \
+		exit 1; \
+	fi
+	uv run python scripts/seed_scores.py \
+		--fixture tests/fixtures/scoring/regression_companies.json \
+		--company-id $${UI_SMOKE_COMPANY_ID} \
+		--scoring-run $${UI_SMOKE_SCORING_RUN_ID:-ui-smoke} \
+		--force
+
 email-demo: ## Render the Day-3 email digest from persisted scores
 	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_delivery --output output/email_demo.md
 
