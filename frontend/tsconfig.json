@@ -9,5 +9,5 @@
     "types": ["node", "@playwright/test"],
     "lib": ["ES2021", "DOM", "DOM.Iterable"]
   },
-  "include": ["playwright.config.ts", "tests/**/*.ts"]
+  "include": ["tests/playwright.config.ts", "tests/**/*.ts"]
 }

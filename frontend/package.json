@@ -4,8 +4,8 @@
   "private": true,
   "description": "Playwright smoke tests for the FundSignal UI drawer",
   "scripts": {
-    "test:ui": "playwright test",
-    "test:ui:headed": "PLAYWRIGHT_HEADED=true playwright test --project=chromium --headed",
+    "test:ui": "playwright test --config=tests/playwright.config.ts",
+    "test:ui:headed": "PLAYWRIGHT_HEADED=true playwright test --config=tests/playwright.config.ts --project=chromium --headed",
     "test:ui:report": "playwright show-report artifacts/report"
   },
   "devDependencies": {

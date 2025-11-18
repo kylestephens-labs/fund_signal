@@ -18,6 +18,11 @@ type CompanyScore = {
   scoring_run_id: string;
   score: number;
   breakdown: BreakdownItem[];
+  recommended_approach: string;
+  pitch_angle: string;
+  scoring_model: string;
+  created_at: string;
+  updated_at?: string | null;
 };
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:8000';
@@ -41,13 +46,14 @@ const fixtureProfile = {
   verified_sources: ['Exa', 'You.com', 'Tavily'],
 };
 
+let seededScore: CompanyScore | null = null;
 let expectedBreakdown: BreakdownItem[] = [];
 let missingProofReason: string | null =
   process.env.UI_SMOKE_EXPECTS_MISSING_PROOF_REASON ?? null;
 let missingProofInjected = false;
 
 test.beforeAll(async () => {
-  const seededScore = await seedFixtureScore();
+  seededScore = await seedFixtureScore();
   expectedBreakdown = seededScore.breakdown ?? [];
   if (!missingProofReason && expectedBreakdown.length > 0) {
     missingProofReason =
@@ -55,7 +61,11 @@ test.beforeAll(async () => {
   }
 });
 
-test('drawer renders proof links for each breakdown row', async ({ page }) => {
+test('drawer renders persisted Supabase score details', async ({ page }) => {
+  if (!seededScore) {
+    throw new Error('Seeded score missing; ensure scripts/seed_scores.py ran successfully.');
+  }
+
   missingProofInjected = false;
   await maybeAttachMissingProofPatch(page);
 
@@ -77,6 +87,11 @@ test('drawer renders proof links for each breakdown row', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
   await openWhyThisScoreDrawer(page, COMPANY_NAME);
   const drawer = await resolveDrawer(page);
+
+  await expectScoreSummary(drawer, seededScore.score);
+  await expectRecommendedApproach(drawer, seededScore.recommended_approach);
+  await expectVerifiedSources(drawer, fixtureProfile.verified_sources);
+
   const recognizedRows = await collectBreakdownRows(drawer, expectedBreakdown);
 
   expect(
@@ -111,6 +126,8 @@ test('drawer renders proof links for each breakdown row', async ({ page }) => {
       overlap,
       `Proof links for "${row.entry.reason}" did not match API payload`,
     ).toBeTruthy();
+
+    await expectTimestampConsistency(row.text, row.entry);
   }
 
   for (const entry of expectedBreakdown) {
@@ -220,19 +237,19 @@ async function resolveDrawer(page: Page): Promise<Locator> {
     .locator('[data-testid="why-this-score-drawer"], [role="dialog"]')
     .filter({ hasText: /why this score/i })
     .first();
-  await expect(drawer).toBeVisible();
+  await expect(drawer).toBeVisible({ timeout: 1_000 });
   return drawer;
 }
 
 async function collectBreakdownRows(
   drawer: Locator,
   breakdown: BreakdownItem[],
-): Promise<Array<{ locator: Locator; entry: BreakdownItem }>> {
+): Promise<Array<{ locator: Locator; entry: BreakdownItem; text: string }>> {
   const allRows = drawer.locator(
     '[data-testid="score-breakdown-row"], [data-test="score-breakdown-row"], [role="row"], li',
   );
   const count = await allRows.count();
-  const recognized: Array<{ locator: Locator; entry: BreakdownItem }> = [];
+  const recognized: Array<{ locator: Locator; entry: BreakdownItem; text: string }> = [];
   const usedReasons = new Set<string>();
 
   for (let index = 0; index < count; index += 1) {
@@ -246,10 +263,110 @@ async function collectBreakdownRows(
       continue;
     }
     usedReasons.add(match.reason);
-    recognized.push({ locator: candidate, entry: match });
+    recognized.push({ locator: candidate, entry: match, text });
   }
 
   return recognized;
+}
+
+async function expectScoreSummary(drawer: Locator, expectedScore: number) {
+  const numeric = String(expectedScore);
+  const scoreLocator = drawer
+    .locator(
+      '[data-testid="score-summary"], [data-test="score-summary"], [data-testid="score-value"], [data-test="score-value"]',
+    )
+    .first();
+  if ((await scoreLocator.count()) > 0) {
+    await expect(scoreLocator).toContainText(numeric);
+    return;
+  }
+  await expect(
+    drawer.getByText(
+      new RegExp(`score[^0-9]*${escapeRegExp(numeric)}(?:\\s*/\\s*100)?`, 'i'),
+    ),
+  ).toBeVisible();
+}
+
+async function expectRecommendedApproach(drawer: Locator, recommendation: string) {
+  const recommendationLocator = drawer
+    .locator('[data-testid="recommended-approach"], [data-test="recommended-approach"]')
+    .first();
+  if ((await recommendationLocator.count()) > 0) {
+    await expect(recommendationLocator).toContainText(recommendation);
+    return;
+  }
+  await expect(
+    drawer.getByText(new RegExp(escapeRegExp(recommendation), 'i')),
+  ).toBeVisible();
+}
+
+async function expectVerifiedSources(drawer: Locator, sources: string[]) {
+  if (!sources.length) {
+    return;
+  }
+  const badgeGroup = drawer
+    .locator('[data-testid="verified-sources"], [data-test="verified-sources"]')
+    .first();
+  const target = (await badgeGroup.count()) > 0 ? badgeGroup : drawer;
+  for (const source of sources) {
+    await expect(
+      target.getByText(new RegExp(escapeRegExp(source), 'i')).first(),
+    ).toBeVisible();
+  }
+}
+
+async function expectTimestampConsistency(rowText: string, entry: BreakdownItem) {
+  const tokens = buildTimestampTokens(entry);
+  if (!tokens.length) {
+    return;
+  }
+  const normalizedRow = normalizeText(rowText);
+  const matched = tokens.some((token) => normalizedRow.includes(token));
+  expect(
+    matched,
+    `Timestamp tokens ${tokens.join(', ')} missing from "${entry.reason}" row`,
+  ).toBeTruthy();
+}
+
+function buildTimestampTokens(entry: BreakdownItem): string[] {
+  const timestamp = extractTimestamp(entry);
+  if (!timestamp) {
+    return [];
+  }
+  const parsedDate = new Date(timestamp);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return [];
+  }
+  const tokens = new Set<string>();
+  tokens.add(String(parsedDate.getUTCFullYear()).toLowerCase());
+  tokens.add(
+    parsedDate
+      .toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })
+      .toLowerCase(),
+  );
+  tokens.add(
+    parsedDate
+      .toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })
+      .toLowerCase(),
+  );
+  tokens.add(
+    parsedDate
+      .toLocaleString('en-US', { day: 'numeric', timeZone: 'UTC' })
+      .toLowerCase(),
+  );
+  return [...tokens];
+}
+
+function extractTimestamp(entry: BreakdownItem): string | null {
+  if (entry.proof?.timestamp) {
+    return entry.proof.timestamp;
+  }
+  for (const proof of entry.proofs ?? []) {
+    if (proof?.timestamp) {
+      return proof.timestamp;
+    }
+  }
+  return null;
 }
 
 function matchBreakdown(rowText: string, breakdown: BreakdownItem[]) {
@@ -261,6 +378,10 @@ function matchBreakdown(rowText: string, breakdown: BreakdownItem[]) {
 
 function normalizeText(value: string) {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function collectProofUrls(entry: BreakdownItem) {

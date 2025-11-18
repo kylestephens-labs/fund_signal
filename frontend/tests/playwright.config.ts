@@ -8,11 +8,16 @@ type EnvConfig = {
   override?: boolean;
 };
 
+const workspaceRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(workspaceRoot, '..');
+
 const envFiles: EnvConfig[] = [
-  { path: path.resolve(__dirname, '../.env') },
-  { path: path.resolve(__dirname, '../.env.local'), override: true },
-  { path: path.resolve(__dirname, '.env') },
-  { path: path.resolve(__dirname, '.env.local'), override: true },
+  { path: path.join(repoRoot, '.env') },
+  { path: path.join(repoRoot, '.env.local'), override: true },
+  { path: path.join(workspaceRoot, '.env') },
+  { path: path.join(workspaceRoot, '.env.local'), override: true },
+  { path: path.join(__dirname, '.env') },
+  { path: path.join(__dirname, '.env.local'), override: true },
 ];
 
 for (const entry of envFiles) {
@@ -25,7 +30,7 @@ const baseURL = process.env.UI_BASE_URL ?? 'http://localhost:3000';
 const headless = !/^true$/i.test(process.env.PLAYWRIGHT_HEADED ?? '');
 
 export default defineConfig({
-  testDir: './tests',
+  testDir: './playwright',
   fullyParallel: false,
   timeout: 30_000,
   expect: {
@@ -34,7 +39,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'artifacts/report', open: 'never' }],
+    ['html', { outputFolder: path.join(workspaceRoot, 'artifacts/report'), open: 'never' }],
   ],
   use: {
     baseURL,
@@ -45,7 +50,7 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
   },
-  outputDir: 'artifacts/test-results',
+  outputDir: path.join(workspaceRoot, 'artifacts/test-results'),
   projects: [
     {
       name: 'chromium',
