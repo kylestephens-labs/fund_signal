@@ -154,7 +154,9 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
 
    The email renderer fetches cached scores through `SupabaseScoreRepository.list_run`, logs `delivery.supabase.query`, and writes Markdown including recommended approaches, pitch angles, and every `proof/proofs` URL.
 
-   Add `--deliver` once SMTP credentials are configured (or set `DELIVERY_EMAIL_FORCE_RUN=true`; pass `--no-deliver` to skip a forced send) to send the digest automatically:
+   **Dry run (artifact only):** keeps the default behavior for local QA/CI—Markdown is written to `output/email_demo.md`, no email leaves your machine.
+
+   **Send mode:** add `--deliver` once SMTP credentials are configured (or set `DELIVERY_EMAIL_FORCE_RUN=true`; pass `--no-deliver` to skip a forced send) to send the digest automatically:
 
    ```bash
    export EMAIL_SMTP_URL=smtp://user:pass@mailtrap.io:2525
@@ -164,6 +166,8 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
    ```
 
    The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and still writes the Markdown artifact for auditing.
+
+   > ⚠️ **Credential safety:** never commit SMTP creds to Git. Store them in Render/GitHub secrets (or a local `.env` that stays ignored), and test delivery with sandbox servers (Mailtrap, Papercut, `python -m smtpd -c DebuggingServer`). Set `EMAIL_DISABLE_TLS=true` only for local debug servers; production SMTP should keep TLS enabled.
 
 3. **Generate the Slack payload**
 
