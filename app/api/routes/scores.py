@@ -63,6 +63,46 @@ async def list_scores(
     return result
 
 
+@router.get("/scores", response_model=list[CompanyScore])
+async def list_scores_for_run(
+    scoring_run_id: str | None = Query(
+        None,
+        description="Scoring run identifier to list.",
+        examples=["ui-smoke"],
+    ),
+    limit: int = Query(
+        25,
+        ge=1,
+        le=100,
+        description="Maximum number of companies to return (default 25).",
+    ),
+    engine: ChatGPTScoringEngine = Depends(get_scoring_engine),
+) -> list[CompanyScore]:
+    """Return cached scores for a scoring run without triggering new scoring jobs."""
+    if not scoring_run_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="scoring_run_id query parameter is required.",
+        )
+
+    try:
+        results = engine.fetch_scores_for_run(scoring_run_id, limit=limit)
+    except ScoringEngineError as exc:
+        logger.error(
+            "scoring.list_run.error",
+            extra={"scoring_run_id": scoring_run_id, "code": exc.code},
+        )
+        raise HTTPException(status_code=_map_error_code(exc.code), detail=str(exc)) from exc
+
+    if not results:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No scores found for requested scoring_run_id.",
+        )
+
+    return results
+
+
 def _map_error_code(code: str) -> int:
     if code == "409_SCORE_ALREADY_EXISTS":
         return status.HTTP_409_CONFLICT

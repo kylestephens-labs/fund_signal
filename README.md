@@ -358,7 +358,7 @@ curl -X POST http://localhost:8000/api/scores \
   }'
 ```
 
-The API responds with a persisted `CompanyScore` object (0–100 score, rubric breakdown, recommended approach, pitch angle). Results are cached by `company_id + scoring_run_id`; repeat calls reuse cached runs in ≤300 ms until `force=true` is supplied. Use `GET /api/scores/<company_id>?scoring_run_id=<run>` to retrieve stored outputs for downstream UI or delivery channels. Errors from OpenAI, Exa, You.com, or Tavily surfaces are logged with context and mapped to API codes (`429_RATE_LIMIT`, `502_OPENAI_UPSTREAM`, `422_INVALID_COMPANY_DATA`) without exposing secrets. The scoring system prompt lives at `configs/scoring/system_prompt.md` for quick updates.
+The API responds with a persisted `CompanyScore` object (0–100 score, rubric breakdown, recommended approach, pitch angle). Results are cached by `company_id + scoring_run_id`; repeat calls reuse cached runs in ≤300 ms until `force=true` is supplied. Use `GET /api/scores/<company_id>?scoring_run_id=<run>` to retrieve stored outputs for a single company, or `GET /api/scores?scoring_run_id=<run>&limit=25` to load the top cached companies for a scoring run (fueling the FundSignal UI cards and smoke tests). Errors from OpenAI, Exa, You.com, or Tavily surfaces are logged with context and mapped to API codes (`429_RATE_LIMIT`, `502_OPENAI_UPSTREAM`, `422_INVALID_COMPANY_DATA`) without exposing secrets. The scoring system prompt lives at `configs/scoring/system_prompt.md` for quick updates.
 
 Every breakdown item now carries a primary `proof` plus a `proofs` array so downstream UIs can render single or multi-link evidence per signal:
 

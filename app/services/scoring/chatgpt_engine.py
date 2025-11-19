@@ -257,6 +257,28 @@ class ChatGPTScoringEngine:
             return [result] if result else []
         return self._repository.list(company_id)
 
+    def fetch_scores_for_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
+        """Return cached scores for a scoring run without re-scoring companies."""
+        if not scoring_run_id:
+            raise ScoringValidationError("scoring_run_id is required.", code="422_INVALID_COMPANY_DATA")
+        limit_value = None if limit is None else max(0, limit)
+        scores = self._repository.list_run(scoring_run_id, limit=limit_value)
+        cache_state = "hit" if scores else "miss"
+        logger.info(
+            f"scoring.cache.run_{cache_state}",
+            extra={
+                "scoring_run_id": scoring_run_id,
+                "count": len(scores),
+                "limit": limit_value,
+                "mode": self._context.mode,
+            },
+        )
+        metrics.increment(
+            f"scoring.cache.run_{cache_state}",
+            tags={"scoring_run": scoring_run_id, "mode": self._context.mode},
+        )
+        return scores
+
     def _score_with_openai(self, company: CompanyProfile, *, scoring_run_id: str) -> CompanyScore:
         client = self._ensure_client()
         user_prompt = _render_user_prompt(company)
