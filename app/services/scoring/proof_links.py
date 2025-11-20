@@ -138,7 +138,11 @@ class ProofLinkHydrator:
             error_code = "424_EVIDENCE_SOURCE_DOWN"
             metrics.increment(
                 "hydrator.errors",
-                tags={"slug": normalized_slug, "code": error_code, "mode": settings.fund_signal_mode},
+                tags={
+                    "slug": normalized_slug,
+                    "code": error_code,
+                    "mode": settings.fund_signal_mode,
+                },
             )
             logger.exception(
                 "proof_links.unexpected_error",
@@ -183,7 +187,9 @@ class ProofLinkHydrator:
         lookup = cache_lookup or self._cache_lookup
         proofs: list[SignalProof] = []
         for evidence in matches:
-            key = evidence.proof_hash or self._cache_key(str(evidence.source_url), evidence.timestamp)
+            key = evidence.proof_hash or self._cache_key(
+                str(evidence.source_url), evidence.timestamp
+            )
             proof = lookup(
                 key,
                 lambda evidence=evidence: self._from_evidence(
@@ -322,7 +328,9 @@ class ProofLinkHydrator:
         return proof
 
     @staticmethod
-    def _register_proof(proof: SignalProof, seen_hashes: set[str], bucket: list[SignalProof]) -> bool:
+    def _register_proof(
+        proof: SignalProof, seen_hashes: set[str], bucket: list[SignalProof]
+    ) -> bool:
         identifier = proof.proof_hash or str(proof.source_url)
         if identifier in seen_hashes:
             return False
@@ -427,7 +435,11 @@ class ProofLinkHydrator:
                 "timestamp": proof.timestamp.isoformat(),
                 **exc.context,
             }
-            event = "proof_links.stale_proof" if exc.code == "422_PROOF_STALE" else "proof_links.invalid_proof"
+            event = (
+                "proof_links.stale_proof"
+                if exc.code == "422_PROOF_STALE"
+                else "proof_links.invalid_proof"
+            )
             logger.warning(event, extra=log_payload)
             raise ProofLinkError(str(exc), code=exc.code) from exc
         logger.info(

@@ -4,7 +4,7 @@ import pytest
 
 from tools import proof_links_benchmark
 
-pytestmark = pytest.mark.benchmark
+pytestmark = [pytest.mark.benchmark, pytest.mark.slow]
 
 
 @pytest.fixture(autouse=True)

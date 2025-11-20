@@ -15,8 +15,8 @@ from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring.chatgpt_engine import (
     DEFAULT_SOURCE_MAP,
     ChatGPTScoringEngine,
-    ScoringEngineError,
     ScoringContext,
+    ScoringEngineError,
     ScoringValidationError,
 )
 from app.services.scoring.proof_links import ProofLinkHydrator
@@ -428,7 +428,7 @@ def test_fetch_scores_returns_runs():
             system_prompt="system",
             model="test-model",
             temperature=0.1,
-        )
+        ),
     )
     company = _sample_company()
     engine.score_company(company, scoring_run_id="run-1")
@@ -490,16 +490,24 @@ def test_fixture_regression_scores_align_with_intuition():
 
     scored: list[tuple[str, int]] = []
     for persona in fixture.personas:
-        result = engine.score_company(persona.profile, scoring_run_id=f"regression-{persona.persona_id}", force=True)
+        result = engine.score_company(
+            persona.profile, scoring_run_id=f"regression-{persona.persona_id}", force=True
+        )
         assert persona.min_score <= result.score <= persona.max_score, (
             f"{context} {persona.persona_id} expected score between {persona.min_score}-{persona.max_score}, "
             f"got {result.score}"
         )
         scored.append((persona.persona_id, result.score))
 
-    expected_order = [persona.persona_id for persona in sorted(fixture.personas, key=lambda p: p.expected_rank)]
-    actual_order = [persona_id for persona_id, _ in sorted(scored, key=lambda row: row[1], reverse=True)]
-    assert actual_order == expected_order, f"{context} unexpected ranking {actual_order}; expected {expected_order}"
+    expected_order = [
+        persona.persona_id for persona in sorted(fixture.personas, key=lambda p: p.expected_rank)
+    ]
+    actual_order = [
+        persona_id for persona_id, _ in sorted(scored, key=lambda row: row[1], reverse=True)
+    ]
+    assert (
+        actual_order == expected_order
+    ), f"{context} unexpected ranking {actual_order}; expected {expected_order}"
 
 
 def test_bundle_regression_scores_align_with_human_tiers():
@@ -517,7 +525,9 @@ def test_bundle_regression_scores_align_with_human_tiers():
 
     tier_scores: dict[str, list[int]] = {tier: [] for tier in TIER_RANGES}
     for entry in bundle_fixture.companies:
-        result = engine.score_company(entry.profile, scoring_run_id=f"bundle-{entry.entry_id}", force=True)
+        result = engine.score_company(
+            entry.profile, scoring_run_id=f"bundle-{entry.entry_id}", force=True
+        )
         min_score, max_score = _tier_band(entry.tier)
         assert min_score <= result.score <= max_score, (
             f"{bundle_fixture.context} entry={entry.entry_id} ({entry.label}) expected {entry.tier.title()} band "
@@ -533,12 +543,12 @@ def test_bundle_regression_scores_align_with_human_tiers():
     medium_min = min(tier_scores["medium"])
     low_max = max(tier_scores["low"])
 
-    assert high_min > medium_max, (
-        f"{bundle_fixture.context} High tier drift: min_high={high_min} <= max_medium={medium_max}"
-    )
-    assert medium_min > low_max, (
-        f"{bundle_fixture.context} Medium tier drift: min_medium={medium_min} <= max_low={low_max}"
-    )
+    assert (
+        high_min > medium_max
+    ), f"{bundle_fixture.context} High tier drift: min_high={high_min} <= max_medium={medium_max}"
+    assert (
+        medium_min > low_max
+    ), f"{bundle_fixture.context} Medium tier drift: min_medium={medium_min} <= max_low={low_max}"
 
 
 def test_scoring_engine_emits_metrics(monkeypatch):

@@ -8,14 +8,16 @@ from uuid import uuid4
 import httpx
 import pytest
 
+import pipelines.day3 as day3_module
 from app.config import settings
 from app.models.company import BreakdownItem, CompanyScore
 from app.models.signal_breakdown import SignalProof
 from app.services.scoring.repositories import InMemoryScoreRepository
-import pipelines.day3 as day3_module
 from pipelines.day3.email_delivery import render_email
 from pipelines.day3.slack_delivery import build_slack_payload
 from pipelines.qa import proof_domain_replay as replay
+
+pytestmark = pytest.mark.slow
 
 
 def _sample_score(**overrides):
@@ -232,4 +234,8 @@ def test_slack_payload_tracks_metadata():
 
     assert payload["metadata"]["company_count"] == 2
     assert payload["metadata"]["scores"][0]["score"] == 90
-    assert any("<https://news.example.com/proof|" in block["text"]["text"] for block in payload["blocks"] if block["type"] == "section")
+    assert any(
+        "<https://news.example.com/proof|" in block["text"]["text"]
+        for block in payload["blocks"]
+        if block["type"] == "section"
+    )

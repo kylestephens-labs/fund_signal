@@ -40,7 +40,9 @@ def _require_fields(name: str, payload: Mapping[str, Any], required: set[str]) -
         raise ValueError(f"Contract query '{name}' missing or invalid.")
     missing = required - section.keys()
     if missing:
-        raise ValueError(f"Contract query '{name}' missing required fields: {', '.join(sorted(missing))}")
+        raise ValueError(
+            f"Contract query '{name}' missing required fields: {', '.join(sorted(missing))}"
+        )
     return section
 
 

@@ -9,6 +9,8 @@ import pytest
 
 from pipelines.qa import proof_link_monitor as monitor
 
+pytestmark = pytest.mark.slow
+
 
 def test_load_proof_targets_supports_leads_payload(tmp_path: Path):
     payload = {

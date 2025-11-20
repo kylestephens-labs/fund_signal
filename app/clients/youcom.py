@@ -143,7 +143,9 @@ def _extract_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
             payload.get("news"),
             payload.get("data"),
         ]
-        nested_results = payload.get("results") if isinstance(payload.get("results"), dict) else None
+        nested_results = (
+            payload.get("results") if isinstance(payload.get("results"), dict) else None
+        )
         if isinstance(nested_results, dict):
             containers.extend(
                 [
@@ -167,4 +169,6 @@ def _extract_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if not all(isinstance(entry, dict) for entry in filtered):
         raise YoucomSchemaError("Entries in `results` must be JSON objects.")
     return filtered
+
+
 logger = logging.getLogger("app.clients.youcom")

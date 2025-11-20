@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from threading import Lock
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy.engine import Engine
@@ -54,7 +55,11 @@ class InMemoryScoreRepository(ScoreRepository):
             metrics.increment("scoring.persistence.hit", tags={"repository": "memory"})
             logger.info(
                 "scoring.persistence.hit",
-                extra={"company_id": company_id, "scoring_run_id": scoring_run_id, "backend": "memory"},
+                extra={
+                    "company_id": company_id,
+                    "scoring_run_id": scoring_run_id,
+                    "backend": "memory",
+                },
             )
         return score
 
@@ -84,7 +89,9 @@ class InMemoryScoreRepository(ScoreRepository):
 
     def list_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
         with self._lock:
-            matches = [score for (_, run_id), score in self._scores.items() if run_id == scoring_run_id]
+            matches = [
+                score for (_, run_id), score in self._scores.items() if run_id == scoring_run_id
+            ]
         ordered = sorted(
             matches,
             key=lambda entry: (entry.score, entry.updated_at or entry.created_at),
@@ -160,9 +167,15 @@ class SupabaseScoreRepository(ScoreRepository):
         except SQLAlchemyError as exc:  # pragma: no cover - defensive guard
             logger.exception(
                 "scoring.persistence.error",
-                extra={"company_id": company_id, "scoring_run_id": scoring_run_id, "backend": "database"},
+                extra={
+                    "company_id": company_id,
+                    "scoring_run_id": scoring_run_id,
+                    "backend": "database",
+                },
             )
-            raise ScorePersistenceError("Failed to load persisted score.", code="500_INTERNAL") from exc
+            raise ScorePersistenceError(
+                "Failed to load persisted score.", code="500_INTERNAL"
+            ) from exc
 
     def list(self, company_id: str) -> list[CompanyScore]:
         normalized_id = _parse_company_id(company_id)
@@ -179,7 +192,9 @@ class SupabaseScoreRepository(ScoreRepository):
             logger.exception(
                 "scoring.persistence.error", extra={"company_id": company_id, "backend": "database"}
             )
-            raise ScorePersistenceError("Failed to list persisted scores.", code="500_INTERNAL") from exc
+            raise ScorePersistenceError(
+                "Failed to list persisted scores.", code="500_INTERNAL"
+            ) from exc
 
     def list_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
         try:
@@ -198,7 +213,9 @@ class SupabaseScoreRepository(ScoreRepository):
                 "scoring.persistence.error",
                 extra={"scoring_run_id": scoring_run_id, "backend": "database"},
             )
-            raise ScorePersistenceError("Failed to list persisted scores.", code="500_INTERNAL") from exc
+            raise ScorePersistenceError(
+                "Failed to list persisted scores.", code="500_INTERNAL"
+            ) from exc
 
     def save(self, result: CompanyScore) -> CompanyScore:
         record = ScoreRecord.from_company_score(result)
@@ -255,7 +272,9 @@ class SupabaseScoreRepository(ScoreRepository):
                     "backend": self._metrics_tags["repository"],
                 },
             )
-            raise ScorePersistenceError("Failed to persist scoring result.", code="500_INTERNAL") from exc
+            raise ScorePersistenceError(
+                "Failed to persist scoring result.", code="500_INTERNAL"
+            ) from exc
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
@@ -267,7 +286,9 @@ def _parse_company_id(company_id: str) -> UUID:
     try:
         return UUID(company_id)
     except ValueError as exc:  # pragma: no cover - defensive guard
-        raise ScorePersistenceError("company_id must be a valid UUID.", code="422_INVALID_COMPANY_DATA") from exc
+        raise ScorePersistenceError(
+            "company_id must be a valid UUID.", code="422_INVALID_COMPANY_DATA"
+        ) from exc
 
 
 def _coerce_sync_database_url(url: URL) -> tuple[str, dict[str, Any], str]:

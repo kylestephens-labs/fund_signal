@@ -63,5 +63,9 @@ def test_feedback_cli_updates_manifest(tmp_path: Path):
     assert verify_feedback_resolver.main(argv) == 0
 
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    entry = next(item for item in manifest_data["files"] if item["path"] == "leads/exa_seed.feedback_resolved.json")
+    entry = next(
+        item
+        for item in manifest_data["files"]
+        if item["path"] == "leads/exa_seed.feedback_resolved.json"
+    )
     assert entry["sha256"] == hashlib.sha256(output.read_bytes()).hexdigest()

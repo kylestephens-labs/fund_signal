@@ -36,7 +36,7 @@ class ManifestFile:
     @classmethod
     def from_dict(cls, data: dict) -> ManifestFile:
         path = data.get("path")
-        checksum = data.get("checksum")
+        checksum = data.get("checksum") or data.get("sha256")
         if not path or not checksum:
             raise VerificationError("E_MANIFEST_INVALID", "File entry missing path or checksum.")
         return cls(path=path, checksum=checksum)

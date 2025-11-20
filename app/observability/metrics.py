@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import random
+import secrets
 from typing import Any
 
 from app.config import settings
@@ -43,7 +43,9 @@ class MetricsReporter:
     def gauge(self, metric: str, value: float, *, tags: dict[str, Any] | None = None) -> None:
         self._emit("gauge", metric, value, tags=tags)
 
-    def increment(self, metric: str, value: float = 1.0, *, tags: dict[str, Any] | None = None) -> None:
+    def increment(
+        self, metric: str, value: float = 1.0, *, tags: dict[str, Any] | None = None
+    ) -> None:
         self._emit("counter", metric, value, tags=tags)
 
     def alert(
@@ -69,13 +71,17 @@ class MetricsReporter:
         }
         self._log_event("proof_links.alert", payload)
 
-    def _emit(self, metric_type: str, metric: str, value: float, *, tags: dict[str, Any] | None) -> None:
+    def _emit(
+        self, metric_type: str, metric: str, value: float, *, tags: dict[str, Any] | None
+    ) -> None:
         if self._disabled or value is None:
             return
         sampled = metric_type != "gauge" and self._sample_rate < 1.0
         sample_rate = self._sample_rate if sampled else 1.0
-        if sampled and random.random() > sample_rate:
-            return
+        if sampled:
+            roll = secrets.randbelow(1_000_000) / 1_000_000
+            if roll > sample_rate:
+                return
         name = self._normalize_metric(metric)
         payload = {
             "metric": name,

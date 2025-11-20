@@ -6,14 +6,14 @@ import json
 import logging
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Final, Protocol, TypeVar
+from typing import Any, Final, Protocol, TypeVar
 
 from app.config import settings
 from app.models.company import BreakdownItem, CompanyProfile, CompanyScore
 from app.models.signal_breakdown import SignalProof
-from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
 from app.observability.metrics import metrics
 from app.services.scoring.errors import (
     ScorePersistenceError,
@@ -21,6 +21,7 @@ from app.services.scoring.errors import (
     ScoringProviderError,
     ScoringValidationError,
 )
+from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
 from app.services.scoring.repositories import ScoreRepository, build_score_repository
 
 try:  # pragma: no cover - import guard for optional dependency
@@ -105,14 +106,16 @@ def _extract_response_text(response: Any) -> str:
             message = choices[0].message
             content = getattr(message, "content", "")
             if isinstance(content, list):  # new SDK streaming chunks
-                return "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+                return "".join(
+                    part.get("text", "") for part in content if isinstance(part, dict)
+                ).strip()
             if isinstance(content, str):
                 return content.strip()
 
     try:
-        dumped = json.dumps(getattr(response, "model_dump", lambda: response)())
+        _ = json.dumps(getattr(response, "model_dump", lambda: response)())
     except TypeError:
-        dumped = str(response)
+        _ = str(response)
     raise ScoringProviderError(
         "OpenAI response did not include text output.",
         code="502_OPENAI_UPSTREAM",
@@ -162,7 +165,9 @@ class ChatGPTScoringEngine:
     ) -> CompanyScore:
         """Score a single company and persist the result."""
         if not scoring_run_id:
-            raise ScoringValidationError("scoring_run_id is required.", code="422_INVALID_COMPANY_DATA")
+            raise ScoringValidationError(
+                "scoring_run_id is required.", code="422_INVALID_COMPANY_DATA"
+            )
 
         company_key = str(company.company_id)
         cache_state = "miss"
@@ -250,17 +255,23 @@ class ChatGPTScoringEngine:
             for company in companies
         ]
 
-    def fetch_scores(self, company_id: str, scoring_run_id: str | None = None) -> list[CompanyScore]:
+    def fetch_scores(
+        self, company_id: str, scoring_run_id: str | None = None
+    ) -> list[CompanyScore]:
         """Retrieve cached scores for API consumption."""
         if scoring_run_id:
             result = self._repository.get(company_id, scoring_run_id)
             return [result] if result else []
         return self._repository.list(company_id)
 
-    def fetch_scores_for_run(self, scoring_run_id: str, *, limit: int | None = None) -> list[CompanyScore]:
+    def fetch_scores_for_run(
+        self, scoring_run_id: str, *, limit: int | None = None
+    ) -> list[CompanyScore]:
         """Return cached scores for a scoring run without re-scoring companies."""
         if not scoring_run_id:
-            raise ScoringValidationError("scoring_run_id is required.", code="422_INVALID_COMPANY_DATA")
+            raise ScoringValidationError(
+                "scoring_run_id is required.", code="422_INVALID_COMPANY_DATA"
+            )
         limit_value = None if limit is None else max(0, limit)
         scores = self._repository.list_run(scoring_run_id, limit=limit_value)
         cache_state = "hit" if scores else "miss"
@@ -292,7 +303,11 @@ class ChatGPTScoringEngine:
                     temperature=self._context.temperature,
                 )
             except OpenAIAPIError as exc:  # pragma: no cover - depends on SDK
-                code = "429_RATE_LIMIT" if getattr(exc, "status_code", 500) == 429 else "502_OPENAI_UPSTREAM"
+                code = (
+                    "429_RATE_LIMIT"
+                    if getattr(exc, "status_code", 500) == 429
+                    else "502_OPENAI_UPSTREAM"
+                )
                 message = getattr(exc, "message", str(exc))
                 raise ScoringProviderError(f"OpenAI request failed: {message}", code=code) from exc
             except OpenAIBaseError as exc:  # pragma: no cover - depends on SDK
@@ -300,7 +315,9 @@ class ChatGPTScoringEngine:
                 message = getattr(exc, "message", str(exc))
                 raise ScoringProviderError(f"OpenAI request failed: {message}", code=code) from exc
             except Exception as exc:  # pragma: no cover - defensive
-                raise ScoringProviderError(f"Unexpected OpenAI failure: {exc}", code="502_OPENAI_UPSTREAM") from exc
+                raise ScoringProviderError(
+                    f"Unexpected OpenAI failure: {exc}", code="502_OPENAI_UPSTREAM"
+                ) from exc
 
             try:
                 payload = _parse_json_payload(response_text)
@@ -309,7 +326,9 @@ class ChatGPTScoringEngine:
                     "scoring.parse_error",
                     extra={"company_id": str(company.company_id), "mode": self._context.mode},
                 )
-                raise ScoringValidationError("Model response was not valid JSON.", code="502_OPENAI_UPSTREAM") from exc
+                raise ScoringValidationError(
+                    "Model response was not valid JSON.", code="502_OPENAI_UPSTREAM"
+                ) from exc
 
             return _convert_payload_to_score(
                 payload,
@@ -339,10 +358,7 @@ class ChatGPTScoringEngine:
     def _score_with_rubric(self, company: CompanyProfile, *, scoring_run_id: str) -> CompanyScore:
         """Deterministic fallback for fixture/offline mode."""
         breakdown: list[BreakdownItem] = []
-        rubric_components: tuple[
-            tuple[str, Callable[[CompanyProfile], tuple[str, int]]],
-            ...
-        ] = (
+        rubric_components: tuple[tuple[str, Callable[[CompanyProfile], tuple[str, int]]], ...] = (
             ("funding", self._funding_component),
             ("hiring", self._hiring_component),
             ("tech", self._tech_component),
@@ -371,10 +387,10 @@ class ChatGPTScoringEngine:
             log_adjustment=False,
         )
 
-        recommended_approach = (
-            f"Reach out to {company.name}'s GTM lead via LinkedIn referencing their {company.funding_stage} raise."
+        recommended_approach = f"Reach out to {company.name}'s GTM lead via LinkedIn referencing their {company.funding_stage} raise."
+        pitch_angle = (
+            f"Help {company.name} convert {company.funding_stage} capital into outbound pipeline."
         )
-        pitch_angle = f"Help {company.name} convert {company.funding_stage} capital into outbound pipeline."
 
         return CompanyScore(
             company_id=company.company_id,
@@ -470,7 +486,11 @@ def _build_context() -> ScoringContext:
 
 def _render_user_prompt(company: CompanyProfile) -> str:
     tech_stack = ", ".join(company.tech_stack) if company.tech_stack else "Unknown"
-    signals = "\n".join(str(url) for url in company.buying_signals) if company.buying_signals else "None provided"
+    signals = (
+        "\n".join(str(url) for url in company.buying_signals)
+        if company.buying_signals
+        else "None provided"
+    )
     return (
         "Score this company using the rubric and return JSON only.\n"
         f"Company: {company.name}\n"
@@ -530,7 +550,9 @@ def _parse_json_payload(raw_text: str) -> dict[str, Any]:
     """Best-effort JSON decoding that tolerates code fences or prose."""
     candidate = raw_text.strip()
     if candidate.startswith("```"):
-        candidate = "\n".join(line for line in candidate.splitlines() if not line.strip().startswith("```")).strip()
+        candidate = "\n".join(
+            line for line in candidate.splitlines() if not line.strip().startswith("```")
+        ).strip()
     if candidate.startswith("{") and candidate.endswith("}"):
         return json.loads(candidate)
     start = candidate.find("{")

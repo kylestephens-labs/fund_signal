@@ -31,12 +31,16 @@ class UtcNow(expression.FunctionElement):
 
 
 @compiles(UtcNow)
-def _utc_now_default(element, compiler, **kwargs) -> str:  # pragma: no cover - trivial sql generator
+def _utc_now_default(
+    element, compiler, **kwargs
+) -> str:  # pragma: no cover - trivial sql generator
     return "CURRENT_TIMESTAMP"
 
 
 @compiles(UtcNow, "postgresql")
-def _utc_now_default_postgres(element, compiler, **kwargs) -> str:  # pragma: no cover - trivial sql generator
+def _utc_now_default_postgres(
+    element, compiler, **kwargs
+) -> str:  # pragma: no cover - trivial sql generator
     return "timezone('utc', now())"
 
 
@@ -93,7 +97,7 @@ class ScoreRecord(SQLModel, table=True):
     )
 
     @classmethod
-    def from_company_score(cls, score: CompanyScore) -> "ScoreRecord":
+    def from_company_score(cls, score: CompanyScore) -> ScoreRecord:
         """Convert an in-memory CompanyScore into a persistence row."""
         persisted_id = score.id or uuid4()
         breakdown_payload = [item.model_dump(mode="json") for item in score.breakdown]

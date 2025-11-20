@@ -10,14 +10,19 @@ from tools import rotate_keys
 
 def _write_state(path: Path, **entries: str) -> None:
     path.write_text(
-        '{' + ", ".join(f'"{k}": "{v}"' for k, v in entries.items()) + '}',
+        "{" + ", ".join(f'"{k}": "{v}"' for k, v in entries.items()) + "}",
         encoding="utf-8",
     )
 
 
 def test_check_only_flags_expired_secret(monkeypatch, tmp_path: Path):
     state = tmp_path / "state.json"
-    expired_date = (datetime.now(UTC) - timedelta(days=200)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    expired_date = (
+        (datetime.now(UTC) - timedelta(days=200))
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
     _write_state(state, youcom=expired_date)
     monkeypatch.setenv("YOUCOM_API_KEY", "dummy")
 
@@ -35,7 +40,12 @@ def test_check_only_flags_expired_secret(monkeypatch, tmp_path: Path):
 
 def test_rotation_updates_state(monkeypatch, tmp_path: Path):
     state = tmp_path / "state.json"
-    old_date = (datetime.now(UTC) - timedelta(days=200)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    old_date = (
+        (datetime.now(UTC) - timedelta(days=200))
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
     _write_state(state, youcom=old_date)
     monkeypatch.setenv("YOUCOM_API_KEY", "dummy")
 

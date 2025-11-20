@@ -76,4 +76,3 @@ def test_verify_manifest_signature(tmp_path: Path, monkeypatch):
     with pytest.raises(VerificationError) as excinfo:
         verify_bundle.verify_manifest(manifest_path)
     assert excinfo.value.code == "E_SIGNATURE_MISMATCH"
-

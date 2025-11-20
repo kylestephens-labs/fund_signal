@@ -20,6 +20,8 @@ from tests.outages.fake_providers import (
     ProviderOutageScenario,
 )
 
+pytestmark = pytest.mark.slow
+
 
 class SleepRecorder:
     """Helper to capture exponential backoff sleeps without slowing tests."""
@@ -132,7 +134,9 @@ def test_proof_hydrator_logs_success_on_fallback(caplog):
     proof = hydrator.hydrate(company, "funding")
 
     assert str(proof.source_url) == "https://news.dev/acme"
-    outage_logs = [record for record in caplog.records if record.getMessage() == "proof_hydrator.outage_sim"]
+    outage_logs = [
+        record for record in caplog.records if record.getMessage() == "proof_hydrator.outage_sim"
+    ]
     assert outage_logs, "expected outage log entry"
     last = outage_logs[-1]
     assert last.status == "success"
@@ -152,7 +156,9 @@ def test_scoring_engine_surfaces_missing_proof_outage(caplog):
         engine.score_company(company, scoring_run_id="outage-1", force=True)
 
     assert excinfo.value.code == "404_PROOF_NOT_FOUND"
-    outage_logs = [record for record in caplog.records if record.getMessage() == "proof_hydrator.outage_sim"]
+    outage_logs = [
+        record for record in caplog.records if record.getMessage() == "proof_hydrator.outage_sim"
+    ]
     assert outage_logs, "expected outage log entry"
     last = outage_logs[-1]
     assert last.status == "error"

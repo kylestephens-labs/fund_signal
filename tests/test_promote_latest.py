@@ -40,4 +40,3 @@ def test_validate_bundle_missing_files(tmp_path: Path):
         assert "missing critical files" in str(exc)
     else:  # pragma: no cover - ensure failure occurs
         raise AssertionError("Expected FileNotFoundError for incomplete bundle")
-

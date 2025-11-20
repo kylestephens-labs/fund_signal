@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
-import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,10 +11,19 @@ from app.clients.tavily import TavilyError, TavilyTimeoutError
 from app.clients.youcom import YoucomError, YoucomTimeoutError
 
 DEFAULT_YOUCOM_RESULTS = [
-    {"url": "https://news.dev/acme", "title": "Acme raises Series A", "publisher": "News.dev", "snippet": "Funding wins."}
+    {
+        "url": "https://news.dev/acme",
+        "title": "Acme raises Series A",
+        "publisher": "News.dev",
+        "snippet": "Funding wins.",
+    }
 ]
 DEFAULT_TAVILY_RESULTS = [
-    {"url": "https://press.dev/acme", "title": "Acme secures Series A", "snippet": "Press coverage."}
+    {
+        "url": "https://press.dev/acme",
+        "title": "Acme secures Series A",
+        "snippet": "Press coverage.",
+    }
 ]
 DEFAULT_EXA_RESULTS = [
     {
@@ -40,7 +49,7 @@ class ProviderOutageScenario:
     results: list[dict[str, Any]] | None = None
 
     @classmethod
-    def from_env(cls, provider: str) -> "ProviderOutageScenario":
+    def from_env(cls, provider: str) -> ProviderOutageScenario:
         """Load outage defaults from environment variables."""
         mode = os.getenv("PROOF_OUTAGE_MODE", "timeout")
         delay = _read_int_env("PROOF_OUTAGE_DELAY_MS", 0)
@@ -62,10 +71,15 @@ class FakeYoucomClient:
         self._scenario = scenario
         self.calls = 0
 
-    def search_news(self, *, query: str, limit: int, time_filter: str | None = None) -> list[dict[str, Any]]:
+    def search_news(
+        self, *, query: str, limit: int, time_filter: str | None = None
+    ) -> list[dict[str, Any]]:
         del query, limit, time_filter
         self.calls += 1
-        if self._scenario.mode == "timeout" and self.calls <= self._scenario.attempts_before_success:
+        if (
+            self._scenario.mode == "timeout"
+            and self.calls <= self._scenario.attempts_before_success
+        ):
             raise YoucomTimeoutError()
         if self._scenario.mode == "server_error":
             raise YoucomError(
@@ -85,10 +99,15 @@ class FakeTavilyClient:
         self.calls = 0
         self.observed_latencies: list[float] = []
 
-    def search(self, *, query: str, max_results: int, days_limit: int | None = None) -> list[dict[str, Any]]:
+    def search(
+        self, *, query: str, max_results: int, days_limit: int | None = None
+    ) -> list[dict[str, Any]]:
         del query, max_results, days_limit
         self.calls += 1
-        if self._scenario.mode == "timeout" and self.calls <= self._scenario.attempts_before_success:
+        if (
+            self._scenario.mode == "timeout"
+            and self.calls <= self._scenario.attempts_before_success
+        ):
             raise TavilyTimeoutError()
         if self._scenario.mode == "server_error":
             raise TavilyError(
@@ -120,7 +139,10 @@ class FakeExaClient:
     ) -> list[dict[str, Any]]:
         del query, days_min, days_max, limit, autoprompt
         self.calls += 1
-        if self._scenario.mode == "timeout" and self.calls <= self._scenario.attempts_before_success:
+        if (
+            self._scenario.mode == "timeout"
+            and self.calls <= self._scenario.attempts_before_success
+        ):
             raise ExaTimeoutError()
         if self._scenario.mode == "server_error":
             raise ExaError(

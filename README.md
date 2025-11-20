@@ -71,6 +71,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health     # Ensure you see a 200 response
 ```
 
+### Quality Gates (Prove)
+
+All engineers and Codex agents run the same lint + test bar before handoff:
+
+```bash
+make setup-dev           # Creates .venv via uv and installs base+dev deps
+make prove-quick         # Ruff format check + lint + pytest -q $(PYTEST_FLAGS => -m "not slow and not contract")
+make prove-full          # Same checks with the full pytest suite via $(PYTEST_FULL_FLAGS)
+```
+
+Override `PYTEST_FLAGS` (e.g., `PYTEST_FLAGS='-m "not slow and not contract"'`) or `PYTEST_FULL_FLAGS` when you need to target specific pytest markers. `prove-quick` stays <1 minute for the inner loop by skipping `slow` pipeline/benchmark suites and `contract` tests that hit external APIs; `prove-full` mirrors CI and is the hook point for additional gates (mypy, fixture verification, contracts) documented in `docs/prove/prove_v1.md`.
+
 ### Runtime Modes (Day 1 Pipelines)
 
 | Env Var | Default | Purpose |

@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration maybe-install
+.PHONY: help install dev test lint format docker-build docker-run docker-compose-up clean test-integration maybe-install setup setup-dev prove-quick prove-full
 
 export UV_CACHE_DIR ?= $(abspath .uv-cache)
 USE_UV ?= 1
@@ -11,6 +11,9 @@ else
 PYTEST ?= python -m pytest
 RUFF ?= ruff
 endif
+
+PYTEST_FLAGS ?= -m "not slow and not contract"
+PYTEST_FULL_FLAGS ?=
 
 # Default target
 help: ## Show this help message
@@ -32,6 +35,18 @@ install: ## Install base + dev dependencies
 		pip install -r requirements.txt; \
 		pip install -r requirements-dev.txt; \
 	fi
+
+setup: ## Create a local virtualenv and install base dependencies (skips if .venv already exists)
+	@if [ ! -d ".venv" ]; then \
+		echo "Creating virtualenv via uv"; \
+		uv venv; \
+	else \
+		echo "Reusing existing virtualenv (.venv)"; \
+	fi
+	uv pip install -r requirements.txt
+
+setup-dev: setup ## Install dev dependencies needed for lint + tests
+	uv pip install -r requirements-dev.txt
 
 maybe-install:
 	@if [ "$(SKIP_INSTALL)" = "1" ]; then \
@@ -136,12 +151,14 @@ install-pip: ## Install dependencies with pip (legacy)
 dev-pip: ## Run development server with pip (legacy)
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-.PHONY: prove-quick prove-full
+# Fast feedback gate: lint + targeted tests
+prove-quick: setup-dev
+	$(RUFF) format --check app tests
+	$(RUFF) check app tests
+	$(PYTEST) -q $(PYTEST_FLAGS)
 
-# Fast feedback gate: run the test suite
-prove-quick:
-	pytest -q
-
-# Full gate: for now same as quick; later we can add linting, type checks, etc.
-prove-full:
-	pytest -q
+# Full gate: mirrors CI bar; extend with typing/contracts as they land
+prove-full: setup-dev
+	$(RUFF) format --check app tests
+	$(RUFF) check app tests
+	$(PYTEST) $(PYTEST_FULL_FLAGS)

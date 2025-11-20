@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
-from typing import Any, Iterable
+from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
@@ -56,7 +57,7 @@ class SignalProof(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _finalize(self) -> "SignalProof":
+    def _finalize(self) -> SignalProof:
         self.verified_by = _normalized_labels(self.verified_by)
         if self.timestamp.tzinfo is None:
             self.timestamp = self.timestamp.replace(tzinfo=UTC)
@@ -68,7 +69,7 @@ class SignalProof(BaseModel):
             self.source_hint = "redacted"
         return self
 
-    def ensure_fresh(self, max_age_days: int) -> "SignalProof":
+    def ensure_fresh(self, max_age_days: int) -> SignalProof:
         """Raise if proof is older than the configured freshness window."""
         if max_age_days <= 0:
             return self

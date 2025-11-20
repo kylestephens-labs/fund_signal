@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl, computed_field, conint, model_validator
@@ -44,7 +44,7 @@ class BreakdownItem(BaseModel):
         return values
 
     @model_validator(mode="after")
-    def _ensure_proof_list(self) -> "BreakdownItem":
+    def _ensure_proof_list(self) -> BreakdownItem:
         normalized = list(self.proofs) if self.proofs else [self.proof]
         self.proofs = normalized
         self.proof = normalized[0]
@@ -86,7 +86,7 @@ class CompanyProfile(BaseModel):
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CompanyScore(BaseModel):
@@ -104,7 +104,7 @@ class CompanyScore(BaseModel):
     updated_at: datetime | None = None
 
     @model_validator(mode="after")
-    def _default_updated_at(self) -> "CompanyScore":
+    def _default_updated_at(self) -> CompanyScore:
         if self.updated_at is None or self.updated_at < self.created_at:
             self.updated_at = self.created_at
         return self

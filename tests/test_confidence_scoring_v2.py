@@ -69,7 +69,11 @@ def test_rules_are_deterministic(tmp_path: Path):
             "normalized": {"stage": "Seed", "amount": {"value": 3}},
             "confirmations": {
                 "youcom": [
-                    {"url": "https://techcrunch.com/beta", "domain": "techcrunch.com", "match": {"amount": True}}
+                    {
+                        "url": "https://techcrunch.com/beta",
+                        "domain": "techcrunch.com",
+                        "match": {"amount": True},
+                    }
                 ],
                 "tavily": [
                     {
@@ -103,8 +107,20 @@ def test_rules_version_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
             "company_name": "Gamma Cloud",
             "normalized": {"stage": "Series B", "amount": {"value": 20}},
             "confirmations": {
-                "youcom": [{"url": "https://techcrunch.com/gamma", "domain": "techcrunch.com", "match": {"stage": True}}],
-                "tavily": [{"url": "https://www.businesswire.com/gamma", "domain": "businesswire.com", "match": {"amount": True}}],
+                "youcom": [
+                    {
+                        "url": "https://techcrunch.com/gamma",
+                        "domain": "techcrunch.com",
+                        "match": {"stage": True},
+                    }
+                ],
+                "tavily": [
+                    {
+                        "url": "https://www.businesswire.com/gamma",
+                        "domain": "businesswire.com",
+                        "match": {"amount": True},
+                    }
+                ],
             },
         }
     ]
@@ -130,7 +146,13 @@ def test_timestamp_override_controls_scored_at(tmp_path: Path):
             "company_name": "Theta AI",
             "normalized": {"stage": "Seed", "amount": {"value": 1.5}},
             "confirmations": {
-                "youcom": [{"url": "https://techcrunch.com/theta", "domain": "techcrunch.com", "match": {"amount": True}}],
+                "youcom": [
+                    {
+                        "url": "https://techcrunch.com/theta",
+                        "domain": "techcrunch.com",
+                        "match": {"amount": True},
+                    }
+                ],
                 "tavily": [],
             },
         }
@@ -159,8 +181,20 @@ def test_timestamp_override_produces_stable_scoring_file(tmp_path: Path):
             "company_name": "Lambda AI",
             "normalized": {"stage": "Series A", "amount": {"value": 7}},
             "confirmations": {
-                "youcom": [{"url": "https://techcrunch.com/lambda", "domain": "techcrunch.com", "match": {"stage": True}}],
-                "tavily": [{"url": "https://wire.example/lambda", "domain": "wire.example", "match": {"amount": True}}],
+                "youcom": [
+                    {
+                        "url": "https://techcrunch.com/lambda",
+                        "domain": "techcrunch.com",
+                        "match": {"stage": True},
+                    }
+                ],
+                "tavily": [
+                    {
+                        "url": "https://wire.example/lambda",
+                        "domain": "wire.example",
+                        "match": {"amount": True},
+                    }
+                ],
             },
         }
     ]

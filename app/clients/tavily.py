@@ -134,4 +134,6 @@ class TavilyClient:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
 logger = logging.getLogger("app.clients.tavily")

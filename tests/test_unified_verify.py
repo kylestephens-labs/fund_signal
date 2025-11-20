@@ -6,6 +6,8 @@ import pytest
 
 from pipelines.day1 import unified_verify
 
+pytestmark = pytest.mark.slow
+
 
 def _write_normalized_seed(path: Path, entries: list[dict]) -> None:
     payload = {
@@ -13,7 +15,12 @@ def _write_normalized_seed(path: Path, entries: list[dict]) -> None:
         "items_total": len(entries),
         "items_parsed": len(entries),
         "items_skipped": 0,
-        "coverage_by_field": {"company_name": len(entries), "funding_stage": len(entries), "amount": len(entries), "announced_date": len(entries)},
+        "coverage_by_field": {
+            "company_name": len(entries),
+            "funding_stage": len(entries),
+            "amount": len(entries),
+            "announced_date": len(entries),
+        },
         "data": entries,
         "skipped": [],
     }
@@ -111,7 +118,10 @@ def test_unified_verify_merges_sources(tmp_path: Path):
     assert lead["unique_domains_by_source"] == {"youcom": 1, "tavily": 2}
     assert lead["articles_all"] == [
         {"url": "https://techcrunch.com/acme-ai-series-a", "domain": "techcrunch.com"},
-        {"url": "https://www.businesswire.com/news/home/20250101005000/en/Acme-AI-Series-A", "domain": "businesswire.com"},
+        {
+            "url": "https://www.businesswire.com/news/home/20250101005000/en/Acme-AI-Series-A",
+            "domain": "businesswire.com",
+        },
     ]
 
 
@@ -249,11 +259,33 @@ def test_timestamp_override_sets_generated_at(tmp_path: Path):
 
     _write_fixture(
         youcom_path,
-        [{"slug": "delta-ai", "data": [{"url": "https://press.example/delta", "title": "Delta AI raises $10M Series A", "snippet": "Delta AI raises."}]}],
+        [
+            {
+                "slug": "delta-ai",
+                "data": [
+                    {
+                        "url": "https://press.example/delta",
+                        "title": "Delta AI raises $10M Series A",
+                        "snippet": "Delta AI raises.",
+                    }
+                ],
+            }
+        ],
     )
     _write_fixture(
         tavily_path,
-        [{"slug": "delta-ai", "data": [{"url": "https://wire.example/delta", "title": "Delta AI raises $10M", "content": "Delta AI raises."}]}],
+        [
+            {
+                "slug": "delta-ai",
+                "data": [
+                    {
+                        "url": "https://wire.example/delta",
+                        "title": "Delta AI raises $10M",
+                        "content": "Delta AI raises.",
+                    }
+                ],
+            }
+        ],
     )
 
     override = "2025-02-01T12:30:00Z"
@@ -290,11 +322,33 @@ def test_timestamp_override_produces_stable_file(tmp_path: Path):
 
     _write_fixture(
         youcom_path,
-        [{"slug": "epsilon-ai", "data": [{"url": "https://press.example/epsilon", "title": "Epsilon raises $5M", "snippet": "Seed funding."}]}],
+        [
+            {
+                "slug": "epsilon-ai",
+                "data": [
+                    {
+                        "url": "https://press.example/epsilon",
+                        "title": "Epsilon raises $5M",
+                        "snippet": "Seed funding.",
+                    }
+                ],
+            }
+        ],
     )
     _write_fixture(
         tavily_path,
-        [{"slug": "epsilon-ai", "data": [{"url": "https://wire.example/epsilon", "title": "Epsilon funding", "content": "Seed funding."}]}],
+        [
+            {
+                "slug": "epsilon-ai",
+                "data": [
+                    {
+                        "url": "https://wire.example/epsilon",
+                        "title": "Epsilon funding",
+                        "content": "Seed funding.",
+                    }
+                ],
+            }
+        ],
     )
 
     override = "2025-01-15T00:00:00Z"

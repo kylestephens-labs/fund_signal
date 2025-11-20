@@ -3,14 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
+
 import pytest
 
 from app.models.company import CompanyProfile
 from app.models.signal_breakdown import SignalEvidence
 from app.services.scoring import proof_links as proof_links_module
 from app.services.scoring.proof_links import ProofLinkError, ProofLinkHydrator
-from tools import proof_links_load_test
 from tests.helpers.metrics_stub import StubMetrics
+from tools import proof_links_load_test
 
 
 def _recent_timestamp(offset_days: int = 5) -> datetime:
@@ -33,7 +34,6 @@ def _company(**overrides) -> CompanyProfile:
     }
     payload.update(overrides)
     return CompanyProfile(**payload)
-
 
 
 def test_hydrate_prefers_structured_signal_metadata():
@@ -258,7 +258,9 @@ def test_proof_link_load_harness_cli_threshold(monkeypatch):
         "errors": [],
     }
     monkeypatch.setattr(proof_links_load_test, "run_load_test", lambda config: fake_result)
-    monkeypatch.setattr(proof_links_load_test, "_emit_summary_logs", lambda result, threshold_ms=None: None)
+    monkeypatch.setattr(
+        proof_links_load_test, "_emit_summary_logs", lambda result, threshold_ms=None: None
+    )
     args = [
         "--input",
         "tests/fixtures/scoring/regression_companies.json",

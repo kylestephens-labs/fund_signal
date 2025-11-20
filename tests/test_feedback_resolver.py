@@ -1,5 +1,5 @@
-import json
 import hashlib
+import json
 from pathlib import Path
 
 from tools import verify_feedback_resolver
@@ -71,5 +71,9 @@ def test_feedback_resolver_updates_manifest(tmp_path: Path):
 
     assert summary["output_sha256"] == compute_sha256(output)
     updated_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    entry = next(item for item in updated_manifest["files"] if item["path"] == "leads/exa_seed.feedback_resolved.json")
+    entry = next(
+        item
+        for item in updated_manifest["files"]
+        if item["path"] == "leads/exa_seed.feedback_resolved.json"
+    )
     assert entry["sha256"] == hashlib.sha256(output.read_bytes()).hexdigest()

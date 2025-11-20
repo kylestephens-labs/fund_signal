@@ -21,7 +21,12 @@ def test_seed_normalizer_extracts_core_fields(tmp_path):
     assert normalized.amount.value == 8
     assert normalized.amount.unit == "M"
     assert normalized.announced_date.isoformat() == "2025-09-15"
-    assert meta["extraction_method"] in {"regex", "publisher_split", "delimiter_regex", "delimiter_plain"}
+    assert meta["extraction_method"] in {
+        "regex",
+        "publisher_split",
+        "delimiter_regex",
+        "delimiter_plain",
+    }
 
 
 def test_normalize_file_writes_payload(tmp_path):

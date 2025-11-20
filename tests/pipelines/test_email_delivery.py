@@ -130,7 +130,12 @@ def test_deliver_sends_via_smtp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         def quit(self) -> None:
             self.closed = True
 
-    monkeypatch.setattr(module, "_create_smtp_client", lambda config: StubSMTP(config.host, config.port), raising=False)
+    monkeypatch.setattr(
+        module,
+        "_create_smtp_client",
+        lambda config: StubSMTP(config.host, config.port),
+        raising=False,
+    )
 
     output = tmp_path / "digest.md"
     module.run(

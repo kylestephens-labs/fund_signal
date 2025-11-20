@@ -85,7 +85,15 @@ def test_discover_with_retries_handles_rate_limit(monkeypatch):
             self._attempts += 1
             if self._attempts == 1:
                 raise ExaRateLimitError()
-            return [{"title": "Acme raises $1M Seed", "summary": "Seed", "text": "Seed", "url": "https://example.com", "publishedDate": datetime.now(tz=UTC).isoformat()}]
+            return [
+                {
+                    "title": "Acme raises $1M Seed",
+                    "summary": "Seed",
+                    "text": "Seed",
+                    "url": "https://example.com",
+                    "publishedDate": datetime.now(tz=UTC).isoformat(),
+                }
+            ]
 
     client = FlakyClient()
     results = exa_discovery.discover_with_retries(
