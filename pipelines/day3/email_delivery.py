@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import html
 import logging
 import smtplib
@@ -32,6 +33,8 @@ from pipelines.day3 import (
 logger = logging.getLogger("pipelines.day3.email")
 
 DEFAULT_OUTPUT = Path(settings.delivery_output_dir or "output") / "email_delivery.md"
+HTML_OUTPUT_SUFFIX = ".html"
+CSV_OUTPUT_SUFFIX = ".csv"
 DEFAULT_SMTP_TIMEOUT = 15.0
 
 
@@ -62,7 +65,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
-        help=f"Destination for the rendered Markdown (default: {DEFAULT_OUTPUT})",
+        help=f"Destination for the rendered Markdown; HTML/CSV siblings share the same stem (default: {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
         "--limit",
@@ -97,9 +100,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def render_email(scoring_run_id: str, scores: Sequence[CompanyScore]) -> str:
+def render_email(scoring_run_id: str, scores: Sequence[CompanyScore], *, generated_at: str | None = None) -> str:
     """Return a Markdown digest for the supplied scoring run."""
-    timestamp = utc_now()
+    timestamp = generated_at or utc_now()
     lines: list[str] = [
         f"# FundSignal Delivery — Run {scoring_run_id}",
         "",
@@ -131,6 +134,114 @@ def render_email(scoring_run_id: str, scores: Sequence[CompanyScore]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def render_email_html(
+    scoring_run_id: str,
+    scores: Sequence[CompanyScore],
+    *,
+    csv_href: str,
+    generated_at: str,
+) -> str:
+    """Return an HTML digest mirroring the Slack payload with a CSV download link."""
+    parts: list[str] = [
+        "<html>",
+        "<body>",
+        f"<h1>FundSignal Delivery — Run {html.escape(scoring_run_id)}</h1>",
+        f"<p><em>Generated at {html.escape(generated_at)}</em></p>",
+        f'<p><strong><a href="{html.escape(csv_href)}">Download CSV</a></strong> (attached)</p>',
+        "<ol>",
+    ]
+    for index, score in enumerate(scores, start=1):
+        confidence = compute_confidence(score.score)
+        parts.append("<li>")
+        parts.append(
+            f"<h2>{index}. {html.escape(str(score.company_id))} — {score.score} pts ({confidence})</h2>"
+        )
+        parts.append("<ul>")
+        parts.append(
+            f"<li><strong>Recommended approach:</strong> {html.escape(score.recommended_approach)}</li>"
+        )
+        parts.append(f"<li><strong>Pitch angle:</strong> {html.escape(score.pitch_angle)}</li>")
+        proof_items = _render_proof_links(score)
+        if proof_items:
+            parts.append("<li><strong>Proofs:</strong><ul>")
+            parts.extend(proof_items)
+            parts.append("</ul></li>")
+        else:
+            parts.append("<li><strong>Proofs:</strong> <em>None provided</em></li>")
+        parts.append("</ul>")
+        parts.append("</li>")
+    parts.append("</ol>")
+    parts.append("</body>")
+    parts.append("</html>")
+    return "\n".join(parts)
+
+
+def _render_proof_links(score: CompanyScore, max_items: int = 2) -> list[str]:
+    items: list[str] = []
+    for entry in score.breakdown:
+        for proof in summarize_proofs(entry):
+            if len(items) >= max_items:
+                break
+            url = html.escape(proof["source_url"])
+            label = html.escape(entry.reason)
+            verified_by = ", ".join(proof["verified_by"] or []) if proof["verified_by"] else None
+            suffix = f" ({html.escape(verified_by)})" if verified_by else ""
+            items.append(f'<li><a href="{url}">{label}</a>{suffix}</li>')
+        if len(items) >= max_items:
+            break
+    return items
+
+
+def _write_csv(
+    destination: Path,
+    scoring_run_id: str,
+    scores: Sequence[CompanyScore],
+    *,
+    generated_at: str,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "company_id",
+        "score",
+        "confidence",
+        "recommended_approach",
+        "pitch_angle",
+        "proofs",
+        "scoring_run_id",
+        "generated_at",
+    ]
+    with destination.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for score in scores:
+            proof_urls = [
+                proof["source_url"] or ""
+                for entry in score.breakdown
+                for proof in summarize_proofs(entry)
+                if proof.get("source_url")
+            ]
+            writer.writerow(
+                {
+                    "company_id": score.company_id,
+                    "score": score.score,
+                    "confidence": compute_confidence(score.score),
+                    "recommended_approach": score.recommended_approach,
+                    "pitch_angle": score.pitch_angle,
+                    "proofs": ", ".join(proof_urls),
+                    "scoring_run_id": scoring_run_id,
+                    "generated_at": generated_at,
+                }
+            )
+    logger.info(
+        "delivery.email.csv_written",
+        extra={"scoring_run_id": scoring_run_id, "count": len(scores), "output": str(destination)},
+    )
+    metrics.increment(
+        "delivery.email.csv_written",
+        tags={"scoring_run": scoring_run_id, "count": len(scores)},
+    )
+
+
 def run(argv: Sequence[str] | None = None) -> Path:
     args = parse_args(argv)
     scoring_run_id = resolve_scoring_run(args.scoring_run)
@@ -143,15 +254,26 @@ def run(argv: Sequence[str] | None = None) -> Path:
             f"All companies fell below the minimum score of {args.min_score}.",
             code="E_NO_COMPANIES",
         )
+    generated_at = utc_now()
     if args.force_refresh:
         logger.info(
             "delivery.email.force_refresh",
             extra={"scoring_run_id": scoring_run_id},
         )
-    payload = render_email(scoring_run_id, filtered)
+    payload = render_email(scoring_run_id, filtered, generated_at=generated_at)
     output_path = args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(payload, encoding="utf-8")
+    html_output = output_path.with_suffix(HTML_OUTPUT_SUFFIX)
+    artifact_html = render_email_html(
+        scoring_run_id,
+        filtered,
+        csv_href=html.escape(output_path.with_suffix(CSV_OUTPUT_SUFFIX).name),
+        generated_at=generated_at,
+    )
+    html_output.write_text(artifact_html, encoding="utf-8")
+    csv_output = output_path.with_suffix(CSV_OUTPUT_SUFFIX)
+    _write_csv(csv_output, scoring_run_id, filtered, generated_at=generated_at)
     record_delivery_event(
         "email",
         scoring_run_id=scoring_run_id,
@@ -160,16 +282,35 @@ def run(argv: Sequence[str] | None = None) -> Path:
     )
     logger.info(
         "delivery.email.rendered",
-        extra={"scoring_run_id": scoring_run_id, "output": str(output_path)},
+        extra={
+            "scoring_run_id": scoring_run_id,
+            "output": str(output_path),
+            "html_output": str(html_output),
+            "csv_output": str(csv_output),
+        },
     )
     if args.deliver:
-        _deliver_via_smtp(scoring_run_id, payload, output_path)
+        csv_content_id = make_msgid(domain="fundsignal.csv").strip("<>")
+        email_html = render_email_html(
+            scoring_run_id,
+            filtered,
+            csv_href=f"cid:{csv_content_id}",
+            generated_at=generated_at,
+        )
+        _deliver_via_smtp(scoring_run_id, payload, email_html, output_path, csv_output, csv_content_id)
     return output_path
 
 
-def _deliver_via_smtp(scoring_run_id: str, payload: str, artifact_path: Path) -> None:
+def _deliver_via_smtp(
+    scoring_run_id: str,
+    text_body: str,
+    html_body: str,
+    artifact_path: Path,
+    csv_path: Path,
+    csv_content_id: str,
+) -> None:
     config = _build_smtp_config(scoring_run_id)
-    message, recipients = _render_email_message(config, payload, scoring_run_id)
+    message, recipients = _render_email_message(config, text_body, html_body, scoring_run_id, csv_path, csv_content_id)
     start = time.perf_counter()
     client = _create_smtp_client(config)
     try:
@@ -230,7 +371,12 @@ def _create_smtp_client(config: SMTPDeliveryConfig) -> smtplib.SMTP:
 
 
 def _render_email_message(
-    config: SMTPDeliveryConfig, payload: str, scoring_run_id: str
+    config: SMTPDeliveryConfig,
+    text_body: str,
+    html_body: str,
+    scoring_run_id: str,
+    csv_path: Path,
+    csv_content_id: str,
 ) -> tuple[EmailMessage, list[str]]:
     message = EmailMessage()
     message_id = make_msgid()
@@ -248,8 +394,16 @@ def _render_email_message(
         recipients.extend(config.bcc_addresses)
     message["Date"] = formatdate(localtime=True)
     message["Message-ID"] = message_id
-    message.set_content(payload)
-    message.add_alternative(f"<pre>{html.escape(payload)}</pre>", subtype="html")
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
+    if csv_path.exists():
+        message.add_attachment(
+            csv_path.read_bytes(),
+            maintype="text",
+            subtype="csv",
+            filename=csv_path.name,
+            cid=csv_content_id,
+        )
     return message, recipients
 
 

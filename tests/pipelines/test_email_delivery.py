@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -62,6 +63,15 @@ def test_run_generates_markdown_without_delivery(tmp_path: Path, monkeypatch: py
     assert result == output
     contents = output.read_text(encoding="utf-8")
     assert "Funding momentum" in contents
+    html_output = output.with_suffix(".html")
+    assert html_output.exists()
+    html_contents = html_output.read_text(encoding="utf-8")
+    assert "Download CSV" in html_contents
+    csv_output = output.with_suffix(".csv")
+    with csv_output.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["company_id"]
+    assert rows[0]["proofs"].startswith("https://news.example.com/proof")
 
 
 def test_deliver_requires_email_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -84,6 +94,8 @@ def test_deliver_requires_email_env(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         )
 
     assert output.exists()
+    assert output.with_suffix(".html").exists()
+    assert output.with_suffix(".csv").exists()
 
 
 def test_deliver_sends_via_smtp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -119,11 +131,15 @@ def test_deliver_sends_via_smtp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
             self.logged_in = (username, password)
 
         def send_message(self, message, to_addrs=None) -> None:  # noqa: ANN001
+            html_body = message.get_body(preferencelist=("html",)).get_content()
+            attachments = list(message.iter_attachments())
             sent_messages.append(
                 {
                     "subject": message["Subject"],
                     "recipients": list(to_addrs or []),
                     "body": message.get_body(preferencelist=("plain",)).get_content(),
+                    "html_body": html_body,
+                    "attachments": attachments,
                 }
             )
 
@@ -152,6 +168,8 @@ def test_deliver_sends_via_smtp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert sent_messages[0]["subject"] == "Weekly FundSignal Drop"
     assert sent_messages[0]["recipients"] == ["ops@fundsignal.dev"]
     assert "Funding momentum" in sent_messages[0]["body"]
+    assert "Download CSV" in sent_messages[0]["html_body"]
+    assert sent_messages[0]["attachments"], "CSV attachment missing"
 
 
 def test_no_deliver_flag_overrides_env_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

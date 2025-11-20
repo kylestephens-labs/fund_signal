@@ -189,7 +189,7 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
    uv run python -m pipelines.day3.email_delivery --output output/email_demo.md --deliver
    ```
 
-   The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and still writes the Markdown artifact for auditing.
+   The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and writes Markdown + HTML + CSV artifacts under `DELIVERY_OUTPUT_DIR`. The HTML body mirrors Slack content, includes a top “Download CSV” link, and attaches the CSV to the outbound email for easy export.
 
    > ⚠️ **Credential safety:** never commit SMTP creds to Git. Store them in Render/GitHub secrets (or a local `.env` that stays ignored), and test delivery with sandbox servers (Mailtrap, Papercut, `python -m smtpd -c DebuggingServer`). Set `EMAIL_DISABLE_TLS=true` only for local debug servers; production SMTP should keep TLS enabled.
 

@@ -298,6 +298,7 @@ FUND_SIGNAL_MODE: fixture (uses captured evidence)
 - Include CSV download link at top
 
 FUND_SIGNAL_MODE: fixture (HTML rendering)
+Repo: Backend
 
 ### 2. Set up email automation (2 hours)
 
@@ -310,6 +311,7 @@ Step 3: Send to customer distribution list
 ```
 
 FUND_SIGNAL_MODE: online (requires email connection)
+Repo: Backend
 
 **Definition of Done:**
 - ✅ Email digest sends Monday 9 AM
@@ -347,6 +349,7 @@ Was this lead relevant?
 ```
 
 FUND_SIGNAL_MODE: fixture (UI + API mocks)
+Repo: Frontend
 
 ### 2. Build feedback tracking (2 hours)
 
@@ -369,6 +372,7 @@ if signal.wrong_fit_correlation > 0.7:
 ```
 
 FUND_SIGNAL_MODE: fixture (local DB + seed data)
+Repo: Backend
 
 ### 3. Build "Missed lead?" form (2 hours)
 
@@ -381,6 +385,7 @@ We'll enrich it and add to your list within 24h.
 ```
 
 FUND_SIGNAL_MODE: fixture (form + local queue)
+Repo: Frontend
 
 ### 4. Set up manual enrichment workflow (1 hour)
 
@@ -393,6 +398,7 @@ When user submits link:
 ```
 
 FUND_SIGNAL_MODE: online (needs Slack + notification hooks)
+Repo: Backend
 
 **Definition of Done:**
 - ✅ Feedback buttons work on every lead
@@ -435,6 +441,7 @@ With proof links and explainable scores.
 **Guarantee:** "If you don't book 2 meetings in your first month, we'll refund you"
 
 FUND_SIGNAL_MODE: fixture (Carrd/content only)
+Repo: Frontend
 
 ### 2. Build signup flow (2 hours)
 
@@ -447,6 +454,7 @@ Step 5: Get first prospects within 5 minutes
 ```
 
 FUND_SIGNAL_MODE: fixture (local mock signup)
+Repo: Frontend
 
 ### 3. Set up Stripe checkout (1 hour)
 - Starter: $149/mo
@@ -456,6 +464,7 @@ FUND_SIGNAL_MODE: fixture (local mock signup)
 - Cancel anytime
 
 FUND_SIGNAL_MODE: online (Stripe test/live keys)
+Repo: Backend
 
 **Definition of Done:**
 - ✅ Landing page live at fundsignal.com
@@ -492,6 +501,7 @@ Would love feedback from Clay community!"
 ```
 
 FUND_SIGNAL_MODE: online (requires posting to communities)
+Repo: Frontend
 
 ### 2. Launch in r/sales (1 hour)
 
@@ -513,12 +523,14 @@ First 10 users get $49/mo for life."
 ```
 
 FUND_SIGNAL_MODE: online (Reddit post)
+Repo: Frontend
 
 ### 3. Direct outreach (2 hours)
 - Message 20 AEs/SDRs on LinkedIn
 - "Hey [Name], testing a new prospecting tool—takes 5 min to set up, shows recently funded companies with verified news coverage. Curious for your feedback?"
 
 FUND_SIGNAL_MODE: online (LinkedIn messaging)
+Repo: Frontend
 
 **Definition of Done:**
 - ✅ 3 community posts live
@@ -538,6 +550,7 @@ FUND_SIGNAL_MODE: online (LinkedIn messaging)
 - Schedule 15-min call with each user
 
 FUND_SIGNAL_MODE: online (real users)
+Repo: Frontend
 
 ### 2. Monitor engagement (2 hours)
 - % who click Slack alert
@@ -546,6 +559,7 @@ FUND_SIGNAL_MODE: online (real users)
 - % who submit "missed lead" requests
 
 FUND_SIGNAL_MODE: online (live telemetry)
+Repo: Backend
 
 ### 3. Iterate immediately (3 hours)
 - Fix #1 complaint within 24h
@@ -553,6 +567,7 @@ FUND_SIGNAL_MODE: online (live telemetry)
 - Add most-requested feature
 
 FUND_SIGNAL_MODE: fixture (implement fixes locally, then redeploy)
+Repo: Backend
 
 **Definition of Done:**
 - ✅ 10 trial signups onboarded
@@ -626,12 +641,14 @@ FUND_SIGNAL_MODE: fixture (implement fixes locally, then redeploy)
 ```
 
 FUND_SIGNAL_MODE: fixture (formatting only)
+Repo: Backend
 
 ### Build Airtable/CSV export (1 hour)
 - One-click "Download this week's prospects"
 - Columns: Company, Score, Confidence, Verified By, Funding, Hiring, Tech Stack, Proof Links
 
 FUND_SIGNAL_MODE: fixture (generate exports from captured bundle)
+Repo: Backend
 
 ### Set up Slack + CSV automation (2 hours)
 
@@ -646,6 +663,7 @@ Step 5: Generate CSV, upload to Airtable
 ```
 
 FUND_SIGNAL_MODE: online (requires Slack/email/Airtable connections)
+Repo: Backend
 
 ---
 
