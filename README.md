@@ -212,6 +212,8 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
 
    The scheduler wrapper logs `delivery.email.schedule.start|success`, enforces Monday 09:00 when `--enforce-window` is set, and delegates to `email_delivery` to write Markdown/HTML/CSV artifacts and send via SMTP. Use Mailtrap/Papercut in staging; secrets stay in env and are never printed.
 
+   **GitHub Actions opt-in:** `.github/workflows/day3-email-cron.yml` runs the same command on Monday at 09:00 PT (cron in UTC with a double-slot for DST) with `DELIVERY_EMAIL_FORCE_RUN=true`, seeds via `scripts/seed_scores.py`, and uploads `output/email_cron.*` artifacts on failure. Set secrets/vars: `DATABASE_URL`, `EMAIL_SMTP_URL`, `EMAIL_FROM`, `EMAIL_TO/CC/BCC`, `DELIVERY_SCORING_RUN` (defaults to `demo-day3`), `DELIVERY_OUTPUT_DIR` (defaults to `output`), and optional `EMAIL_SUBJECT`/`EMAIL_DISABLE_TLS`.
+
    > ⚠️ **Credential safety:** never commit SMTP creds to Git. Store them in Render/GitHub secrets (or a local `.env` that stays ignored), and test delivery with sandbox servers (Mailtrap, Papercut, `python -m smtpd -c DebuggingServer`). Set `EMAIL_DISABLE_TLS=true` only for local debug servers; production SMTP should keep TLS enabled.
 
 3. **Generate the Slack payload**

@@ -1,0 +1,65 @@
+name: Day-3 Email Cron
+
+on:
+  schedule:
+    # Runs around Monday 09:00 Pacific; enforce-window prevents off-slot sends.
+    - cron: "0 16 * * 1"
+    - cron: "0 17 * * 1"
+  workflow_dispatch:
+
+env:
+  DELIVERY_SCORING_RUN: ${{ vars.DELIVERY_SCORING_RUN || 'demo-day3' }}
+  DELIVERY_EMAIL_FORCE_RUN: "true"
+  DELIVERY_OUTPUT_DIR: output
+  EMAIL_FROM: ${{ secrets.EMAIL_FROM || vars.EMAIL_FROM }}
+  EMAIL_TO: ${{ secrets.EMAIL_TO || vars.EMAIL_TO }}
+  EMAIL_CC: ${{ secrets.EMAIL_CC || vars.EMAIL_CC || '' }}
+  EMAIL_BCC: ${{ secrets.EMAIL_BCC || vars.EMAIL_BCC || '' }}
+  EMAIL_SUBJECT: ${{ secrets.EMAIL_SUBJECT || vars.EMAIL_SUBJECT || '' }}
+  EMAIL_DISABLE_TLS: ${{ secrets.EMAIL_DISABLE_TLS || vars.EMAIL_DISABLE_TLS || 'false' }}
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.UI_SMOKE_DATABASE_URL || '' }}
+      EMAIL_SMTP_URL: ${{ secrets.EMAIL_SMTP_URL || vars.EMAIL_SMTP_URL || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install -r requirements.txt
+
+      - name: Seed scoring run
+        run: |
+          uv run python scripts/seed_scores.py \
+            --fixture tests/fixtures/scoring/regression_companies.json \
+            --scoring-run "${DELIVERY_SCORING_RUN}" \
+            --seed-all \
+            --force
+
+      - name: Send Day-3 email digest (enforced window)
+        run: |
+          uv run python -m pipelines.day3.email_schedule \
+            --output "${DELIVERY_OUTPUT_DIR}/email_cron.md" \
+            --company-limit 25 \
+            --min-score 80 \
+            --deliver \
+            --enforce-window \
+            --timezone America/Los_Angeles
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: day3-email-cron-artifacts
+          if-no-files-found: warn
+          path: |
+            ${DELIVERY_OUTPUT_DIR}/email_cron.*
