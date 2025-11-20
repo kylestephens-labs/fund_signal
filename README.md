@@ -191,6 +191,20 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
 
    The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and writes Markdown + HTML + CSV artifacts under `DELIVERY_OUTPUT_DIR`. The HTML body mirrors Slack content, includes a top “Download CSV” link, and attaches the CSV to the outbound email for easy export.
 
+4. **Schedule the Monday 9 AM PT send (cron-friendly)**
+
+   ```bash
+   export DELIVERY_SCORING_RUN=demo-day3
+   export DELIVERY_EMAIL_FORCE_RUN=true
+   export EMAIL_SMTP_URL=...
+   export EMAIL_FROM="FundSignal <alerts@fundsignal.dev>"
+   export EMAIL_TO=ops@fundsignal.dev,revops@example.com
+   # Cron example (Render/GitHub/host): 0 9 * * 1 TZ=America/Los_Angeles
+   uv run python -m pipelines.day3.email_schedule --output output/email_cron.md --company-limit 25 --min-score 80 --deliver --timezone America/Los_Angeles --enforce-window
+   ```
+
+   The scheduler wrapper logs `delivery.email.schedule.start|success`, enforces Monday 09:00 when `--enforce-window` is set, and delegates to `email_delivery` to write Markdown/HTML/CSV artifacts and send via SMTP. Use Mailtrap/Papercut in staging; secrets stay in env and are never printed.
+
    > ⚠️ **Credential safety:** never commit SMTP creds to Git. Store them in Render/GitHub secrets (or a local `.env` that stays ignored), and test delivery with sandbox servers (Mailtrap, Papercut, `python -m smtpd -c DebuggingServer`). Set `EMAIL_DISABLE_TLS=true` only for local debug servers; production SMTP should keep TLS enabled.
 
 3. **Generate the Slack payload**

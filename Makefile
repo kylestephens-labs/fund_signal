@@ -140,6 +140,9 @@ email-demo: ## Render the Day-3 email digest from persisted scores
 email-demo-deliver: ## Render and send the Day-3 email digest via SMTP (--deliver flag)
 	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_delivery --output output/email_demo.md --deliver
 
+email-cron: ## Cron-friendly Day-3 email delivery (Monday 9 AM PT)
+	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.email_schedule --output output/email_cron.md --deliver --company-limit 25 --min-score 80
+
 slack-demo: ## Render the Day-3 Slack payload from persisted scores
 	DELIVERY_SCORING_RUN=$${DELIVERY_SCORING_RUN:-demo-day3} uv run python -m pipelines.day3.slack_delivery --output output/slack_demo.json
 
