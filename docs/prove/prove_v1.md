@@ -109,8 +109,9 @@ Create `prove/prove.config.example.toml` plus a brief README snippet describing 
   • docs/prove/prove_overview.md
 
 ### Task C: Update Codex roles + Task Template
-Amend Task Writer, Builder, and Refactorer instructions so they all cite `make prove-quick` as the required quick-test command (and mention `prove-full` for pre-merge/CI). This keeps the human/agent instructions aligned with the new gates. 📚 ESSENTIAL CONTEXT:
+Amend Task Writer, Builder, and Refactorer instructions so they all cite `make prove-quick` as the required quick-test command, and clarify that `make prove-full` runs in CI/post-merge (optional locally before merging). This keeps the human/agent instructions aligned with the new gates without slowing development. 📚 ESSENTIAL CONTEXT:
   • .project/codex/roles/task_writer.md
   • .project/codex/roles/builder.md
   • .project/codex/roles/refactorer.md
   • docs/prove/prove_v1.md
+
