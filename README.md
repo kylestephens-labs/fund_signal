@@ -190,10 +190,17 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
    ```
 
    The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and writes Markdown + HTML + CSV artifacts under `DELIVERY_OUTPUT_DIR`. The HTML body mirrors Slack content, includes a top “Download CSV” link, and attaches the CSV to the outbound email for easy export.
+   Set `DELIVERY_EMAIL_FORCE_RUN=true` for cron jobs that always send and pass `--no-deliver` locally to render artifacts without sending when the force flag is set.
 
 4. **Schedule the Monday 9 AM PT send (cron-friendly)**
 
    ```bash
+   # Pre-seed the scoring run used by the scheduler (default demo-day3)
+   DELIVERY_SCORING_RUN=demo-day3 make seed-scores
+
+   # Or run both in one shot
+   DELIVERY_SCORING_RUN=demo-day3 make email-cron-seed
+
    export DELIVERY_SCORING_RUN=demo-day3
    export DELIVERY_EMAIL_FORCE_RUN=true
    export EMAIL_SMTP_URL=...
@@ -568,8 +575,8 @@ Use the deterministic persona baked into `tests/fixtures/scoring/regression_comp
 
 1. Export `DATABASE_URL`, `UI_SMOKE_COMPANY_ID`, `UI_SMOKE_COMPANY_NAME`, and `UI_SMOKE_SCORING_RUN_ID` (see `.env.example` for defaults) and ensure Postgres + the FastAPI server are running against the same database.
 2. Seed the persona with `make ui-smoke-seed`, which logs `ui_smoke.seed.success` once the `(company_id, scoring_run_id)` row exists.
-3. Run `npm install --prefix frontend` (first time only) and execute the smoke test via `npx playwright test --config frontend/tests/playwright.config.ts --grep "Why this score"` while a UI is available at `UI_BASE_URL` and pointed to the API specified by `API_BASE_URL`.
-4. For CI, set `CI_UI_SMOKE_ENABLED=true` plus the `UI_SMOKE_*`, `UI_BASE_URL`, `API_BASE_URL`, and `DATABASE_URL` secrets/variables so `.github/workflows/ui-smoke.yml` gates pull requests with Playwright artifacts (screenshots, traces, video) attached on failure.
+3. Run `npm install --prefix frontend` (first time only), then `npx playwright install --with-deps` if prompted, and execute the smoke test via `npx playwright test --config frontend/tests/playwright.config.ts --grep "Why this score"` while a UI is available at `UI_BASE_URL` and pointed to the API specified by `API_BASE_URL`.
+4. For CI, set `CI_UI_SMOKE_ENABLED=true` plus the `UI_SMOKE_*`, `UI_BASE_URL`, `API_BASE_URL`, and `DATABASE_URL` secrets/variables so `.github/workflows/ui-smoke.yml` gates pull requests with Playwright artifacts (screenshots, traces, video) attached on failure. Artifacts land under `frontend/artifacts/test-results` and `frontend/artifacts/report` for debugging.
 
 ***
 

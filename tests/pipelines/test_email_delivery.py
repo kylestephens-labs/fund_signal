@@ -172,6 +172,72 @@ def test_deliver_sends_via_smtp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert sent_messages[0]["attachments"], "CSV attachment missing"
 
 
+def test_deliver_emits_metrics_and_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    score = _sample_score()
+    _stub_fetch_scores(monkeypatch, [score])
+    metrics_calls: list[tuple[str, dict]] = []
+
+    class StubSMTP:
+        def __init__(self, host: str, port: int, timeout: float | None = None) -> None:  # noqa: ARG002
+            self.host = host
+            self.port = port
+
+        def ehlo(self) -> None:
+            return None
+
+        def starttls(self) -> None:
+            return None
+
+        def login(self, username: str, password: str) -> None:  # noqa: ARG002
+            return None
+
+        def send_message(self, message, to_addrs=None) -> None:  # noqa: ANN001
+            return None
+
+        def quit(self) -> None:
+            return None
+
+    def _increment(name: str, *, tags=None):  # noqa: ANN001
+        metrics_calls.append((name, tags or {}))
+
+    def _timing(name: str, value, *, tags=None):  # noqa: ANN001, ARG002
+        metrics_calls.append((name, tags or {}))
+
+    monkeypatch.setattr(
+        settings, "email_smtp_url", "smtp://user:secret@mailtrap.test:2525", raising=False
+    )
+    monkeypatch.setattr(settings, "email_from", "alerts@fundsignal.dev", raising=False)
+    monkeypatch.setattr(settings, "email_to", "ops@fundsignal.dev", raising=False)
+    monkeypatch.setattr(settings, "email_subject", "Weekly FundSignal Drop", raising=False)
+    monkeypatch.setattr(
+        module,
+        "_create_smtp_client",
+        lambda config: StubSMTP(config.host, config.port),
+        raising=False,
+    )
+    monkeypatch.setattr(module.metrics, "increment", _increment, raising=False)
+    monkeypatch.setattr(module.metrics, "timing", _timing, raising=False)
+    caplog.set_level("INFO", logger="pipelines.day3.email")
+
+    output = tmp_path / "digest.md"
+    module.run(
+        [
+            "--scoring-run",
+            "demo-run",
+            "--output",
+            str(output),
+            "--deliver",
+        ]
+    )
+
+    assert any(call[0] == "delivery.email.sent" for call in metrics_calls)
+    assert any(call[0] == "delivery.email.duration_ms" for call in metrics_calls)
+    assert any(record.message == "delivery.email.sent" for record in caplog.records)
+    assert any(record.message == "delivery.email.rendered" for record in caplog.records)
+
+
 def test_no_deliver_flag_overrides_env_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     score = _sample_score()
     _stub_fetch_scores(monkeypatch, [score])
