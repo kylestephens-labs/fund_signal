@@ -1,0 +1,20 @@
+# Copy this file to prove/prove.config.toml when Prove CLI support lands.
+# Keep the commands in sync with the Makefile prove targets documented in docs/prove/prove_v1.md.
+
+[project]
+name = "fund_signal_backend"
+language = "python"
+
+[paths]
+src = "app"
+tests = "tests"
+
+[gates.quick]
+commands = [
+  "make prove-quick"
+]
+
+[gates.full]
+commands = [
+  "make prove-full"
+]

@@ -83,6 +83,18 @@ make prove-full          # Same checks with the full pytest suite via $(PYTEST_F
 
 Override `PYTEST_FLAGS` (e.g., `PYTEST_FLAGS='-m "not slow and not contract"'`) or `PYTEST_FULL_FLAGS` when you need to target specific pytest markers. `prove-quick` stays <1 minute for the inner loop by skipping `slow` pipeline/benchmark suites and `contract` tests that hit external APIs; `prove-full` mirrors CI and is the hook point for additional gates (mypy, fixture verification, contracts) documented in `docs/prove/prove_v1.md`.
 
+#### Prove CLI config (drop-in)
+
+When the Prove CLI lands, copy the example config so automation can run the same commands you run locally:
+
+```bash
+cp prove/prove.config.example.toml prove/prove.config.toml
+prove --config prove/prove.config.toml --gate quick   # Runs make prove-quick under the hood
+prove --config prove/prove.config.toml --gate full    # Runs make prove-full
+```
+
+The TOML lists the project metadata plus the exact quick/full commands (`make prove-quick` / `make prove-full`). Keep secrets out of the config—Prove only shells out to those make targets, so lint/test logs and failures still appear in your terminal just like today. When those commands change, update both the Makefile targets and `prove/prove.config.example.toml` together (see `docs/prove/prove_v1.md` for the gate contract).
+
 ### Runtime Modes (Day 1 Pipelines)
 
 | Env Var | Default | Purpose |
