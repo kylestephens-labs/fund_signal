@@ -215,6 +215,8 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
 
    Slack payloads contain full Block Kit sections for each company plus a metadata block with serialized scores (proof arrays included). Post to your webhook via `curl -X POST -H "Content-Type: application/json" --data @output/slack_demo.json $SLACK_WEBHOOK_URL`.
 
+   > Day-3 deliveries rely on persisted scores in Postgres/Supabase. Run `uv run python scripts/seed_scores.py --fixture tests/fixtures/scoring/regression_companies.json --scoring-run demo-day3 --seed-all --force` first to hydrate demo-day3 after restarts; both email/slack CLIs log `delivery.supabase.query` when they read from the DB.
+
 Key environment variables (see `.env.example`):
 
 | Variable | Purpose |
