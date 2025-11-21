@@ -39,7 +39,7 @@ jobs:
 
       - name: Seed scoring run
         run: |
-          uv run python scripts/seed_scores.py \
+          python scripts/seed_scores.py \
             --fixture tests/fixtures/scoring/regression_companies.json \
             --scoring-run "${DELIVERY_SCORING_RUN}" \
             --seed-all \
@@ -47,7 +47,7 @@ jobs:
 
       - name: Send Day-3 email digest (enforced window)
         run: |
-          uv run python -m pipelines.day3.email_schedule \
+          python -m pipelines.day3.email_schedule \
             --output "${DELIVERY_OUTPUT_DIR}/email_cron.md" \
             --company-limit 25 \
             --min-score 80 \
