@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip uv
-          uv pip install -r requirements.txt
+          pip install -r requirements.txt
       - name: Sync sample fixtures
         run: |
           python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
