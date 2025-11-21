@@ -25,6 +25,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.UI_SMOKE_DATABASE_URL || '' }}
       EMAIL_SMTP_URL: ${{ secrets.EMAIL_SMTP_URL || vars.EMAIL_SMTP_URL || '' }}
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
 
