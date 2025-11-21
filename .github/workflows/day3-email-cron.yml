@@ -38,7 +38,8 @@ jobs:
           python -m pip install --upgrade pip uv
           pip install -r requirements.txt
 
-      - name: Seed scoring run
+      - name: Seed scoring run (best effort; skips if DB unreachable)
+        continue-on-error: true
         run: |
           python scripts/seed_scores.py \
             --fixture tests/fixtures/scoring/regression_companies.json \
