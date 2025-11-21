@@ -35,6 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip uv
+          uv venv
           uv pip install -r requirements.txt
 
       - name: Seed scoring run

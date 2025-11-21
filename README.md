@@ -192,6 +192,11 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
    The CLI validates env vars, sends via SMTP (Mailtrap/Papercut are great for staging), emits `delivery.email.sent` metrics, and writes Markdown + HTML + CSV artifacts under `DELIVERY_OUTPUT_DIR`. The HTML body mirrors Slack content, includes a top “Download CSV” link, and attaches the CSV to the outbound email for easy export.
    Set `DELIVERY_EMAIL_FORCE_RUN=true` for cron jobs that always send and pass `--no-deliver` locally to render artifacts without sending when the force flag is set.
 
+   **Visual QA (Mailtrap/Papercut):**
+   - Point `EMAIL_SMTP_URL` at your sandbox SMTP (Mailtrap/Papercut/debug server).
+   - Run `uv run python -m pipelines.day3.email_delivery --output output/email_preview.md --deliver` to render Markdown/HTML/CSV under `DELIVERY_OUTPUT_DIR` and send to the sandbox inbox.
+   - Open the inbox to review the HTML body and CSV attachment; artifacts stay in `output/` for audit. If `DELIVERY_EMAIL_FORCE_RUN=true`, add `--no-deliver` to generate artifacts without sending.
+
 4. **Schedule the Monday 9 AM PT send (cron-friendly)**
 
    ```bash
@@ -215,6 +220,14 @@ This copies the bundle, validates it, and updates `fixtures/latest/latest.json`.
    **GitHub Actions opt-in:** `.github/workflows/day3-email-cron.yml` runs the same command on Monday at 09:00 PT (cron in UTC with a double-slot for DST) with `DELIVERY_EMAIL_FORCE_RUN=true`, seeds via `scripts/seed_scores.py`, and uploads `output/email_cron.*` artifacts on failure. Set secrets/vars: `DATABASE_URL`, `EMAIL_SMTP_URL`, `EMAIL_FROM`, `EMAIL_TO/CC/BCC`, `DELIVERY_SCORING_RUN` (defaults to `demo-day3`), `DELIVERY_OUTPUT_DIR` (defaults to `output`), and optional `EMAIL_SUBJECT`/`EMAIL_DISABLE_TLS`.
 
    > ⚠️ **Credential safety:** never commit SMTP creds to Git. Store them in Render/GitHub secrets (or a local `.env` that stays ignored), and test delivery with sandbox servers (Mailtrap, Papercut, `python -m smtpd -c DebuggingServer`). Set `EMAIL_DISABLE_TLS=true` only for local debug servers; production SMTP should keep TLS enabled.
+
+### Day-3 Email DoD (delivery)
+
+- Content parity: HTML + CSV digest matches Slack ordering/fields; artifacts saved under `DELIVERY_OUTPUT_DIR` for audit.
+- Observability: logs/metrics include `delivery.supabase.query`, `delivery.email.rendered`, `delivery.email.csv_written`, `delivery.email.sent`, `delivery.email.duration_ms`; scheduler/workflow surfaces non-zero exits.
+- Secret safety: SMTP creds/recipients never logged; secrets only in env/CI; when `DELIVERY_EMAIL_FORCE_RUN=true`, use `--no-deliver` to avoid unintended sends during local QA.
+- Scheduler enabled/monitored: Monday 09:00 PT job wired (e.g., `.github/workflows/day3-email-cron.yml`) with required envs and artifact upload on failure.
+- Visual QA documented: sandbox SMTP steps above; artifacts retained in `DELIVERY_OUTPUT_DIR` for inspection.
 
 3. **Generate the Slack payload**
 
