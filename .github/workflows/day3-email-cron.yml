@@ -37,7 +37,7 @@ jobs:
           python -m pip install --upgrade pip uv
           uv venv
           source .venv/bin/activate
-          uv pip install -r requirements.txt
+          uv pip install --python .venv/bin/python -r requirements.txt
 
       - name: Seed scoring run
         run: |
