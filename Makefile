@@ -113,7 +113,7 @@ verify-fixtures: ## Run Day-1 pipelines against local fixtures
 check-freshness: ## Enforce freshness/integrity gates for fixtures
 	$(PYTEST) -k "freshness_gate or verify_bundle" -q
 
-online-contract-test: ## Minimal live API contract test (requires provider keys)
+online-contract-test: setup-dev ## Minimal live API contract test (requires provider keys)
 	FUND_SIGNAL_MODE=online $(PYTEST) tests/test_online_contract.py -m contract -q
 
 seed-scores: ## Seed deterministic scoring runs into Supabase/Postgres for delivery jobs
