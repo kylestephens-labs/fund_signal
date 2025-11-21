@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from app.clients.exa import ExaClient
-from app.clients.tavily import TavilyClient
+from app.clients.tavily import TavilyClient, TavilyQuotaExceededError
 from app.clients.youcom import YoucomClient
 
 CONTRACT_DATA_PATH = Path(__file__).parent / "data" / "contract_queries.json"
@@ -73,5 +73,8 @@ def test_online_contract_smoke(contract_queries: ContractQueries):
         youcom_results = youcom_client.search_news(**contract_queries.youcom)
         assert youcom_results and all("url" in item for item in youcom_results)
 
-        tavily_results = tavily_client.search(**contract_queries.tavily)
+        try:
+            tavily_results = tavily_client.search(**contract_queries.tavily)
+        except TavilyQuotaExceededError as exc:
+            pytest.skip(f"Tavily quota exhausted in contract test: {exc}")
         assert tavily_results and all("url" in item for item in tavily_results)
