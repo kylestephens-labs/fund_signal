@@ -8,9 +8,6 @@ on:
 jobs:
   ci-guards:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        task: [verify-fixtures, check-freshness]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,6 +22,7 @@ jobs:
       - name: Sync sample fixtures
         run: |
           python -m tools.sync_fixtures --source local --local-root fixtures/sample --dest fixtures/latest
-      - name: Run ${{ matrix.task }}
+      - name: Run fixture guards
         run: |
-          make ${{ matrix.task }}
+          make verify-fixtures
+          make check-freshness
