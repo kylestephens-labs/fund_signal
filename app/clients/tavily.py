@@ -45,6 +45,13 @@ class TavilySchemaError(TavilyError):
         super().__init__(message, code="TAVILY_SCHEMA_ERR")
 
 
+class TavilyQuotaExceededError(TavilyError):
+    """Raised when Tavily plan/usage limits are exhausted."""
+
+    def __init__(self, message: str = "Tavily plan usage limit exceeded") -> None:
+        super().__init__(message, code="TAVILY_QUOTA_EXCEEDED")
+
+
 class TavilyClient:
     """Minimal Tavily API client wrapper."""
 
@@ -102,19 +109,19 @@ class TavilyClient:
         except httpx.HTTPError as exc:  # pragma: no cover - network failures
             raise TavilyError(f"HTTP error calling Tavily: {exc}") from exc
 
+        detail = None
+        if response.status_code >= 400:
+            detail = self._decode_error_detail(response)
+
         if response.status_code == 429:
             raise TavilyRateLimitError()
         if response.status_code in (408, 504):
             raise TavilyTimeoutError()
         if response.status_code == 404:
             raise TavilyNotFoundError()
+        if response.status_code == 432:
+            raise TavilyQuotaExceededError(detail or "Tavily plan usage limit exceeded")
         if response.status_code >= 400:
-            detail = response.text[:200]
-            try:
-                detail_json = response.json()
-                detail = detail_json.get("message") or detail_json.get("detail") or detail
-            except Exception as exc:  # pragma: no cover - best effort
-                logger.warning("Failed to decode Tavily error response JSON: %s", exc)
             raise TavilyError(f"Tavily request failed: {response.status_code} - {detail}")
 
         try:
@@ -128,6 +135,22 @@ class TavilyClient:
         if not all(isinstance(item, dict) for item in results):
             raise TavilySchemaError("Entries in `results` must be JSON objects.")
         return results
+
+    @staticmethod
+    def _decode_error_detail(response: httpx.Response) -> str:
+        """Best-effort extraction of an error message from Tavily responses."""
+        detail: str = response.text[:200]
+        try:
+            detail_json = response.json()
+            detail = (
+                detail_json.get("message")
+                or detail_json.get("detail")
+                or detail_json.get("error")
+                or detail
+            )
+        except Exception as exc:  # pragma: no cover - best effort
+            logger.warning("Failed to decode Tavily error response JSON: %s", exc)
+        return detail
 
     def __enter__(self) -> TavilyClient:
         return self

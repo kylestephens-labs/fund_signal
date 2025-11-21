@@ -19,7 +19,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from random import SystemRandom
 
-from app.clients.tavily import TavilyClient, TavilyError, TavilyRateLimitError, TavilyTimeoutError
+from app.clients.tavily import (
+    TavilyClient,
+    TavilyError,
+    TavilyQuotaExceededError,
+    TavilyRateLimitError,
+    TavilyTimeoutError,
+)
 from app.clients.youcom import YoucomClient, YoucomError, YoucomRateLimitError, YoucomTimeoutError
 from app.models.lead import CompanyFunding
 from pipelines.day1 import tavily_confirm, youcom_verify
@@ -233,6 +239,9 @@ def call_with_retries(
             _sleep_with_backoff(attempt)
             if attempt >= max_attempts:
                 raise
+        except TavilyQuotaExceededError:
+            stats.record_error()
+            raise
         except (YoucomError, TavilyError) as exc:
             stats.record_error()
             logger.error("%s capture failed permanently: %s", name, exc)
@@ -256,6 +265,7 @@ def capture_company(
     youcom_limiter: RateLimiter,
     tavily_limiter: RateLimiter,
     max_attempts: int,
+    tavily_quota_exceeded: threading.Event | None = None,
 ) -> None:
     slug = slugify_company(lead.company)
     query_youcom = youcom_verify.build_query(lead)
@@ -281,6 +291,7 @@ def capture_company(
         max_attempts=max_attempts,
         provider_name="Tavily",
         fetch=lambda: tavily_client.search(query=query_tavily, max_results=8),
+        quota_exceeded=tavily_quota_exceeded,
     )
 
 
@@ -294,17 +305,30 @@ def _maybe_capture_provider(
     max_attempts: int,
     provider_name: str,
     fetch: ProviderFn,
+    quota_exceeded: threading.Event | None = None,
 ) -> None:
+    if quota_exceeded and quota_exceeded.is_set():
+        logger.warning("Skipping %s capture for %s: quota previously exceeded.", provider_name, company)
+        stats.record_error()
+        return
+
     if capture.has(slug):
         return
 
-    raw_results = call_with_retries(
-        provider_name,
-        fetch,
-        stats,
-        max_attempts,
-        limiter,
-    )
+    try:
+        raw_results = call_with_retries(
+            provider_name,
+            fetch,
+            stats,
+            max_attempts,
+            limiter,
+        )
+    except TavilyQuotaExceededError as exc:
+        if quota_exceeded:
+            quota_exceeded.set()
+        logger.error("%s capture disabled due to quota exhaustion: %s", provider_name, exc)
+        return
+
     unique_domains = count_unique_domains(raw_results)
     stats.record_success(len(raw_results), unique_domains)
     capture.append(slug, raw_results)
@@ -435,6 +459,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     tavily_stats = ProviderStats("tavily")
     youcom_limiter = RateLimiter(args.qps_youcom)
     tavily_limiter = RateLimiter(args.qps_tavily)
+    tavily_quota_exceeded = threading.Event()
 
     try:
         with ExitStack() as stack:
@@ -455,6 +480,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         youcom_limiter,
                         tavily_limiter,
                         args.max_attempts,
+                        tavily_quota_exceeded=tavily_quota_exceeded,
                     )
                     for lead in leads
                 ]
