@@ -8,12 +8,12 @@ import html
 import logging
 import smtplib
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from pathlib import Path
-from typing import Sequence
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote_plus, unquote, urlparse
 
 from app.config import settings
 from app.models.company import CompanyScore
@@ -100,15 +100,29 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def render_email(scoring_run_id: str, scores: Sequence[CompanyScore], *, generated_at: str | None = None) -> str:
+def render_email(
+    scoring_run_id: str, scores: Sequence[CompanyScore], *, generated_at: str | None = None
+) -> str:
     """Return a Markdown digest for the supplied scoring run."""
     timestamp = generated_at or utc_now()
+    feedback_href = _build_feedback_link(
+        scoring_run_id=scoring_run_id,
+        generated_at=timestamp,
+        score_count=len(scores),
+    )
     lines: list[str] = [
         f"# FundSignal Delivery — Run {scoring_run_id}",
         "",
         f"_Generated at {timestamp}_",
         "",
     ]
+    if feedback_href:
+        lines.extend(
+            [
+                f"[Provide feedback]({feedback_href}) (opens your email client)",
+                "",
+            ]
+        )
     for index, score in enumerate(scores, start=1):
         confidence = compute_confidence(score.score)
         company_label = str(score.company_id)
@@ -124,7 +138,11 @@ def render_email(scoring_run_id: str, scores: Sequence[CompanyScore], *, generat
             if proofs:
                 for proof in proofs:
                     url = proof["source_url"]
-                    verifiers = ", ".join(proof["verified_by"] or []) if proof["verified_by"] else "FundSignal"
+                    verifiers = (
+                        ", ".join(proof["verified_by"] or [])
+                        if proof["verified_by"]
+                        else "FundSignal"
+                    )
                     lines.append(f"  - [{url}]({url}) _(verified by {verifiers})_")
             else:
                 lines.append("  - _(No proofs available; flagged for follow-up)_")
@@ -142,6 +160,11 @@ def render_email_html(
     generated_at: str,
 ) -> str:
     """Return an HTML digest mirroring the Slack payload with a CSV download link."""
+    feedback_href = _build_feedback_link(
+        scoring_run_id=scoring_run_id,
+        generated_at=generated_at,
+        score_count=len(scores),
+    )
     parts: list[str] = [
         "<html>",
         "<body>",
@@ -150,6 +173,11 @@ def render_email_html(
         f'<p><strong><a href="{html.escape(csv_href)}">Download CSV</a></strong> (attached)</p>',
         "<ol>",
     ]
+    if feedback_href:
+        parts.append(
+            f'<p><a href="{html.escape(feedback_href)}">Provide feedback</a> '
+            "(opens your email client)</p>"
+        )
     for index, score in enumerate(scores, start=1):
         confidence = compute_confidence(score.score)
         parts.append("<li>")
@@ -190,6 +218,25 @@ def _render_proof_links(score: CompanyScore, max_items: int = 2) -> list[str]:
         if len(items) >= max_items:
             break
     return items
+
+
+def _build_feedback_link(*, scoring_run_id: str, generated_at: str, score_count: int) -> str | None:
+    """Construct a mailto link with basic run context."""
+    recipient = settings.email_feedback_to
+    if not recipient:
+        return None
+    subject = f"FundSignal feedback — Run {scoring_run_id}"
+    body = (
+        "I have feedback on this FundSignal delivery.\n\n"
+        f"- Run ID: {scoring_run_id}\n"
+        f"- Generated at: {generated_at}\n"
+        f"- Companies in this email: {score_count}\n\n"
+        "Feedback:\n"
+        "- What looks wrong/right:\n"
+        "- Specific leads (if any):\n"
+        "- Links/screenshots (optional):\n"
+    )
+    return f"mailto:{recipient}?subject={quote_plus(subject)}&body={quote_plus(body)}"
 
 
 def _write_csv(
@@ -297,7 +344,9 @@ def run(argv: Sequence[str] | None = None) -> Path:
             csv_href=f"cid:{csv_content_id}",
             generated_at=generated_at,
         )
-        _deliver_via_smtp(scoring_run_id, payload, email_html, output_path, csv_output, csv_content_id)
+        _deliver_via_smtp(
+            scoring_run_id, payload, email_html, output_path, csv_output, csv_content_id
+        )
     return output_path
 
 
@@ -310,7 +359,9 @@ def _deliver_via_smtp(
     csv_content_id: str,
 ) -> None:
     config = _build_smtp_config(scoring_run_id)
-    message, recipients = _render_email_message(config, text_body, html_body, scoring_run_id, csv_path, csv_content_id)
+    message, recipients = _render_email_message(
+        config, text_body, html_body, scoring_run_id, csv_path, csv_content_id
+    )
     start = time.perf_counter()
     client = _create_smtp_client(config)
     try:
@@ -423,7 +474,9 @@ def _build_smtp_config(scoring_run_id: str) -> SMTPDeliveryConfig:
         )
     parsed = urlparse(settings.email_smtp_url)
     if parsed.scheme not in {"smtp", "smtps", "smtp+ssl"}:
-        raise DeliveryError("EMAIL_SMTP_URL must start with smtp:// or smtps://", code="E_SMTP_CONFIG")
+        raise DeliveryError(
+            "EMAIL_SMTP_URL must start with smtp:// or smtps://", code="E_SMTP_CONFIG"
+        )
     host = parsed.hostname or "localhost"
     use_ssl = parsed.scheme in {"smtps", "smtp+ssl"}
     port = parsed.port or (465 if use_ssl else 587)

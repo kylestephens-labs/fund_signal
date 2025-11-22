@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     email_cc: str | None = None
     email_bcc: str | None = None
     email_subject: str | None = None
+    email_feedback_to: str | None = None
     email_smtp_url: str | None = None
     email_disable_tls: bool = False
     delivery_email_force_run: bool = False
