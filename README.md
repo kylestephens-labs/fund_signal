@@ -251,6 +251,7 @@ Key environment variables (see `.env.example`):
 | `EMAIL_SMTP_URL` / `EMAIL_FROM` | SMTP endpoint + sender identity. |
 | `EMAIL_TO` / `EMAIL_CC` / `EMAIL_BCC` | Recipient lists (comma-separated). |
 | `EMAIL_SUBJECT` | Optional subject override (defaults to `FundSignal Delivery — <run>`). |
+| `EMAIL_FEEDBACK_TO` | Optional mailto target for the Day-3 “Provide feedback” CTA (set to Mailtrap for sandbox). |
 | `EMAIL_DISABLE_TLS` | Set to `true` only when TLS must be skipped (local debug servers). |
 | `SLACK_WEBHOOK_URL` | Optional webhook recorded in Slack metadata/logs. |
 
