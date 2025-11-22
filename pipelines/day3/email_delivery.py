@@ -230,11 +230,11 @@ def _build_feedback_link(*, scoring_run_id: str, generated_at: str, score_count:
         "I have feedback on this FundSignal delivery.\n\n"
         f"- Run ID: {scoring_run_id}\n"
         f"- Generated at: {generated_at}\n"
-        f"- Companies in this email: {score_count}\n\n"
+        f"- Number of companies analyzed: {score_count}\n\n"
         "Feedback:\n"
-        "- What looks wrong/right:\n"
-        "- Specific leads (if any):\n"
-        "- Links/screenshots (optional):\n"
+        "- What's helpful about this report?\n"
+        "- What would you change about this report?\n"
+        "- What else do you want to see in this report?\n"
     )
     return f"mailto:{recipient}?subject={quote_plus(subject)}&body={quote_plus(body)}"
 
