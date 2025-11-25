@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     slack_webhook_url: str | None = None
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
+    stripe_plan_solo: str | None = None
+    stripe_plan_growth: str | None = None
+    stripe_plan_team: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = None
 
@@ -116,6 +119,22 @@ class Settings(BaseSettings):
         # Generate a random secret key if not provided
         if not self.secret_key:
             self.secret_key = secrets.token_urlsafe(32)
+
+    @property
+    def auth_allowed_plans(self) -> set[str]:
+        """Return configured plan ids or the default symbolic plans when unset."""
+        configured = {
+            plan
+            for plan in (
+                self.stripe_plan_solo,
+                self.stripe_plan_growth,
+                self.stripe_plan_team,
+            )
+            if plan
+        }
+        if configured:
+            return configured
+        return {"starter", "pro", "team"}
 
     model_config = ConfigDict(env_file=".env", case_sensitive=False)
 

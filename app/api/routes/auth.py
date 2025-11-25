@@ -26,7 +26,6 @@ router = APIRouter()
 
 MAGIC_LINK_TTL_SECONDS = 600
 OTP_TTL_SECONDS = 600
-PLAN_ALLOWLIST = {"starter", "pro", "team"}
 RATE_LIMIT_KEY_MAGIC = "magic"
 RATE_LIMIT_KEY_OTP = "otp"
 
@@ -282,8 +281,12 @@ async def google_callback(_: GoogleCallbackRequest) -> GoogleCallbackResponse:
 def _validate_plan(plan_id: str | None) -> str | None:
     if plan_id is None:
         return None
-    plan = plan_id.strip().lower()
-    if plan not in PLAN_ALLOWLIST:
+    allowed = settings.auth_allowed_plans
+    if all(entry.startswith("price_") for entry in allowed):
+        plan = plan_id.strip()
+    else:
+        plan = plan_id.strip().lower()
+    if plan not in allowed:
         logger.warning("auth.plan.invalid", extra={"plan_id": plan})
         raise HTTPException(status_code=400, detail="Invalid plan")
     return plan
