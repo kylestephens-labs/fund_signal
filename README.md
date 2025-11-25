@@ -48,6 +48,16 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 
 ## Quick Start
 
+### Key API Endpoints (backend-only)
+
+- `POST /auth/magic-link` → issue magic link token (verify via `/auth/magic-link/verify`)
+- `POST /auth/otp` → issue OTP (verify via `/auth/otp/verify`)
+- `GET /leads` → list leads with optional `score_gte` and `limit`
+- `POST /delivery/weekly` → queue weekly email/Slack artifact generation (stubbed locally)
+- `POST /billing/stripe/webhook` → Stripe webhook receiver (idempotent)
+- `POST /billing/cancel` → cancel subscription and log reason
+
+
 ### 1. Clone & Setup
 
 ```bash

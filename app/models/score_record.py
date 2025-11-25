@@ -1,8 +1,9 @@
 """SQLModel mapping for stored scoring records."""
+# ruff: noqa: UP017
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -17,7 +18,7 @@ from app.models.company import BreakdownItem, CompanyScore
 
 
 def _utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 JSON_BACKING_TYPE = sa.JSON().with_variant(JSONB(astext_type=sa.Text()), "postgresql")

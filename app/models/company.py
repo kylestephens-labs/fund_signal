@@ -1,9 +1,10 @@
 """Domain models for company scoring."""
+# ruff: noqa: UP017
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl, computed_field, conint, model_validator
@@ -86,7 +87,7 @@ class CompanyProfile(BaseModel):
 
 
 def _utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 class CompanyScore(BaseModel):

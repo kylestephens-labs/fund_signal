@@ -1,10 +1,11 @@
 """Structured signal + proof metadata used by the scoring engine."""
+# ruff: noqa: UP017
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
@@ -60,9 +61,9 @@ class SignalProof(BaseModel):
     def _finalize(self) -> SignalProof:
         self.verified_by = _normalized_labels(self.verified_by)
         if self.timestamp.tzinfo is None:
-            self.timestamp = self.timestamp.replace(tzinfo=UTC)
+            self.timestamp = self.timestamp.replace(tzinfo=timezone.utc)
         else:
-            self.timestamp = self.timestamp.astimezone(UTC)
+            self.timestamp = self.timestamp.astimezone(timezone.utc)
         if not self.proof_hash:
             self.proof_hash = _compute_hash(str(self.source_url), self.timestamp)
         if any(token in (self.source_hint or "").lower() for token in _SENSITIVE_LABELS):
@@ -73,7 +74,7 @@ class SignalProof(BaseModel):
         """Raise if proof is older than the configured freshness window."""
         if max_age_days <= 0:
             return self
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         age = now - self.timestamp
         if age > timedelta(days=max_age_days):
             raise SignalProofValidationError(

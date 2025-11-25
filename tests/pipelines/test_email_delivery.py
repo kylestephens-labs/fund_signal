@@ -57,6 +57,7 @@ def test_run_generates_markdown_without_delivery(tmp_path: Path, monkeypatch: py
             "demo-run",
             "--output",
             str(output),
+            "--no-deliver",
         ]
     )
 

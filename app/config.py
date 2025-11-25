@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import secrets
 
 from pydantic import ConfigDict
@@ -67,6 +69,10 @@ class Settings(BaseSettings):
     email_disable_tls: bool = False
     delivery_email_force_run: bool = False
     slack_webhook_url: str | None = None
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
 
     # Security
     secret_key: str = ""  # Will be generated if empty

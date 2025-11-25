@@ -1,4 +1,5 @@
 """Hydrates proof metadata for each scoring breakdown item."""
+# ruff: noqa: UP017
 
 from __future__ import annotations
 
@@ -6,7 +7,7 @@ import logging
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -454,7 +455,7 @@ class ProofLinkHydrator:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 def sanitize_proof_url(url: str) -> str:

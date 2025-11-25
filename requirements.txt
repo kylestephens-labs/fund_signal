@@ -9,8 +9,10 @@ alembic==1.13.1
 sentry-sdk[fastapi]==2.42.0
 prometheus-fastapi-instrumentator==6.1.0
 python-dotenv==1.1.1
-httpx==0.28.1
+httpx==0.24.1
 PyYAML==6.0.2
 openai==1.55.3
 click==8.1.7
 statsd==4.0.1
+email-validator==2.2.0
+eval-type-backport==0.2.0

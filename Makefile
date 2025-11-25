@@ -2,7 +2,7 @@
 
 export UV_CACHE_DIR ?= $(abspath .uv-cache)
 USE_UV ?= 1
-SKIP_INSTALL ?= 0
+SKIP_INSTALL ?= 1
 
 ifeq ($(USE_UV),1)
 PYTEST ?= uv run pytest
@@ -40,13 +40,23 @@ setup: ## Create a local virtualenv and install base dependencies (skips if .ven
 	@if [ ! -d ".venv" ]; then \
 		echo "Creating virtualenv via uv"; \
 		uv venv; \
+		created=1; \
 	else \
 		echo "Reusing existing virtualenv (.venv)"; \
+		created=0; \
+	fi; \
+	if [ "$(SKIP_INSTALL)" = "1" ]; then \
+		echo "Skipping dependency install (SKIP_INSTALL=1)"; \
+	else \
+		UV_CACHE_DIR=$${UV_CACHE_DIR:-.uv-cache} uv pip install -r requirements.txt || (.venv/bin/python -m ensurepip --upgrade && .venv/bin/python -m pip install -r requirements.txt); \
 	fi
-	uv pip install -r requirements.txt
 
 setup-dev: setup ## Install dev dependencies needed for lint + tests
-	uv pip install -r requirements-dev.txt
+	@if [ "$(SKIP_INSTALL)" = "1" ]; then \
+		echo "Skipping dev dependency install (SKIP_INSTALL=1)"; \
+	else \
+		UV_CACHE_DIR=$${UV_CACHE_DIR:-.uv-cache} uv pip install -r requirements-dev.txt || (.venv/bin/python -m ensurepip --upgrade && .venv/bin/python -m pip install -r requirements-dev.txt); \
+	fi
 
 maybe-install:
 	@if [ "$(SKIP_INSTALL)" = "1" ]; then \
@@ -160,12 +170,12 @@ dev-pip: ## Run development server with pip (legacy)
 
 # Fast feedback gate: lint + targeted tests
 prove-quick: setup-dev
-	$(RUFF) format --check app tests
-	$(RUFF) check app tests
-	$(PYTEST) -q $(PYTEST_FLAGS)
+	UV_NO_SYNC=1 $(RUFF) format --check app tests
+	UV_NO_SYNC=1 $(RUFF) check app tests
+	UV_NO_SYNC=1 $(PYTEST) -q $(PYTEST_FLAGS)
 
 # Full gate: mirrors CI bar; extend with typing/contracts as they land
 prove-full: setup-dev
-	$(RUFF) format --check app tests
-	$(RUFF) check app tests
-	$(PYTEST) $(PYTEST_FULL_FLAGS)
+	UV_NO_SYNC=1 $(RUFF) format --check app tests
+	UV_NO_SYNC=1 $(RUFF) check app tests
+	UV_NO_SYNC=1 $(PYTEST) $(PYTEST_FULL_FLAGS)

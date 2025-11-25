@@ -147,3 +147,9 @@ README now explains the proof schema (README.md:292-319), but there’s still no
 - FSQ-037C: Monitoring runbook – add structured logging/metrics emitters in scoring + proof QA jobs (success/error counters, latency gauges) and expose them via Render-compatible sinks.
 - FSQ-037B: Supabase dashboards & alerts – create/update Supabase dashboards/tables for proof/scoring metrics, configure alert policies (e.g., failure thresholds, stale proofs), and document how to view them.
 - FSQ-037C: Monitoring runbook update – expand README/docs/dev_workflow with monitoring setup steps, expected metrics, alert escalation paths, and schema snapshot/versioning instructions (Pact or stored JSON).
+
+## Post-MVP ⚠️ FSQ-CTA-001 | Add “Provide feedback” mailto CTA to Day 3 email
+
+Optimization Ideas:
+
+Consider adding a short note in README alongside email env vars describing the optional EMAIL_FEEDBACK_TO behavior for future clarity.

@@ -16,6 +16,8 @@ except ModuleNotFoundError:  # Sentry optional during local dev/tests
     FastApiIntegration = None
     LoggingIntegration = None
 
+from app.api.routes import auth as auth_routes
+from app.api.routes import delivery as delivery_routes
 from app.api.routes import example, health, scores
 from app.config import settings
 from app.core.database import init_database
@@ -102,6 +104,8 @@ logger.info("Prometheus metrics enabled")
 app.include_router(health.router, prefix="/health", tags=["health"])
 app.include_router(example.router, prefix="/api", tags=["example"])
 app.include_router(scores.router, prefix="/api", tags=["scores"])
+app.include_router(auth_routes.router, tags=["auth"])
+app.include_router(delivery_routes.router, tags=["delivery", "billing", "leads"])
 
 
 @app.get("/")
