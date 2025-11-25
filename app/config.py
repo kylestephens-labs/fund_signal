@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     render_alert_threshold_p95: float = 300.0
     render_alert_threshold_error: float = 0.05
 
+    # Auth controls
+    auth_rate_limit_window_seconds: int = 60
+    auth_rate_limit_max_requests: int = 5
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Generate a random secret key if not provided

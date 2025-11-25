@@ -1,6 +1,8 @@
 import logging
+import time
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.routes import auth as auth_routes
@@ -9,9 +11,19 @@ from app.main import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def reset_auth_state():
+    auth_routes._tokens.clear()
+    auth_routes._otp_codes.clear()
+    auth_routes._rate_limiter.reset()
+    auth_routes.logger.setLevel(logging.INFO)
+    yield
+
+
 def test_magic_link_flow():
     auth_routes.logger.setLevel(logging.DEBUG)
-    resp = client.post("/auth/magic-link", json={"email": "ae@example.com"})
+    auth_routes._rate_limiter.max_requests = 10
+    resp = client.post("/auth/magic-link", json={"email": "ae@example.com", "plan_id": "starter"})
     assert resp.status_code == 202
     payload = resp.json()
     token = payload.get("debug_token")
@@ -23,6 +35,51 @@ def test_magic_link_flow():
     data = verify.json()
     assert data["status"] == "verified"
     assert data["subscription"]["status"] == "trialing"
+    assert data["subscription"]["plan_id"] == "starter"
+
+
+def test_otp_flow_with_plan_and_email_match():
+    auth_routes.logger.setLevel(logging.DEBUG)
+    auth_routes._rate_limiter.max_requests = 10
+    resp = client.post("/auth/otp", json={"email": "bd@example.com", "plan_id": "pro"})
+    assert resp.status_code == 202
+    otp = resp.json()["debug_token"]
+
+    verify = client.post("/auth/otp/verify", json={"email": "bd@example.com", "otp": otp})
+    assert verify.status_code == 200
+    data = verify.json()
+    assert data["subscription"]["plan_id"] == "pro"
+
+
+def test_otp_email_mismatch_rejected():
+    auth_routes.logger.setLevel(logging.DEBUG)
+    resp = client.post("/auth/otp", json={"email": "wrong@example.com"})
+    otp = resp.json()["debug_token"]
+
+    verify = client.post("/auth/otp/verify", json={"email": "other@example.com", "otp": otp})
+    assert verify.status_code == 400
+
+
+def test_invalid_plan_rejected():
+    resp = client.post(
+        "/auth/magic-link", json={"email": "ae@example.com", "plan_id": "enterprise"}
+    )
+    assert resp.status_code == 400
+    assert "plan" in resp.json()["detail"].lower()
+
+
+def test_auth_rate_limit_enforced(monkeypatch):
+    auth_routes.logger.setLevel(logging.INFO)
+    # constrain limiter for test
+    auth_routes._rate_limiter.max_requests = 1
+    resp1 = client.post("/auth/magic-link", json={"email": "rl@example.com"})
+    assert resp1.status_code == 202
+    resp2 = client.post("/auth/magic-link", json={"email": "rl@example.com"})
+    assert resp2.status_code == 429
+    assert resp2.headers.get("Retry-After") is not None
+    # allow window to expire
+    time.sleep(0.1)
+    auth_routes._rate_limiter.reset()
 
 
 def test_leads_endpoint_filters_and_limits():
