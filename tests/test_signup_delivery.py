@@ -11,6 +11,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import app.api.routes.delivery as delivery_routes
 from app.api.routes import auth as auth_routes
 from app.config import settings
 from app.main import app
@@ -29,6 +30,10 @@ def reset_auth_state(tmp_path, monkeypatch):
     auth_routes._rate_limiter.reset()
     auth_routes.logger.setLevel(logging.INFO)
     settings.delivery_output_dir = str(tmp_path)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_stub")
+    settings.stripe_secret_key = "sk_test_stub"  # noqa: S105 - test fixture value
+    delivery_routes._subscriptions.clear()
+    delivery_routes._webhook_events.clear()
     yield
 
 
@@ -49,6 +54,123 @@ def _sign_payload(secret: str, payload: str, timestamp: str) -> str:
         digestmod=sha256,
     ).hexdigest()
     return f"t={timestamp},v1={signature}"
+
+
+class _FakePaymentMethod:
+    def __init__(self, pm_id: str, customer: str):
+        self.id = pm_id
+        self.customer = customer
+
+
+class FakeStripe:
+    def __init__(self):
+        self.customers: dict[str, dict[str, str]] = {}
+        self.subscriptions: dict[str, dict[str, str | int | bool]] = {}
+        self.payment_methods: dict[str, _FakePaymentMethod] = {}
+        self.Customer = type(
+            "Customer",
+            (),
+            {
+                "list": self._customer_list,
+                "create": self._customer_create,
+                "modify": self._customer_modify,
+            },
+        )
+        self.PaymentMethod = type(
+            "PaymentMethod",
+            (),
+            {"attach": self._payment_method_attach},
+        )
+        self.Subscription = type(
+            "Subscription",
+            (),
+            {
+                "create": self._subscription_create,
+                "modify": self._subscription_modify,
+            },
+        )
+        self.Webhook = type(
+            "Webhook",
+            (),
+            {"construct_event": self._construct_event},
+        )
+
+    class error:  # noqa: N801 - mimic Stripe SDK structure
+        class StripeError(Exception):
+            pass
+
+    def _customer_list(self, email: str, limit: int):
+        return type(
+            "ListObj",
+            (),
+            {"data": [c for c in self.customers.values() if c["email"] == email][:limit]},
+        )
+
+    def _customer_create(self, email: str):
+        cid = f"cus_{len(self.customers)+1}"
+        customer = {"id": cid, "email": email}
+        self.customers[cid] = customer
+        return customer
+
+    def _customer_modify(self, customer_id: str, invoice_settings: dict[str, str]):
+        customer = self.customers.get(customer_id)
+        if customer:
+            customer["invoice_settings"] = invoice_settings
+        return customer
+
+    def _payment_method_attach(self, pm_id: str, customer: str):
+        self.payment_methods[pm_id] = _FakePaymentMethod(pm_id, customer)
+        return {"id": pm_id, "customer": customer}
+
+    def _subscription_create(
+        self,
+        customer: str,
+        items: list[dict[str, str]],
+        trial_period_days: int,
+        payment_behavior: str,
+        payment_settings: dict[str, str],
+        default_payment_method: str,
+        expand: list[str],
+    ):
+        sub_id = f"sub_{len(self.subscriptions)+1}"
+        now = int(datetime.now(tz=timezone.utc).timestamp())  # noqa: UP017
+        trial_end = now + trial_period_days * 24 * 3600
+        sub = {
+            "id": sub_id,
+            "customer": customer,
+            "status": "trialing",
+            "trial_start": now,
+            "trial_end": trial_end,
+            "current_period_end": trial_end,
+            "cancel_at_period_end": False,
+            "plan": {"id": items[0]["price"]},
+            "default_payment_method": default_payment_method,
+            "latest_invoice": {
+                "payment_intent": {
+                    "id": f"pi_{sub_id}",
+                    "client_secret": f"pi_secret_{sub_id}",
+                }
+            },
+        }
+        self.subscriptions[sub_id] = sub
+        return sub
+
+    def _subscription_modify(self, sub_id: str, cancel_at_period_end: bool):
+        sub = self.subscriptions.get(sub_id)
+        if sub:
+            sub["cancel_at_period_end"] = cancel_at_period_end
+            sub["status"] = "canceled"
+        return sub
+
+    def _construct_event(self, payload: bytes, sig_header: str | None, secret: str | None):
+        return json.loads(payload.decode())
+
+
+@pytest.fixture(autouse=True)
+def fake_stripe(monkeypatch):
+    client = FakeStripe()
+    monkeypatch.setattr(delivery_routes, "stripe", client)
+    return client
 
 
 def test_magic_link_flow():
@@ -258,6 +380,8 @@ def test_subscribe_creates_trial_and_dates():
     trial_start = datetime.fromisoformat(data["trial_start"])
     trial_end = datetime.fromisoformat(data["trial_end"])
     assert (trial_end - trial_start).days == 14
+    assert data["payment_behavior"] == "default_incomplete"
+    assert data["client_secret"]
 
 
 def test_cancel_sets_cancel_at_period_end():
@@ -282,6 +406,16 @@ def test_cancel_sets_cancel_at_period_end():
     assert body["effective_date"]
 
 
+def test_subscribe_requires_payment_method():
+    headers = _auth_headers("nopm@example.com")
+    resp = client.post(
+        "/billing/subscribe",
+        json={"plan_id": "starter", "customer_email": "nopm@example.com"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
 def test_stripe_webhook_idempotent_and_signature():
     settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
     event = {
@@ -304,14 +438,14 @@ def test_stripe_webhook_idempotent_and_signature():
     signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
     first = client.post(
         "/billing/stripe/webhook",
-        data=payload,
+        content=payload,
         headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
     )
     assert first.status_code == 200
     assert first.json()["duplicate"] is False
     second = client.post(
         "/billing/stripe/webhook",
-        data=payload,
+        content=payload,
         headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
     )
     assert second.status_code == 200

@@ -14,8 +14,38 @@ from datetime import (  # noqa: UP017 - timezone.utc for py3.9 compatibility
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
+try:  # Stripe optional for tests without dependency installed
+    import stripe  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - fallback stub
+    from types import SimpleNamespace
+
+    class _StripeError(Exception):
+        pass
+
+    stripe = SimpleNamespace(  # type: ignore[assignment]
+        api_key=None,
+        Webhook=SimpleNamespace(
+            construct_event=lambda payload, sig_header, secret: json.loads(payload.decode())
+        ),
+        Customer=SimpleNamespace(
+            list=lambda email, limit=1: SimpleNamespace(data=[]),
+            create=lambda email: {"id": "cus_test", "email": email},
+            modify=lambda customer_id, invoice_settings=None: {
+                "id": customer_id,
+                "invoice_settings": invoice_settings,
+            },
+        ),
+        PaymentMethod=SimpleNamespace(
+            attach=lambda pm_id, customer=None: {"id": pm_id, "customer": customer}
+        ),
+        Subscription=SimpleNamespace(
+            create=lambda **kwargs: {"id": "sub_test", "status": "trialing"},
+            modify=lambda *args, **kwargs: {},
+        ),
+        error=SimpleNamespace(StripeError=_StripeError),
+    )
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
@@ -31,6 +61,7 @@ _cached_leads: list[dict[str, Any]] = []
 _fixture_generated_at: str | None = None
 _webhook_events: set[str] = set()
 _subscriptions: dict[str, dict[str, Any]] = {}
+_subscriptions_path = Path(settings.delivery_output_dir or "output") / "subscriptions.json"
 
 TRIAL_DAYS = 14
 
@@ -84,7 +115,7 @@ class LeadResponse(BaseModel):
 class SubscribeRequest(BaseModel):
     price_id: str | None = None
     plan_id: str | None = None
-    payment_method_id: str
+    payment_method_id: str | None = None
     customer_email: EmailStr
 
     def resolved_plan(self) -> str:
@@ -101,6 +132,8 @@ class SubscribeResponse(BaseModel):
     trial_end: str
     current_period_end: str
     plan_id: str
+    payment_behavior: str
+    client_secret: str | None = None
 
 
 class CancelRequest(BaseModel):
@@ -151,42 +184,132 @@ def _mask_email(email: str | None) -> str:
     return f"*@{domain}" if domain else "*"
 
 
+def _load_subscriptions() -> dict[str, dict[str, Any]]:
+    if _subscriptions:
+        return _subscriptions
+    if _subscriptions_path.exists():
+        try:
+            payload = json.loads(_subscriptions_path.read_text(encoding="utf-8"))
+            _subscriptions.update(payload)
+        except Exception:
+            logger.warning("stripe.subscriptions.load_failed")
+    return _subscriptions
+
+
+def _persist_subscriptions() -> None:
+    try:
+        _subscriptions_path.parent.mkdir(parents=True, exist_ok=True)
+        _subscriptions_path.write_text(json.dumps(_subscriptions), encoding="utf-8")
+    except Exception:
+        logger.warning("stripe.subscriptions.persist_failed")
+
+
+def _find_or_create_customer(*, email: str) -> dict[str, Any]:
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        existing = stripe.Customer.list(email=email, limit=1)
+        if existing.data:
+            return existing.data[0]
+        return stripe.Customer.create(email=email)
+    except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+        logger.warning("stripe.customer.failed", extra={"error": str(exc)})
+        raise HTTPException(status_code=400, detail="Unable to create customer") from exc
+
+
 @router.post("/billing/subscribe", response_model=SubscribeResponse)
 async def subscribe(
     payload: SubscribeRequest, session: SessionContext = Depends(require_session)
 ) -> SubscribeResponse:
     """Create a subscription with a 14-day trial; no immediate charge."""
+    _load_subscriptions()
+    if not settings.stripe_secret_key:
+        logger.warning("stripe.subscribe.missing_secret")
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+    stripe.api_key = settings.stripe_secret_key
     plan_id = payload.resolved_plan()
-    subscription_id = f"sub_{uuid4().hex}"
-    trial_start, trial_end = _trial_window()
+    if not payload.payment_method_id:
+        logger.warning("stripe.subscribe.missing_payment_method")
+        raise HTTPException(status_code=400, detail="payment_method_id is required")
+    try:
+        customer = _find_or_create_customer(email=payload.customer_email)
+        stripe.PaymentMethod.attach(
+            payload.payment_method_id,
+            customer=customer["id"],
+        )
+        stripe.Customer.modify(
+            customer["id"],
+            invoice_settings={"default_payment_method": payload.payment_method_id},
+        )
+        subscription = stripe.Subscription.create(
+            customer=customer["id"],
+            items=[{"price": plan_id}],
+            trial_period_days=TRIAL_DAYS,
+            payment_behavior="default_incomplete",
+            payment_settings={"save_default_payment_method": "on_subscription"},
+            default_payment_method=payload.payment_method_id,
+            expand=["latest_invoice.payment_intent", "latest_invoice.payment_intent.client_secret"],
+        )
+    except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+        logger.warning("stripe.subscribe.failed", extra={"error": str(exc)})
+        raise HTTPException(status_code=400, detail="Unable to create subscription") from exc
+    trial_start = (
+        datetime.fromtimestamp(subscription["trial_start"], tz=timezone.utc).isoformat()
+        if subscription.get("trial_start")
+        else _trial_window()[0]
+    )
+    trial_end = (
+        datetime.fromtimestamp(subscription["trial_end"], tz=timezone.utc).isoformat()
+        if subscription.get("trial_end")
+        else _trial_window()[1]
+    )
+    current_period_end = (
+        datetime.fromtimestamp(subscription["current_period_end"], tz=timezone.utc).isoformat()
+        if subscription.get("current_period_end")
+        else trial_end
+    )
+    client_secret = None
+    latest_invoice = subscription.get("latest_invoice") or {}
+    payment_intent = (
+        latest_invoice.get("payment_intent") if isinstance(latest_invoice, dict) else None
+    )
+    if payment_intent:
+        client_secret = payment_intent.get("client_secret")
     record = {
-        "subscription_id": subscription_id,
-        "status": "trialing",
+        "subscription_id": subscription["id"],
+        "customer_id": customer["id"],
+        "status": subscription.get("status", "trialing"),
         "trial_start": trial_start,
         "trial_end": trial_end,
-        "current_period_end": trial_end,
+        "current_period_end": current_period_end,
         "plan_id": plan_id,
-        "cancel_at_period_end": False,
+        "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
         "email": payload.customer_email,
         "payment_method_id": payload.payment_method_id,
+        "payment_behavior": "default_incomplete",
+        "save_default_payment_method": "on_subscription",
+        "client_secret": client_secret,
     }
-    _subscriptions[subscription_id] = record
+    _subscriptions[subscription["id"]] = record
+    _persist_subscriptions()
     logger.info(
         "stripe.subscribe.created",
         extra={
-            "subscription_id": subscription_id,
+            "subscription_id": subscription["id"],
             "plan_id": plan_id,
             "trial_end": trial_end,
             "email_domain": _mask_email(payload.customer_email),
+            "payment_behavior": record["payment_behavior"],
         },
     )
     return SubscribeResponse(
-        subscription_id=subscription_id,
+        subscription_id=subscription["id"],
         status=record["status"],
         trial_start=trial_start,
         trial_end=trial_end,
-        current_period_end=record["current_period_end"],
+        current_period_end=current_period_end,
         plan_id=plan_id,
+        payment_behavior=record["payment_behavior"],
+        client_secret=client_secret,
     )
 
 
@@ -239,6 +362,31 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
 
 
 def _apply_subscription_event(payload: StripeWebhookPayload) -> None:
+    if payload.type.startswith("invoice."):
+        obj = payload.data.get("object") if payload.data else {}
+        sub_id = obj.get("subscription")
+        if not sub_id:
+            return
+        record = _subscriptions.setdefault(
+            sub_id,
+            {
+                "subscription_id": sub_id,
+                "status": obj.get("status", "incomplete"),
+                "email": obj.get("customer_email"),
+            },
+        )
+        if payload.type == "invoice.payment_succeeded":
+            record["status"] = "active"
+        if payload.type == "invoice.payment_failed":
+            record["status"] = "past_due"
+        current_period_end = obj.get("current_period_end")
+        if current_period_end:
+            record["current_period_end"] = datetime.fromtimestamp(
+                current_period_end, tz=timezone.utc
+            ).isoformat()
+        _subscriptions[sub_id] = record
+        return
+
     obj = payload.data.get("object") if payload.data else {}
     sub_id = obj.get("id")
     if not sub_id:
@@ -254,12 +402,21 @@ def _apply_subscription_event(payload: StripeWebhookPayload) -> None:
     status = obj.get("status")
     if status:
         record["status"] = status
-    record["trial_start"] = obj.get("trial_start", record.get("trial_start"))
-    record["trial_end"] = obj.get("trial_end", record.get("trial_end"))
-    record["current_period_end"] = obj.get("current_period_end", record.get("current_period_end"))
+    if obj.get("trial_start"):
+        record["trial_start"] = datetime.fromtimestamp(
+            obj["trial_start"], tz=timezone.utc
+        ).isoformat()
+    if obj.get("trial_end"):
+        record["trial_end"] = datetime.fromtimestamp(obj["trial_end"], tz=timezone.utc).isoformat()
+    if obj.get("current_period_end"):
+        record["current_period_end"] = datetime.fromtimestamp(
+            obj["current_period_end"], tz=timezone.utc
+        ).isoformat()
     record["cancel_at_period_end"] = obj.get(
         "cancel_at_period_end", record.get("cancel_at_period_end", False)
     )
+    if obj.get("default_payment_method"):
+        record["payment_method_id"] = obj["default_payment_method"]
     _subscriptions[sub_id] = record
 
 
@@ -317,17 +474,25 @@ async def stripe_webhook(
 ) -> WebhookResponse:
     """Accept Stripe webhook events with idempotency and optional signature verification."""
     body = await request.body()
-    _verify_signature(body, stripe_signature)
+    _load_subscriptions()
     try:
-        payload = StripeWebhookPayload.model_validate_json(body)
+        if settings.stripe_webhook_secret:
+            event_obj = stripe.Webhook.construct_event(
+                payload=body, sig_header=stripe_signature, secret=settings.stripe_webhook_secret
+            )
+        else:
+            _verify_signature(body, stripe_signature)
+            event_obj = json.loads(body.decode())
     except Exception:
         logger.warning("stripe.webhook.invalid_payload")
         raise HTTPException(status_code=400, detail="Invalid payload")
+    payload = StripeWebhookPayload.model_validate(event_obj)
     if payload.id in _webhook_events:
         logger.info("stripe.webhook.duplicate", extra={"event_id": payload.id})
         return WebhookResponse(received=True, duplicate=True)
     _webhook_events.add(payload.id)
     _apply_subscription_event(payload)
+    _persist_subscriptions()
     logger.info("stripe.webhook.received", extra={"event_id": payload.id, "type": payload.type})
     return WebhookResponse(received=True, duplicate=False)
 
@@ -337,13 +502,28 @@ async def cancel_subscription(
     payload: CancelRequest, session: SessionContext = Depends(require_session)
 ) -> CancelResponse:
     """Mark a subscription as cancelled; idempotent and cancel-at-period-end aware."""
+    _load_subscriptions()
     subscription = _resolve_subscription(payload)
+    if settings.stripe_secret_key:
+        stripe.api_key = settings.stripe_secret_key
+        try:
+            stripe.Subscription.modify(
+                subscription["subscription_id"],
+                cancel_at_period_end=True,
+            )
+        except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+            logger.warning(
+                "stripe.cancel.failed",
+                extra={"subscription_id": subscription["subscription_id"], "error": str(exc)},
+            )
+            raise HTTPException(status_code=400, detail="Unable to cancel subscription") from exc
     subscription["cancel_at_period_end"] = True
     subscription["status"] = "canceled"
     subscription["reason"] = payload.reason or "unspecified"
     effective_date = subscription.get("current_period_end") or subscription.get("trial_end")
     if not effective_date:
         effective_date = datetime.now(timezone.utc).isoformat()
+    _persist_subscriptions()
     logger.info(
         "billing.cancelled",
         extra={
