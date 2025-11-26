@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     stripe_plan_solo: str | None = None
     stripe_plan_growth: str | None = None
     stripe_plan_team: str | None = None
+    stripe_api_key: str | None = None  # legacy env key for compatibility
+    stripe_publishable_key: str | None = None  # legacy env key for compatibility
     google_client_id: str | None = None
     google_client_secret: str | None = None
     google_redirect_uri: str | None = None

@@ -13,11 +13,12 @@ from datetime import (  # noqa: UP017 - timezone.utc for py3.9 compatibility
     timedelta,
     timezone,
 )
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
@@ -54,6 +55,21 @@ class _GoogleState:
 _tokens: dict[str, _TokenRecord] = {}
 _otp_codes: dict[str, _TokenRecord] = {}
 _google_states: dict[str, _GoogleState] = {}
+
+SESSION_TTL_SECONDS = 3600
+
+
+@dataclass
+class SessionContext:
+    token: str
+    email: str
+    expires_at: datetime
+    plan_id: str | None
+
+
+_sessions: dict[str, SessionContext] = {}
+_opt_out_emails: set[str] = set()
+_unlock_sent: set[str] = set()
 
 
 class RateLimiter:
@@ -126,6 +142,8 @@ class SessionResponse(BaseModel):
     status: str
     email: EmailStr
     subscription: Subscription
+    session_token: str
+    opted_out: bool
 
 
 class OTPRequest(BaseModel):
@@ -136,6 +154,17 @@ class OTPRequest(BaseModel):
 class OTPVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
+
+
+class OptOutRequest(BaseModel):
+    email: EmailStr
+    opt_out: bool = True
+    reason: str | None = None
+
+
+class OptOutResponse(BaseModel):
+    status: str
+    opted_out: bool
 
 
 @router.post("/auth/magic-link", response_model=MagicLinkResponse, status_code=202)
@@ -192,7 +221,9 @@ def _resolve_token(token: str, container: dict[str, _TokenRecord], token_type: s
 
 
 @router.post("/auth/magic-link/verify", response_model=SessionResponse)
-async def verify_magic_link(payload: MagicLinkVerifyRequest) -> SessionResponse:
+async def verify_magic_link(
+    payload: MagicLinkVerifyRequest, background_tasks: BackgroundTasks
+) -> SessionResponse:
     """Verify a magic link token and start a trial subscription."""
     record = _resolve_token(payload.token, _tokens, "magic")
     record.used = True
@@ -201,6 +232,8 @@ async def verify_magic_link(payload: MagicLinkVerifyRequest) -> SessionResponse:
         trial_started_at=_now().isoformat(),
         plan_id=record.plan_id,
     )
+    session = _issue_session(email=record.email, plan_id=record.plan_id)
+    _schedule_unlock_email(session, background_tasks)
     logger.info(
         "auth.magic_link.verified",
         extra={
@@ -209,7 +242,13 @@ async def verify_magic_link(payload: MagicLinkVerifyRequest) -> SessionResponse:
             "plan_id": record.plan_id,
         },
     )
-    return SessionResponse(status="verified", email=record.email, subscription=subscription)
+    return SessionResponse(
+        status="verified",
+        email=record.email,
+        subscription=subscription,
+        session_token=session.token,
+        opted_out=_is_opted_out(record.email),
+    )
 
 
 @router.post("/auth/otp", response_model=MagicLinkResponse, status_code=202)
@@ -238,7 +277,9 @@ async def request_otp(payload: OTPRequest) -> MagicLinkResponse:
 
 
 @router.post("/auth/otp/verify", response_model=SessionResponse)
-async def verify_otp(payload: OTPVerifyRequest) -> SessionResponse:
+async def verify_otp(
+    payload: OTPVerifyRequest, background_tasks: BackgroundTasks
+) -> SessionResponse:
     """Verify an OTP code and start a trial subscription."""
     record = _resolve_token(payload.otp, _otp_codes, "otp")
     if record.email != payload.email:
@@ -253,6 +294,8 @@ async def verify_otp(payload: OTPVerifyRequest) -> SessionResponse:
         trial_started_at=_now().isoformat(),
         plan_id=record.plan_id,
     )
+    session = _issue_session(email=record.email, plan_id=record.plan_id)
+    _schedule_unlock_email(session, background_tasks)
     logger.info(
         "auth.otp.verified",
         extra={
@@ -261,7 +304,13 @@ async def verify_otp(payload: OTPVerifyRequest) -> SessionResponse:
             "plan_id": record.plan_id,
         },
     )
-    return SessionResponse(status="verified", email=record.email, subscription=subscription)
+    return SessionResponse(
+        status="verified",
+        email=record.email,
+        subscription=subscription,
+        session_token=session.token,
+        opted_out=_is_opted_out(record.email),
+    )
 
 
 class GoogleCallbackRequest(BaseModel):
@@ -276,6 +325,8 @@ class GoogleCallbackResponse(BaseModel):
     state: Optional[str] = None
     email: Optional[EmailStr] = None
     subscription: Optional[Subscription] = None
+    session_token: Optional[str] = None
+    opted_out: bool | None = None
 
 
 class GoogleAuthUrlResponse(BaseModel):
@@ -284,7 +335,9 @@ class GoogleAuthUrlResponse(BaseModel):
 
 
 @router.post("/auth/google/callback", response_model=GoogleCallbackResponse)
-async def google_callback(_: GoogleCallbackRequest) -> GoogleCallbackResponse:
+async def google_callback(
+    _: GoogleCallbackRequest, background_tasks: BackgroundTasks
+) -> GoogleCallbackResponse:
     """Handle Google OAuth callback: exchange code, fetch user, return session."""
     if (
         not settings.google_client_id
@@ -341,6 +394,8 @@ async def google_callback(_: GoogleCallbackRequest) -> GoogleCallbackResponse:
         trial_started_at=_now().isoformat(),
         plan_id=state.plan_id,
     )
+    session = _issue_session(email=email, plan_id=state.plan_id)
+    _schedule_unlock_email(session, background_tasks)
     logger.info(
         "auth.google.callback.success",
         extra={
@@ -354,17 +409,19 @@ async def google_callback(_: GoogleCallbackRequest) -> GoogleCallbackResponse:
         state=_.state,
         email=email,
         subscription=subscription,
+        session_token=session.token,
+        opted_out=_is_opted_out(email),
     )
 
 
 def _validate_plan(plan_id: str | None) -> str | None:
     if plan_id is None:
         return None
-    allowed = settings.auth_allowed_plans
-    if all(entry.startswith("price_") for entry in allowed):
-        plan = plan_id.strip()
-    else:
-        plan = plan_id.strip().lower()
+    allowed = settings.auth_allowed_plans | {"starter", "pro", "team"}
+    plan = plan_id.strip()
+    plan_normalized = plan.lower()
+    if plan_normalized in {"starter", "pro", "team"}:
+        plan = plan_normalized
     if plan not in allowed:
         logger.warning("auth.plan.invalid", extra={"plan_id": plan})
         raise HTTPException(status_code=400, detail="Invalid plan")
@@ -417,6 +474,111 @@ def _resolve_google_state(state: str | None) -> _GoogleState:
     return record
 
 
+def _issue_session(*, email: str, plan_id: str | None) -> SessionContext:
+    token = _generate_token()
+    ctx = SessionContext(
+        token=token,
+        email=email,
+        plan_id=plan_id,
+        expires_at=_now() + timedelta(seconds=SESSION_TTL_SECONDS),
+    )
+    _sessions[token] = ctx
+    logger.info(
+        "auth.session.issued",
+        extra={
+            "email_domain": _mask_email(email),
+            "plan_id": plan_id,
+            "expires_in": SESSION_TTL_SECONDS,
+        },
+    )
+    return ctx
+
+
+def _is_opted_out(email: str) -> bool:
+    return email.lower() in _opt_out_emails
+
+
+def _resolve_session(token: str) -> SessionContext:
+    ctx = _sessions.get(token)
+    if not ctx:
+        logger.warning("auth.session.invalid")
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if ctx.expires_at < _now():
+        logger.warning("auth.session.expired", extra={"email_domain": _mask_email(ctx.email)})
+        raise HTTPException(status_code=401, detail="Session expired")
+    return ctx
+
+
+def require_session(authorization: str | None = Header(default=None)) -> SessionContext:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        logger.warning("auth.session.missing_header")
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization")
+    token = authorization.split(" ", 1)[1].strip()
+    return _resolve_session(token)
+
+
+def _schedule_unlock_email(session: SessionContext, background_tasks: BackgroundTasks) -> None:
+    """Dispatch the unlock email after verification without blocking the request."""
+    email_key = session.email.lower()
+    if _is_opted_out(email_key):
+        logger.info(
+            "delivery.unlock.skipped_opt_out", extra={"email_domain": _mask_email(session.email)}
+        )
+        return
+    if email_key in _unlock_sent:
+        logger.info(
+            "delivery.unlock.already_sent", extra={"email_domain": _mask_email(session.email)}
+        )
+        return
+    background_tasks.add_task(_dispatch_unlock_email, session)
+
+
+def _dispatch_unlock_email(session: SessionContext) -> None:
+    """Render and persist a full report email artifact."""
+    email_key = session.email.lower()
+    try:
+        from app.api.routes import delivery as delivery_routes
+
+        leads = delivery_routes._load_fixture()
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("delivery.unlock.failed_to_load_leads")
+        return
+    output_dir = Path(settings.delivery_output_dir or "output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    generated_at = _now().isoformat()
+    body_lines = [
+        f"# FundSignal Full Report — {session.email}",
+        "",
+        f"_Generated at {generated_at}_",
+        "",
+        "Upgrade now to keep weekly deliveries coming.",
+        "",
+    ]
+    for idx, lead in enumerate(leads[:50], start=1):
+        proofs = lead.get("proofs") or []
+        body_lines.append(
+            f"{idx}. {lead.get('company_id')} — {lead.get('score')} pts (freshness: {lead.get('freshness', 'unknown')})"
+        )
+        body_lines.append(f"   - Recommended: {lead.get('recommended_approach')}")
+        body_lines.append(f"   - Pitch: {lead.get('pitch_angle')}")
+        if proofs:
+            for proof in proofs:
+                body_lines.append(f"   - Proof: {proof}")
+        body_lines.append("")
+    body_lines.append("To opt out of emails, call POST /auth/opt-out with your email.")
+    artifact = output_dir / f"unlock_email_{session.token}.md"
+    artifact.write_text("\n".join(body_lines), encoding="utf-8")
+    _unlock_sent.add(email_key)
+    logger.info(
+        "delivery.unlock.sent",
+        extra={
+            "email_domain": _mask_email(session.email),
+            "lead_count": len(leads),
+            "artifact": str(artifact),
+        },
+    )
+
+
 @router.get("/auth/google/url", response_model=GoogleAuthUrlResponse)
 async def google_auth_url(plan_id: Optional[str] = None) -> GoogleAuthUrlResponse:
     """Return a Google OAuth consent URL with a signed state token."""
@@ -442,3 +604,24 @@ async def google_auth_url(plan_id: Optional[str] = None) -> GoogleAuthUrlRespons
         extra={"state": state, "plan_id": validated_plan},
     )
     return GoogleAuthUrlResponse(url=url, state=state)
+
+
+@router.post("/auth/opt-out", response_model=OptOutResponse)
+async def opt_out(payload: OptOutRequest) -> OptOutResponse:
+    """Set or clear email opt-out for unlock deliveries."""
+    email_key = payload.email.lower()
+    if payload.opt_out:
+        _opt_out_emails.add(email_key)
+        status = "opted_out"
+    else:
+        _opt_out_emails.discard(email_key)
+        status = "opted_in"
+    logger.info(
+        "auth.opt_out.updated",
+        extra={
+            "email_domain": _mask_email(payload.email),
+            "opt_out": payload.opt_out,
+            "reason": payload.reason,
+        },
+    )
+    return OptOutResponse(status=status, opted_out=payload.opt_out)
