@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_engine_from_config
 from sqlmodel import SQLModel
 
 from app.config import settings
-from app.models import score_record  # noqa: F401 - ensure models are imported
+from app.models import score_record, subscription  # noqa: F401 - ensure models are imported
 
 config = context.config
 

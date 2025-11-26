@@ -59,6 +59,9 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 - `POST /billing/subscribe` → create a subscription with 14-day trial (no charge), requires auth + payment method + plan/price id; enforces `payment_behavior=default_incomplete`, saves default payment method, and returns trial_start/trial_end/current_period_end, subscription id, and client secret for confirmation
 - `POST /billing/cancel` → cancel-at-period-end for an existing subscription (requires auth; idempotent)
 - `POST /billing/stripe/webhook` → Stripe webhook receiver with idempotency and signature verification (use Stripe-Signature header)
+
+## Database & Migrations
+- The API requires a configured Postgres/Supabase `DATABASE_URL`; run Alembic migrations before deploying (`alembic upgrade head` or your migration runner). Local `.env` should include `DATABASE_URL` and Stripe test keys; prod/staging should set env vars via your hosting platform.
 - `POST /delivery/weekly` → queue weekly email/Slack artifact generation (stubbed locally)
 - `POST /billing/stripe/webhook` → Stripe webhook receiver (idempotent)
 - `POST /billing/cancel` → cancel subscription and log reason

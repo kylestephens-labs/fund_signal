@@ -10,6 +10,7 @@ from uuid import UUID
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.api.routes.delivery as delivery_routes
 from app.api.routes import auth as auth_routes
@@ -32,9 +33,111 @@ def reset_auth_state(tmp_path, monkeypatch):
     settings.delivery_output_dir = str(tmp_path)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_stub")
     settings.stripe_secret_key = "sk_test_stub"  # noqa: S105 - test fixture value
-    delivery_routes._subscriptions.clear()
-    delivery_routes._webhook_events.clear()
     yield
+
+
+_LATEST_DB = None
+
+
+@pytest.fixture(autouse=True)
+def override_db():
+    class _FakeResult:
+        def __init__(self, obj):
+            self._obj = obj
+
+        def scalar_one_or_none(self):
+            return self._obj
+
+    class _FakeRow:
+        def __init__(self, row: dict[str, str | int | bool | None]):
+            self._data = row or {}
+            self.subscription_id = self._data.get("subscription_id")
+            self.customer_id = self._data.get("customer_id")
+            self.email = self._data.get("email")
+            self.price_id = self._data.get("price_id")
+            self.status = self._data.get("status")
+            self.trial_start = self._data.get("trial_start")
+            self.trial_end = self._data.get("trial_end")
+            self.current_period_end = self._data.get("current_period_end")
+            self.cancel_at_period_end = self._data.get("cancel_at_period_end")
+            self.default_payment_method = self._data.get("default_payment_method")
+            self.last_event_id = self._data.get("last_event_id")
+
+        def __setattr__(self, name, value):
+            if name.startswith("_"):
+                return super().__setattr__(name, value)
+            super().__setattr__(name, value)
+            if "_data" in self.__dict__:
+                self._data[name] = value
+
+    class _FakeSession(AsyncSession):
+        def __init__(self):
+            self._subs: dict[str, dict[str, str | int | bool | None]] = {}
+            self._events: dict[str, dict[str, str | None]] = {}
+
+        async def execute(self, stmt):
+            filters = []
+            if getattr(stmt, "whereclause", None) is not None:
+                filters = [stmt.whereclause]
+            for clause in filters:
+                right = getattr(clause, "right", None)
+                left = getattr(clause, "left", None)
+                if left is None or right is None:
+                    continue
+                if getattr(left, "name", "") == "subscription_id":
+                    target = right.value
+                    obj = self._subs.get(target)
+                    return _FakeResult(_FakeRow(obj) if obj else None)
+                if getattr(left, "name", "") == "email":
+                    for val in self._subs.values():
+                        if val.get("email") == right.value:
+                            return _FakeResult(_FakeRow(val))
+                if getattr(left, "name", "") == "last_event_id":
+                    for val in self._subs.values():
+                        if val.get("last_event_id") == right.value:
+                            return _FakeResult(_FakeRow(val))
+                if getattr(left, "name", "") == "event_id":
+                    evt = self._events.get(right.value)
+                    return _FakeResult(evt)
+            return _FakeResult(None)
+
+        async def commit(self):
+            return None
+
+        async def rollback(self):
+            return None
+
+        def add(self, obj):
+            if hasattr(obj, "subscription_id") and hasattr(obj, "price_id"):
+                self._subs[obj.subscription_id] = {
+                    "subscription_id": obj.subscription_id,
+                    "customer_id": obj.customer_id,
+                    "email": obj.email,
+                    "price_id": obj.price_id,
+                    "status": obj.status,
+                    "trial_start": obj.trial_start,
+                    "trial_end": obj.trial_end,
+                    "current_period_end": obj.current_period_end,
+                    "cancel_at_period_end": obj.cancel_at_period_end,
+                    "default_payment_method": obj.default_payment_method,
+                    "last_event_id": obj.last_event_id,
+                }
+            elif hasattr(obj, "event_id"):
+                self._events[obj.event_id] = {
+                    "event_id": obj.event_id,
+                    "subscription_id": obj.subscription_id,
+                }
+
+    fake = _FakeSession()
+
+    async def override():
+        yield fake
+
+    app.dependency_overrides[delivery_routes.get_database] = override
+    global _LATEST_DB
+    _LATEST_DB = fake
+    yield fake
+    app.dependency_overrides.pop(delivery_routes.get_database, None)
 
 
 def _auth_headers(email: str) -> dict[str, str]:
@@ -382,6 +485,7 @@ def test_subscribe_creates_trial_and_dates():
     assert (trial_end - trial_start).days == 14
     assert data["payment_behavior"] == "default_incomplete"
     assert data["client_secret"]
+    assert data["subscription_id"] in _LATEST_DB._subs
 
 
 def test_cancel_sets_cancel_at_period_end():
@@ -450,3 +554,5 @@ def test_stripe_webhook_idempotent_and_signature():
     )
     assert second.status_code == 200
     assert second.json()["duplicate"] is True
+    assert _LATEST_DB._subs["sub_abc"]["last_event_id"] == "evt_123"
+    assert "evt_123" in _LATEST_DB._events

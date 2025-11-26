@@ -16,68 +16,32 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-try:  # Stripe optional for tests without dependency installed
-    import stripe  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - fallback stub
-    from types import SimpleNamespace
-
-    class _StripeError(Exception):
-        pass
-
-    stripe = SimpleNamespace(  # type: ignore[assignment]
-        api_key=None,
-        Webhook=SimpleNamespace(
-            construct_event=lambda payload, sig_header, secret: json.loads(payload.decode())
-        ),
-        Customer=SimpleNamespace(
-            list=lambda email, limit=1: SimpleNamespace(data=[]),
-            create=lambda email: {"id": "cus_test", "email": email},
-            modify=lambda customer_id, invoice_settings=None: {
-                "id": customer_id,
-                "invoice_settings": invoice_settings,
-            },
-        ),
-        PaymentMethod=SimpleNamespace(
-            attach=lambda pm_id, customer=None: {"id": pm_id, "customer": customer}
-        ),
-        Subscription=SimpleNamespace(
-            create=lambda **kwargs: {"id": "sub_test", "status": "trialing"},
-            modify=lambda *args, **kwargs: {},
-        ),
-        error=SimpleNamespace(StripeError=_StripeError),
-    )
+import stripe
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.api.routes.auth import SessionContext, require_session
 from app.config import settings
+from app.core.database import get_database
+from app.models.subscription import ProcessedEvent, Subscription
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-_fixture_path = Path("tests/fixtures/scoring/regression_companies.json")
-_cached_leads: list[dict[str, Any]] = []
-_fixture_generated_at: str | None = None
-_webhook_events: set[str] = set()
-_subscriptions: dict[str, dict[str, Any]] = {}
-_subscriptions_path = Path(settings.delivery_output_dir or "output") / "subscriptions.json"
-
 TRIAL_DAYS = 14
 
 
 def _load_fixture() -> list[dict[str, Any]]:
-    if _cached_leads:
-        return _cached_leads
-    if not _fixture_path.exists():
+    payload_path = Path("tests/fixtures/scoring/regression_companies.json")
+    if not payload_path.exists():
         return []
-    payload = json.loads(_fixture_path.read_text(encoding="utf-8"))
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
     companies = payload.get("companies", [])
     leads: list[dict[str, Any]] = []
-    global _fixture_generated_at
-    if not _fixture_generated_at:
-        _fixture_generated_at = datetime.now(timezone.utc).isoformat()
-    generated_at = _fixture_generated_at
+    generated_at = datetime.now(timezone.utc).isoformat()
     for entry in companies:
         profile = entry.get("profile") or {}
         proofs = profile.get("buying_signals", [])
@@ -95,7 +59,6 @@ def _load_fixture() -> list[dict[str, Any]]:
                 "upgrade_cta": "Upgrade to keep weekly deliveries coming.",
             }
         )
-    _cached_leads.extend(leads)
     return leads
 
 
@@ -194,24 +157,86 @@ def _extract_client_secret(subscription: dict[str, Any]) -> str | None:
     return None
 
 
-def _load_subscriptions() -> dict[str, dict[str, Any]]:
-    if _subscriptions:
-        return _subscriptions
-    if _subscriptions_path.exists():
-        try:
-            payload = json.loads(_subscriptions_path.read_text(encoding="utf-8"))
-            _subscriptions.update(payload)
-        except Exception:
-            logger.warning("stripe.subscriptions.load_failed")
-    return _subscriptions
-
-
-def _persist_subscriptions() -> None:
+def _coerce_dt(value: Any, default: datetime | None = None) -> datetime | None:
+    if value is None:
+        return default
+    if isinstance(value, datetime):
+        return value
     try:
-        _subscriptions_path.parent.mkdir(parents=True, exist_ok=True)
-        _subscriptions_path.write_text(json.dumps(_subscriptions), encoding="utf-8")
+        return datetime.fromisoformat(value)
     except Exception:
-        logger.warning("stripe.subscriptions.persist_failed")
+        return default
+
+
+async def _persist_subscription_record(db: AsyncSession | None, record: dict[str, Any]) -> None:
+    """Persist subscription to DB; DB is required."""
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    stmt = select(Subscription).where(Subscription.subscription_id == record["subscription_id"])
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+    if existing:
+        existing.status = record["status"]
+        existing.trial_start = _coerce_dt(record.get("trial_start"), existing.trial_start)
+        existing.trial_end = _coerce_dt(record.get("trial_end"), existing.trial_end)
+        existing.current_period_end = _coerce_dt(
+            record.get("current_period_end"), existing.current_period_end
+        )
+        existing.cancel_at_period_end = record.get("cancel_at_period_end", False)
+        existing.default_payment_method = (
+            record.get("payment_method_id") or existing.default_payment_method
+        )
+        existing.price_id = record.get("plan_id") or existing.price_id
+        existing.email = record.get("email") or existing.email
+        existing.customer_id = record.get("customer_id") or existing.customer_id
+    else:
+        db_obj = Subscription(
+            subscription_id=record["subscription_id"],
+            customer_id=record["customer_id"],
+            email=record["email"],
+            price_id=record["plan_id"],
+            status=record["status"],
+            trial_start=_coerce_dt(record.get("trial_start")),
+            trial_end=_coerce_dt(record.get("trial_end")),
+            current_period_end=_coerce_dt(record.get("current_period_end")),
+            cancel_at_period_end=record.get("cancel_at_period_end", False),
+            default_payment_method=record.get("payment_method_id"),
+        )
+        db.add(db_obj)
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("stripe.subscription.persist_failed")
+        raise HTTPException(status_code=500, detail="Failed to persist subscription")
+
+
+async def _mark_event(db: AsyncSession, event_id: str, sub_id: str | None = None) -> None:
+    if not sub_id:
+        return
+    stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == event_id)
+    result = await db.execute(stmt)
+    if result.scalar_one_or_none():
+        return
+    db.add(ProcessedEvent(event_id=event_id, subscription_id=sub_id))
+    stmt = select(Subscription).where(Subscription.subscription_id == sub_id)
+    sub_result = await db.execute(stmt)
+    subscription = sub_result.scalar_one_or_none()
+    if subscription:
+        subscription.last_event_id = event_id
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
+
+async def _ensure_event_tables(db: AsyncSession) -> None:
+    """Ensure processed_events table exists in DB session (for lightweight fakes)."""
+    try:
+        await db.execute(select(ProcessedEvent).limit(1))
+    except Exception:
+        # no-op for real DBs; fakes should handle missing table gracefully
+        return
 
 
 def _find_or_create_customer(*, email: str) -> dict[str, Any]:
@@ -228,10 +253,14 @@ def _find_or_create_customer(*, email: str) -> dict[str, Any]:
 
 @router.post("/billing/subscribe", response_model=SubscribeResponse)
 async def subscribe(
-    payload: SubscribeRequest, session: SessionContext = Depends(require_session)
+    payload: SubscribeRequest,
+    session: SessionContext = Depends(require_session),
+    db: AsyncSession | None = Depends(get_database),
 ) -> SubscribeResponse:
     """Create a subscription with a 14-day trial; no immediate charge."""
-    _load_subscriptions()
+    if db is None:
+        logger.warning("stripe.subscribe.db_missing")
+        raise HTTPException(status_code=503, detail="Database not configured")
     if not settings.stripe_secret_key:
         logger.warning("stripe.subscribe.missing_secret")
         raise HTTPException(status_code=503, detail="Stripe not configured")
@@ -298,8 +327,7 @@ async def subscribe(
         "save_default_payment_method": "on_subscription",
         "client_secret": client_secret,
     }
-    _subscriptions[subscription["id"]] = record
-    _persist_subscriptions()
+    await _persist_subscription_record(db, record)
     logger.info(
         "stripe.subscribe.created",
         extra={
@@ -370,20 +398,26 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
         raise HTTPException(status_code=403, detail="Invalid signature")
 
 
-def _apply_subscription_event(payload: StripeWebhookPayload) -> None:
+async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSession | None) -> bool:
+    """Apply webhook updates; return True if duplicate already processed."""
+    if db:
+        stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == payload.id)
+        result = await db.execute(stmt)
+        if result.scalar_one_or_none():
+            return True
+
     if payload.type.startswith("invoice."):
         obj = payload.data.get("object") if payload.data else {}
         sub_id = obj.get("subscription")
         if not sub_id:
-            return
-        record = _subscriptions.setdefault(
-            sub_id,
-            {
-                "subscription_id": sub_id,
-                "status": obj.get("status", "incomplete"),
-                "email": obj.get("customer_email"),
-            },
-        )
+            return False
+        record = {
+            "subscription_id": sub_id,
+            "status": obj.get("status", "incomplete"),
+            "email": obj.get("customer_email"),
+            "plan_id": obj.get("price", {}).get("id") if obj.get("price") else None,
+            "customer_id": obj.get("customer"),
+        }
         if payload.type == "invoice.payment_succeeded":
             record["status"] = "active"
         if payload.type == "invoice.payment_failed":
@@ -393,21 +427,21 @@ def _apply_subscription_event(payload: StripeWebhookPayload) -> None:
             record["current_period_end"] = datetime.fromtimestamp(
                 current_period_end, tz=timezone.utc
             ).isoformat()
-        _subscriptions[sub_id] = record
-        return
+        await _persist_subscription_record(db, record)
+        if db:
+            await _mark_event(db, payload.id, sub_id)
+        return False
 
     obj = payload.data.get("object") if payload.data else {}
     sub_id = obj.get("id")
     if not sub_id:
-        return
-    record = _subscriptions.setdefault(
-        sub_id,
-        {
-            "subscription_id": sub_id,
-            "plan_id": obj.get("plan", {}).get("id") if obj.get("plan") else None,
-            "email": obj.get("customer_email"),
-        },
-    )
+        return False
+    record = {
+        "subscription_id": sub_id,
+        "plan_id": obj.get("plan", {}).get("id") if obj.get("plan") else None,
+        "email": obj.get("customer_email"),
+        "customer_id": obj.get("customer"),
+    }
     status = obj.get("status")
     if status:
         record["status"] = status
@@ -426,21 +460,38 @@ def _apply_subscription_event(payload: StripeWebhookPayload) -> None:
     )
     if obj.get("default_payment_method"):
         record["payment_method_id"] = obj["default_payment_method"]
-    _subscriptions[sub_id] = record
+    if obj.get("customer"):
+        record["customer_id"] = obj["customer"]
+    await _persist_subscription_record(db, record)
+    if db:
+        await _mark_event(db, payload.id, sub_id)
+    return False
 
 
-def _resolve_subscription(payload: CancelRequest) -> dict[str, Any]:
-    sub_id = payload.subscription_id
-    if sub_id:
-        subscription = _subscriptions.get(sub_id)
-        if not subscription:
-            logger.warning("stripe.cancel.not_found", extra={"subscription_id": sub_id})
-            raise HTTPException(status_code=404, detail="Subscription not found")
-        return subscription
-    if payload.email:
-        for record in _subscriptions.values():
-            if record.get("email") == payload.email:
-                return record
+async def _resolve_subscription(payload: CancelRequest, db: AsyncSession | None) -> dict[str, Any]:
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    stmt = select(Subscription)
+    if payload.subscription_id:
+        stmt = stmt.where(Subscription.subscription_id == payload.subscription_id)
+    elif payload.email:
+        stmt = stmt.where(Subscription.email == payload.email)
+    result = await db.execute(stmt)
+    found = result.scalar_one_or_none()
+    if found:
+        return {
+            "subscription_id": found.subscription_id,
+            "customer_id": found.customer_id,
+            "email": found.email,
+            "plan_id": found.price_id,
+            "status": found.status,
+            "cancel_at_period_end": found.cancel_at_period_end,
+            "current_period_end": found.current_period_end.isoformat()
+            if found.current_period_end
+            else None,
+            "trial_end": found.trial_end.isoformat() if found.trial_end else None,
+            "payment_method_id": found.default_payment_method,
+        }
     logger.warning("stripe.cancel.no_target")
     raise HTTPException(status_code=404, detail="Subscription not found")
 
@@ -479,11 +530,16 @@ class WebhookResponse(BaseModel):
 
 @router.post("/billing/stripe/webhook", response_model=WebhookResponse)
 async def stripe_webhook(
-    request: Request, stripe_signature: str | None = Header(default=None, alias="Stripe-Signature")
+    request: Request,
+    stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
+    db: AsyncSession | None = Depends(get_database),
 ) -> WebhookResponse:
     """Accept Stripe webhook events with idempotency and optional signature verification."""
     body = await request.body()
-    _load_subscriptions()
+    if db is None:
+        logger.warning("stripe.webhook.db_missing")
+        raise HTTPException(status_code=503, detail="Database not configured")
+    await _ensure_event_tables(db)
     try:
         if settings.stripe_webhook_secret:
             event_obj = stripe.Webhook.construct_event(
@@ -496,23 +552,25 @@ async def stripe_webhook(
         logger.warning("stripe.webhook.invalid_payload")
         raise HTTPException(status_code=400, detail="Invalid payload")
     payload = StripeWebhookPayload.model_validate(event_obj)
-    if payload.id in _webhook_events:
+    duplicate = await _apply_subscription_event(payload, db)
+    if duplicate:
         logger.info("stripe.webhook.duplicate", extra={"event_id": payload.id})
         return WebhookResponse(received=True, duplicate=True)
-    _webhook_events.add(payload.id)
-    _apply_subscription_event(payload)
-    _persist_subscriptions()
     logger.info("stripe.webhook.received", extra={"event_id": payload.id, "type": payload.type})
     return WebhookResponse(received=True, duplicate=False)
 
 
 @router.post("/billing/cancel", response_model=CancelResponse)
 async def cancel_subscription(
-    payload: CancelRequest, session: SessionContext = Depends(require_session)
+    payload: CancelRequest,
+    session: SessionContext = Depends(require_session),
+    db: AsyncSession | None = Depends(get_database),
 ) -> CancelResponse:
     """Mark a subscription as cancelled; idempotent and cancel-at-period-end aware."""
-    _load_subscriptions()
-    subscription = _resolve_subscription(payload)
+    if db is None:
+        logger.warning("stripe.cancel.db_missing")
+        raise HTTPException(status_code=503, detail="Database not configured")
+    subscription = await _resolve_subscription(payload, db)
     if settings.stripe_secret_key:
         stripe.api_key = settings.stripe_secret_key
         try:
@@ -532,7 +590,8 @@ async def cancel_subscription(
     effective_date = subscription.get("current_period_end") or subscription.get("trial_end")
     if not effective_date:
         effective_date = datetime.now(timezone.utc).isoformat()
-    _persist_subscriptions()
+    await _persist_subscription_record(db, subscription)
+    await _mark_event(db, f"cancel-{subscription['subscription_id']}")
     logger.info(
         "billing.cancelled",
         extra={
