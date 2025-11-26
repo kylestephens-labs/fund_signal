@@ -70,6 +70,10 @@ serve: ## Run API server via uv
 
 dev: serve ## Back-compat alias for serve
 
+migrate: maybe-install ## Apply Alembic migrations to the configured DATABASE_URL
+	@if [ -z "$$DATABASE_URL" ]; then echo "DATABASE_URL is not set"; exit 1; fi
+	UV_NO_SYNC=1 uv run alembic upgrade head
+
 test: maybe-install ## Run tests with coverage using uv (ensures deps are installed unless SKIP_INSTALL=1)
 	$(PYTEST) tests/ -v --cov=app --cov-report=html --cov-report=term
 

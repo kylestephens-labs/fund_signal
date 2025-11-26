@@ -10,14 +10,19 @@ from uuid import UUID
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, select
 
 import app.api.routes.delivery as delivery_routes
 from app.api.routes import auth as auth_routes
 from app.config import settings
 from app.main import app
+from app.models.subscription import ProcessedEvent, Subscription
 
 client = TestClient(app)
+_SYNC_SESSION_FACTORY: sessionmaker[Session] | None = None
 
 
 @pytest.fixture(autouse=True)
@@ -36,108 +41,49 @@ def reset_auth_state(tmp_path, monkeypatch):
     yield
 
 
-_LATEST_DB = None
-
-
 @pytest.fixture(autouse=True)
 def override_db():
-    class _FakeResult:
-        def __init__(self, obj):
-            self._obj = obj
+    """Provide a real in-memory SQLite DB for tests without JSON fakes."""
 
-        def scalar_one_or_none(self):
-            return self._obj
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    SQLModel.metadata.create_all(engine)
+    sync_factory = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
 
-    class _FakeRow:
-        def __init__(self, row: dict[str, str | int | bool | None]):
-            self._data = row or {}
-            self.subscription_id = self._data.get("subscription_id")
-            self.customer_id = self._data.get("customer_id")
-            self.email = self._data.get("email")
-            self.price_id = self._data.get("price_id")
-            self.status = self._data.get("status")
-            self.trial_start = self._data.get("trial_start")
-            self.trial_end = self._data.get("trial_end")
-            self.current_period_end = self._data.get("current_period_end")
-            self.cancel_at_period_end = self._data.get("cancel_at_period_end")
-            self.default_payment_method = self._data.get("default_payment_method")
-            self.last_event_id = self._data.get("last_event_id")
-
-        def __setattr__(self, name, value):
-            if name.startswith("_"):
-                return super().__setattr__(name, value)
-            super().__setattr__(name, value)
-            if "_data" in self.__dict__:
-                self._data[name] = value
-
-    class _FakeSession(AsyncSession):
+    class SyncAsyncSession:
         def __init__(self):
-            self._subs: dict[str, dict[str, str | int | bool | None]] = {}
-            self._events: dict[str, dict[str, str | None]] = {}
+            self._session = sync_factory()
 
         async def execute(self, stmt):
-            filters = []
-            if getattr(stmt, "whereclause", None) is not None:
-                filters = [stmt.whereclause]
-            for clause in filters:
-                right = getattr(clause, "right", None)
-                left = getattr(clause, "left", None)
-                if left is None or right is None:
-                    continue
-                if getattr(left, "name", "") == "subscription_id":
-                    target = right.value
-                    obj = self._subs.get(target)
-                    return _FakeResult(_FakeRow(obj) if obj else None)
-                if getattr(left, "name", "") == "email":
-                    for val in self._subs.values():
-                        if val.get("email") == right.value:
-                            return _FakeResult(_FakeRow(val))
-                if getattr(left, "name", "") == "last_event_id":
-                    for val in self._subs.values():
-                        if val.get("last_event_id") == right.value:
-                            return _FakeResult(_FakeRow(val))
-                if getattr(left, "name", "") == "event_id":
-                    evt = self._events.get(right.value)
-                    return _FakeResult(evt)
-            return _FakeResult(None)
+            return self._session.execute(stmt)
 
         async def commit(self):
-            return None
+            self._session.commit()
 
         async def rollback(self):
-            return None
+            self._session.rollback()
 
         def add(self, obj):
-            if hasattr(obj, "subscription_id") and hasattr(obj, "price_id"):
-                self._subs[obj.subscription_id] = {
-                    "subscription_id": obj.subscription_id,
-                    "customer_id": obj.customer_id,
-                    "email": obj.email,
-                    "price_id": obj.price_id,
-                    "status": obj.status,
-                    "trial_start": obj.trial_start,
-                    "trial_end": obj.trial_end,
-                    "current_period_end": obj.current_period_end,
-                    "cancel_at_period_end": obj.cancel_at_period_end,
-                    "default_payment_method": obj.default_payment_method,
-                    "last_event_id": obj.last_event_id,
-                }
-            elif hasattr(obj, "event_id"):
-                self._events[obj.event_id] = {
-                    "event_id": obj.event_id,
-                    "subscription_id": obj.subscription_id,
-                }
-
-    fake = _FakeSession()
+            self._session.add(obj)
 
     async def override():
-        yield fake
+        session = SyncAsyncSession()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            session._session.close()
 
     app.dependency_overrides[delivery_routes.get_database] = override
-    global _LATEST_DB
-    _LATEST_DB = fake
-    yield fake
+    global _SYNC_SESSION_FACTORY
+    _SYNC_SESSION_FACTORY = sync_factory
+    yield sync_factory
     app.dependency_overrides.pop(delivery_routes.get_database, None)
+    engine.dispose()
 
 
 def _auth_headers(email: str) -> dict[str, str]:
@@ -484,8 +430,9 @@ def test_subscribe_creates_trial_and_dates():
     trial_end = datetime.fromisoformat(data["trial_end"])
     assert (trial_end - trial_start).days == 14
     assert data["payment_behavior"] == "default_incomplete"
-    assert data["client_secret"]
-    assert data["subscription_id"] in _LATEST_DB._subs
+    assert data["client_secret"] == f"pi_secret_{data['subscription_id']}"
+    subscription = _get_subscription(data["subscription_id"])
+    assert subscription is not None
 
 
 def test_cancel_sets_cancel_at_period_end():
@@ -534,6 +481,8 @@ def test_stripe_webhook_idempotent_and_signature():
                 "current_period_end": 2,
                 "cancel_at_period_end": False,
                 "customer_email": "webhook@example.com",
+                "customer": "cus_abc",
+                "plan": {"id": "price_abc"},
             }
         },
     }
@@ -554,5 +503,133 @@ def test_stripe_webhook_idempotent_and_signature():
     )
     assert second.status_code == 200
     assert second.json()["duplicate"] is True
-    assert _LATEST_DB._subs["sub_abc"]["last_event_id"] == "evt_123"
-    assert "evt_123" in _LATEST_DB._events
+    subscription = _get_subscription("sub_abc")
+    assert subscription is not None and subscription.last_event_id == "evt_123"
+    assert _get_processed_event("evt_123") is not None
+
+
+def test_checkout_session_completed_persists_subscription():
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
+    _seed_subscription(
+        sub_id="sub_checkout",
+        price_id="price_checkout",
+        customer_id="cus_checkout",
+        email="checkout@example.com",
+        status="trialing",
+    )
+    event = {
+        "id": "evt_checkout",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "subscription": "sub_checkout",
+                "customer": "cus_checkout",
+                "customer_email": "checkout@example.com",
+                "price": {"id": "price_checkout"},
+            }
+        },
+    }
+    payload = json.dumps(event)
+    timestamp = "123456789"
+    signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
+    first = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert first.status_code == 200
+    assert first.json()["duplicate"] is False
+    subscription = _get_subscription("sub_checkout")
+    assert subscription is not None
+    assert subscription.customer_id == "cus_checkout"
+    assert subscription.email == "checkout@example.com"
+    second = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    assert _get_processed_event("evt_checkout") is not None
+
+
+def test_trial_will_end_logged_and_deduped():
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
+    event = {
+        "id": "evt_trial",
+        "type": "customer.subscription.trial_will_end",
+        "data": {
+            "object": {
+                "id": "sub_trial",
+                "status": "trialing",
+                "trial_end": 2,
+                "trial_start": 1,
+                "current_period_end": 2,
+                "customer_email": "trial@example.com",
+                "customer": "cus_trial",
+                "plan": {"id": "price_trial"},
+            }
+        },
+    }
+    payload = json.dumps(event)
+    timestamp = "123456789"
+    signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
+    first = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert first.status_code == 200
+    assert first.json()["duplicate"] is False
+    subscription = _get_subscription("sub_trial")
+    assert subscription is not None
+    assert subscription.status == "trialing"
+    second = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+
+
+def _seed_subscription(
+    sub_id: str, price_id: str, customer_id: str, email: str, status: str = "trialing"
+) -> None:
+    if not _SYNC_SESSION_FACTORY:
+        return
+    with _SYNC_SESSION_FACTORY() as session:
+        existing = session.execute(
+            select(Subscription).where(Subscription.subscription_id == sub_id)
+        ).scalar_one_or_none()
+        if existing:
+            return
+        session.add(
+            Subscription(
+                subscription_id=sub_id,
+                customer_id=customer_id,
+                email=email,
+                price_id=price_id,
+                status=status,
+                trial_start=datetime.now(timezone.utc),  # noqa: UP017
+                trial_end=datetime.now(timezone.utc) + timedelta(days=14),  # noqa: UP017
+                current_period_end=datetime.now(timezone.utc) + timedelta(days=14),  # noqa: UP017
+            )
+        )
+        session.commit()
+
+
+def _get_subscription(sub_id: str) -> Subscription | None:
+    if not _SYNC_SESSION_FACTORY:
+        return None
+    with _SYNC_SESSION_FACTORY() as session:
+        result = session.execute(select(Subscription).where(Subscription.subscription_id == sub_id))
+        return result.scalar_one_or_none()
+
+
+def _get_processed_event(event_id: str) -> ProcessedEvent | None:
+    if not _SYNC_SESSION_FACTORY:
+        return None
+    with _SYNC_SESSION_FACTORY() as session:
+        result = session.execute(select(ProcessedEvent).where(ProcessedEvent.event_id == event_id))
+        return result.scalar_one_or_none()

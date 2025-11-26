@@ -26,6 +26,9 @@ async def init_database():
     global engine, async_session
 
     if not settings.database_url:
+        if settings.environment.lower() in {"production", "staging"}:
+            logger.error("DATABASE_URL is required in production/staging; aborting startup")
+            raise RuntimeError("DATABASE_URL is required in production/staging")
         logger.info("No DATABASE_URL provided, running without database")
         return
 

@@ -406,6 +406,26 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
         if result.scalar_one_or_none():
             return True
 
+    if payload.type == "checkout.session.completed":
+        obj = payload.data.get("object") if payload.data else {}
+        sub_id = obj.get("subscription")
+        customer_id = obj.get("customer")
+        email = obj.get("customer_email") or obj.get("customer_details", {}).get("email")
+        if not sub_id:
+            return False
+        record = {
+            "subscription_id": sub_id,
+            "customer_id": customer_id,
+            "email": email,
+            "status": "trialing",
+            "plan_id": None,
+            "cancel_at_period_end": False,
+        }
+        await _persist_subscription_record(db, record)
+        if db:
+            await _mark_event(db, payload.id, sub_id)
+        return False
+
     if payload.type.startswith("invoice."):
         obj = payload.data.get("object") if payload.data else {}
         sub_id = obj.get("subscription")
@@ -462,6 +482,11 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
         record["payment_method_id"] = obj["default_payment_method"]
     if obj.get("customer"):
         record["customer_id"] = obj["customer"]
+    if payload.type == "customer.subscription.trial_will_end":
+        logger.info(
+            "stripe.subscription.trial_will_end",
+            extra={"subscription_id": sub_id, "email_domain": _mask_email(record.get("email"))},
+        )
     await _persist_subscription_record(db, record)
     if db:
         await _mark_event(db, payload.id, sub_id)

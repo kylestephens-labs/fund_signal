@@ -1,10 +1,17 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 try:
     import sentry_sdk
 except ModuleNotFoundError:  # Sentry optional in local/test envs
     sentry_sdk = None
+try:  # Align with python_multipart import to avoid PendingDeprecationWarning
+    import python_multipart  # type: ignore
+
+    sys.modules.setdefault("multipart", python_multipart)
+except Exception:  # noqa: S110 - best-effort import to avoid warning
+    pass
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware

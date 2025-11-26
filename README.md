@@ -61,7 +61,12 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 - `POST /billing/stripe/webhook` → Stripe webhook receiver with idempotency and signature verification (use Stripe-Signature header)
 
 ## Database & Migrations
-- The API requires a configured Postgres/Supabase `DATABASE_URL`; run Alembic migrations before deploying (`alembic upgrade head` or your migration runner). Local `.env` should include `DATABASE_URL` and Stripe test keys; prod/staging should set env vars via your hosting platform.
+- The API requires a configured Postgres/Supabase `DATABASE_URL`; **run Alembic migrations before deploying** (`make migrate` or `alembic upgrade head`). Local `.env` should include `DATABASE_URL` and Stripe test keys; prod/staging should set env vars via your hosting platform.
+- The app fails startup in production/staging if `DATABASE_URL` is unset to avoid running without persistence.
+- Deployment/migration checklist:
+  - Set `DATABASE_URL` for the target env (Supabase/staging/prod) in your deploy pipeline or shell.
+  - Run `make migrate` (or `alembic upgrade head`) on each deploy to ensure `subscriptions` and `processed_events` exist.
+  - Verify tables (optional): `SELECT to_regclass('public.subscriptions');` and `SELECT to_regclass('public.processed_events');` should not return `NULL` (Supabase SQL editor or psql).
 - `POST /delivery/weekly` → queue weekly email/Slack artifact generation (stubbed locally)
 - `POST /billing/stripe/webhook` → Stripe webhook receiver (idempotent)
 - `POST /billing/cancel` → cancel subscription and log reason
