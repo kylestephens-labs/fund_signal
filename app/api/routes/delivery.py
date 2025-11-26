@@ -184,6 +184,16 @@ def _mask_email(email: str | None) -> str:
     return f"*@{domain}" if domain else "*"
 
 
+def _extract_client_secret(subscription: dict[str, Any]) -> str | None:
+    """Return payment_intent or setup_intent client secret if present."""
+    latest_invoice = subscription.get("latest_invoice")
+    invoice_obj = latest_invoice if isinstance(latest_invoice, dict) else {}
+    intent = invoice_obj.get("payment_intent") or invoice_obj.get("setup_intent")
+    if isinstance(intent, dict):
+        return intent.get("client_secret")
+    return None
+
+
 def _load_subscriptions() -> dict[str, dict[str, Any]]:
     if _subscriptions:
         return _subscriptions
@@ -247,7 +257,12 @@ async def subscribe(
             payment_behavior="default_incomplete",
             payment_settings={"save_default_payment_method": "on_subscription"},
             default_payment_method=payload.payment_method_id,
-            expand=["latest_invoice.payment_intent", "latest_invoice.payment_intent.client_secret"],
+            expand=[
+                "latest_invoice.payment_intent",
+                "latest_invoice.payment_intent.client_secret",
+                "latest_invoice.setup_intent",
+                "latest_invoice.setup_intent.client_secret",
+            ],
         )
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
         logger.warning("stripe.subscribe.failed", extra={"error": str(exc)})
@@ -267,13 +282,7 @@ async def subscribe(
         if subscription.get("current_period_end")
         else trial_end
     )
-    client_secret = None
-    latest_invoice = subscription.get("latest_invoice") or {}
-    payment_intent = (
-        latest_invoice.get("payment_intent") if isinstance(latest_invoice, dict) else None
-    )
-    if payment_intent:
-        client_secret = payment_intent.get("client_secret")
+    client_secret = _extract_client_secret(subscription)
     record = {
         "subscription_id": subscription["id"],
         "customer_id": customer["id"],
