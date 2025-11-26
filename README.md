@@ -50,8 +50,10 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 
 ### Key API Endpoints (backend-only)
 
-- `POST /auth/magic-link` → issue magic link token (verify via `/auth/magic-link/verify`); accepts optional `plan_id` (`starter|pro|team`) and is rate-limited per email
+- `POST /auth/magic-link` → issue magic link token (verify via `/auth/magic-link/verify`); accepts optional `plan_id` (Stripe price ids when configured, otherwise `starter|pro|team`) and is rate-limited per email
 - `POST /auth/otp` → issue OTP (verify via `/auth/otp/verify`); accepts optional `plan_id` and enforces the same rate limits
+- `GET /auth/google/url` → returns Google OAuth consent URL + state (uses `GOOGLE_CLIENT_ID`/`GOOGLE_REDIRECT_URI`; optional `plan_id`)
+- `POST /auth/google/callback` → exchanges code for token, fetches user info, and returns a verified session
 - `GET /leads` → list leads with optional `score_gte` and `limit`
 - `POST /delivery/weekly` → queue weekly email/Slack artifact generation (stubbed locally)
 - `POST /billing/stripe/webhook` → Stripe webhook receiver (idempotent)

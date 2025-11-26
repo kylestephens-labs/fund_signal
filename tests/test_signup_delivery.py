@@ -1,11 +1,14 @@
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api.routes import auth as auth_routes
+from app.config import settings
 from app.main import app
 
 client = TestClient(app)
@@ -15,6 +18,7 @@ client = TestClient(app)
 def reset_auth_state():
     auth_routes._tokens.clear()
     auth_routes._otp_codes.clear()
+    auth_routes._google_states.clear()
     auth_routes._rate_limiter.reset()
     auth_routes.logger.setLevel(logging.INFO)
     yield
@@ -80,6 +84,76 @@ def test_auth_rate_limit_enforced(monkeypatch):
     # allow window to expire
     time.sleep(0.1)
     auth_routes._rate_limiter.reset()
+
+
+def test_google_oauth_flow_success(monkeypatch):
+    settings.google_client_id = "client"
+    settings.google_client_secret = "secret"  # noqa: S105 - test fixture value
+    settings.google_redirect_uri = "http://localhost:8000/auth/google/callback"
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, data=None, **kwargs):
+            assert url == auth_routes.GOOGLE_TOKEN_URL
+            assert data["code"] == "code"
+            return httpx.Response(
+                200,
+                json={"access_token": "token"},
+                request=httpx.Request("POST", url),
+            )
+
+        async def get(self, url, headers=None, **kwargs):
+            assert url == auth_routes.GOOGLE_USERINFO_URL
+            assert headers and "Bearer token" in headers.get("Authorization", "")
+            return httpx.Response(
+                200,
+                json={"email": "google.user@example.com"},
+                request=httpx.Request("GET", url),
+            )
+
+    monkeypatch.setattr(auth_routes.httpx, "AsyncClient", FakeAsyncClient)
+
+    url_resp = client.get("/auth/google/url", params={"plan_id": "starter"})
+    assert url_resp.status_code == 200
+    payload = url_resp.json()
+    assert "state" in payload and payload["state"]
+    state = payload["state"]
+
+    cb_resp = client.post("/auth/google/callback", json={"code": "code", "state": state})
+    assert cb_resp.status_code == 200
+    data = cb_resp.json()
+    assert data["status"] == "verified"
+    assert data["email"] == "google.user@example.com"
+    assert data["subscription"]["status"] == "trialing"
+
+
+def test_google_oauth_missing_code():
+    settings.google_client_id = "client"
+    settings.google_client_secret = "secret"  # noqa: S105 - test fixture value
+    settings.google_redirect_uri = "http://localhost:8000/auth/google/callback"
+    resp = client.post("/auth/google/callback", json={"state": "state"})
+    assert resp.status_code == 400
+
+
+def test_google_oauth_expired_state():
+    settings.google_client_id = "client"
+    settings.google_client_secret = "secret"  # noqa: S105 - test fixture value
+    settings.google_redirect_uri = "http://localhost:8000/auth/google/callback"
+    state = "expired"
+    auth_routes._google_states[state] = auth_routes._GoogleState(
+        plan_id=None,
+        expires_at=datetime.now(tz=timezone.utc) - timedelta(seconds=1),  # noqa: UP017
+    )
+    resp = client.post("/auth/google/callback", json={"code": "code", "state": state})
+    assert resp.status_code == 400
 
 
 def test_leads_endpoint_filters_and_limits():

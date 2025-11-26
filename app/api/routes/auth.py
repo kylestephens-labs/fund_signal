@@ -14,7 +14,9 @@ from datetime import (  # noqa: UP017 - timezone.utc for py3.9 compatibility
     timezone,
 )
 from typing import Optional
+from urllib.parse import urlencode
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 
@@ -26,8 +28,12 @@ router = APIRouter()
 
 MAGIC_LINK_TTL_SECONDS = 600
 OTP_TTL_SECONDS = 600
+GOOGLE_STATE_TTL_SECONDS = 600
 RATE_LIMIT_KEY_MAGIC = "magic"
 RATE_LIMIT_KEY_OTP = "otp"
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105 - provider URL, not a credential
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
 @dataclass
@@ -39,8 +45,15 @@ class _TokenRecord:
     plan_id: str | None
 
 
+@dataclass
+class _GoogleState:
+    plan_id: str | None
+    expires_at: datetime
+
+
 _tokens: dict[str, _TokenRecord] = {}
 _otp_codes: dict[str, _TokenRecord] = {}
+_google_states: dict[str, _GoogleState] = {}
 
 
 class RateLimiter:
@@ -254,27 +267,93 @@ async def verify_otp(payload: OTPVerifyRequest) -> SessionResponse:
 class GoogleCallbackRequest(BaseModel):
     code: Optional[str] = None
     state: Optional[str] = None
+    error: Optional[str] = None
 
 
 class GoogleCallbackResponse(BaseModel):
     status: str
     message: str
     state: Optional[str] = None
+    email: Optional[EmailStr] = None
+    subscription: Optional[Subscription] = None
+
+
+class GoogleAuthUrlResponse(BaseModel):
+    url: str
+    state: str
 
 
 @router.post("/auth/google/callback", response_model=GoogleCallbackResponse)
 async def google_callback(_: GoogleCallbackRequest) -> GoogleCallbackResponse:
-    """Stub endpoint for optional Google OAuth callback."""
-    if not settings.google_client_id or not settings.google_client_secret:
+    """Handle Google OAuth callback: exchange code, fetch user, return session."""
+    if (
+        not settings.google_client_id
+        or not settings.google_client_secret
+        or not settings.google_redirect_uri
+    ):
         logger.info("auth.google.callback.not_enabled")
         return GoogleCallbackResponse(
             status="not_enabled", message="Google OAuth not configured for backend flow."
         )
-    logger.info("auth.google.callback.unimplemented")
+    if _.error:
+        logger.warning("auth.google.callback.error", extra={"error": _.error})
+        raise HTTPException(status_code=400, detail="Google OAuth error")
+    if not _.code:
+        logger.warning("auth.google.callback.missing_code")
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    state = _resolve_google_state(_.state)
+    token_payload = {
+        "code": _.code,
+        "client_id": settings.google_client_id,
+        "client_secret": settings.google_client_secret,
+        "redirect_uri": settings.google_redirect_uri,
+        "grant_type": "authorization_code",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            token_resp = await client.post(GOOGLE_TOKEN_URL, data=token_payload)
+            token_resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("auth.google.token_exchange_failed", extra={"error": str(exc)})
+            raise HTTPException(status_code=400, detail="Google token exchange failed") from exc
+        tokens = token_resp.json()
+        access_token = tokens.get("access_token")
+        if not access_token:
+            logger.warning("auth.google.missing_access_token")
+            raise HTTPException(status_code=400, detail="Google token exchange failed")
+        try:
+            userinfo_resp = await client.get(
+                GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}
+            )
+            userinfo_resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("auth.google.userinfo_failed", extra={"error": str(exc)})
+            raise HTTPException(status_code=400, detail="Google userinfo fetch failed") from exc
+        userinfo = userinfo_resp.json()
+    email = userinfo.get("email")
+    if not email:
+        logger.warning("auth.google.email_missing")
+        raise HTTPException(status_code=400, detail="Google account missing email")
+
+    subscription = Subscription(
+        status="trialing",
+        trial_started_at=_now().isoformat(),
+        plan_id=state.plan_id,
+    )
+    logger.info(
+        "auth.google.callback.success",
+        extra={
+            "email_domain": _mask_email(email),
+            "plan_id": state.plan_id,
+        },
+    )
     return GoogleCallbackResponse(
-        status="pending",
-        message="Google OAuth not implemented in backend flow.",
+        status="verified",
+        message="Google OAuth verified",
         state=_.state,
+        email=email,
+        subscription=subscription,
     )
 
 
@@ -313,3 +392,53 @@ def _enforce_rate_limit(*, identity: str, token_type: str) -> None:
             detail="Rate limit exceeded. Please retry later.",
             headers={"Retry-After": f"{int(retry_after)}"},
         )
+
+
+def _issue_google_state(plan_id: str | None) -> str:
+    state = secrets.token_urlsafe(32)
+    _google_states[state] = _GoogleState(
+        plan_id=plan_id,
+        expires_at=_now() + timedelta(seconds=GOOGLE_STATE_TTL_SECONDS),
+    )
+    return state
+
+
+def _resolve_google_state(state: str | None) -> _GoogleState:
+    if not state:
+        logger.warning("auth.google.state.missing")
+        raise HTTPException(status_code=400, detail="Invalid state")
+    record = _google_states.pop(state, None)
+    if not record:
+        logger.warning("auth.google.state.unknown")
+        raise HTTPException(status_code=400, detail="Invalid state")
+    if record.expires_at < _now():
+        logger.warning("auth.google.state.expired")
+        raise HTTPException(status_code=400, detail="State expired")
+    return record
+
+
+@router.get("/auth/google/url", response_model=GoogleAuthUrlResponse)
+async def google_auth_url(plan_id: Optional[str] = None) -> GoogleAuthUrlResponse:
+    """Return a Google OAuth consent URL with a signed state token."""
+    if not settings.google_client_id or not settings.google_redirect_uri:
+        logger.info("auth.google.url.not_enabled")
+        raise HTTPException(status_code=503, detail="Google OAuth not configured.")
+    validated_plan = _validate_plan(plan_id)
+    state = _issue_google_state(validated_plan)
+    query = urlencode(
+        {
+            "client_id": settings.google_client_id,
+            "redirect_uri": settings.google_redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "access_type": "offline",
+            "prompt": "consent",
+        }
+    )
+    url = f"{GOOGLE_AUTH_URL}?{query}"
+    logger.info(
+        "auth.google.url.issued",
+        extra={"state": state, "plan_id": validated_plan},
+    )
+    return GoogleAuthUrlResponse(url=url, state=state)
