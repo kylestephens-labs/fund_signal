@@ -271,13 +271,13 @@ async def subscribe(
         raise HTTPException(status_code=400, detail="payment_method_id is required")
     try:
         customer = _find_or_create_customer(email=payload.customer_email)
-        stripe.PaymentMethod.attach(
+        attached_pm = stripe.PaymentMethod.attach(
             payload.payment_method_id,
             customer=customer["id"],
         )
         stripe.Customer.modify(
             customer["id"],
-            invoice_settings={"default_payment_method": payload.payment_method_id},
+            invoice_settings={"default_payment_method": attached_pm["id"]},
         )
         subscription = stripe.Subscription.create(
             customer=customer["id"],
@@ -285,12 +285,9 @@ async def subscribe(
             trial_period_days=TRIAL_DAYS,
             payment_behavior="default_incomplete",
             payment_settings={"save_default_payment_method": "on_subscription"},
-            default_payment_method=payload.payment_method_id,
+            default_payment_method=attached_pm["id"],
             expand=[
                 "latest_invoice.payment_intent",
-                "latest_invoice.payment_intent.client_secret",
-                "latest_invoice.setup_intent",
-                "latest_invoice.setup_intent.client_secret",
             ],
         )
     except stripe.error.StripeError as exc:  # type: ignore[attr-defined]

@@ -455,6 +455,10 @@ def test_cancel_sets_cancel_at_period_end():
     body = cancel.json()
     assert body["status"] == "cancelled"
     assert body["effective_date"]
+    stored = _get_subscription(sub["subscription_id"])
+    assert stored is not None
+    assert stored.cancel_at_period_end is True
+    assert stored.status in {"cancelled", "canceled"}
 
 
 def test_subscribe_requires_payment_method():
