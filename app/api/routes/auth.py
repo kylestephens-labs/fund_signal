@@ -417,10 +417,13 @@ async def google_callback(
 def _validate_plan(plan_id: str | None) -> str | None:
     if plan_id is None:
         return None
-    allowed = settings.auth_allowed_plans | {"starter", "pro", "team"}
+    allowed = settings.auth_allowed_plans | {"solo", "growth", "team"}
     plan = plan_id.strip()
     plan_normalized = plan.lower()
-    if plan_normalized in {"starter", "pro", "team"}:
+    # Map legacy "starter" to "solo" for backward compatibility
+    if plan_normalized == "starter":
+        plan_normalized = "solo"
+    if plan_normalized in {"solo", "growth", "team"}:
         plan = plan_normalized
     if plan not in allowed:
         logger.warning("auth.plan.invalid", extra={"plan_id": plan})

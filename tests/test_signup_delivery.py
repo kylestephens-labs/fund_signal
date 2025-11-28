@@ -225,7 +225,7 @@ def fake_stripe(monkeypatch):
 def test_magic_link_flow():
     auth_routes.logger.setLevel(logging.DEBUG)
     auth_routes._rate_limiter.max_requests = 10
-    resp = client.post("/auth/magic-link", json={"email": "ae@example.com", "plan_id": "starter"})
+    resp = client.post("/auth/magic-link", json={"email": "ae@example.com", "plan_id": "solo"})
     assert resp.status_code == 202
     payload = resp.json()
     token = payload.get("debug_token")
@@ -237,7 +237,7 @@ def test_magic_link_flow():
     data = verify.json()
     assert data["status"] == "verified"
     assert data["subscription"]["status"] == "trialing"
-    assert data["subscription"]["plan_id"] == "starter"
+    assert data["subscription"]["plan_id"] == "solo"
     assert data["session_token"]
     artifacts = list(Path(settings.delivery_output_dir).glob("unlock_email_*.md"))
     assert artifacts, "expected unlock email artifact written"
@@ -246,14 +246,14 @@ def test_magic_link_flow():
 def test_otp_flow_with_plan_and_email_match():
     auth_routes.logger.setLevel(logging.DEBUG)
     auth_routes._rate_limiter.max_requests = 10
-    resp = client.post("/auth/otp", json={"email": "bd@example.com", "plan_id": "pro"})
+    resp = client.post("/auth/otp", json={"email": "bd@example.com", "plan_id": "growth"})
     assert resp.status_code == 202
     otp = resp.json()["debug_token"]
 
     verify = client.post("/auth/otp/verify", json={"email": "bd@example.com", "otp": otp})
     assert verify.status_code == 200
     data = verify.json()
-    assert data["subscription"]["plan_id"] == "pro"
+    assert data["subscription"]["plan_id"] == "growth"
     assert data["session_token"]
 
 
@@ -323,7 +323,7 @@ def test_google_oauth_flow_success(monkeypatch):
 
     monkeypatch.setattr(auth_routes.httpx, "AsyncClient", FakeAsyncClient)
 
-    url_resp = client.get("/auth/google/url", params={"plan_id": "starter"})
+    url_resp = client.get("/auth/google/url", params={"plan_id": "solo"})
     assert url_resp.status_code == 200
     payload = url_resp.json()
     assert "state" in payload and payload["state"]
@@ -416,7 +416,7 @@ def test_subscribe_creates_trial_and_dates():
     resp = client.post(
         "/billing/subscribe",
         json={
-            "plan_id": "starter",
+            "plan_id": "solo",
             "payment_method_id": "pm_test",
             "customer_email": "trial@example.com",
         },
@@ -425,7 +425,7 @@ def test_subscribe_creates_trial_and_dates():
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "trialing"
-    assert data["plan_id"] == "starter"
+    assert data["plan_id"] == "solo"
     trial_start = datetime.fromisoformat(data["trial_start"])
     trial_end = datetime.fromisoformat(data["trial_end"])
     assert (trial_end - trial_start).days == 14
@@ -465,7 +465,7 @@ def test_subscribe_requires_payment_method():
     headers = _auth_headers("nopm@example.com")
     resp = client.post(
         "/billing/subscribe",
-        json={"plan_id": "starter", "customer_email": "nopm@example.com"},
+        json={"plan_id": "solo", "customer_email": "nopm@example.com"},
         headers=headers,
     )
     assert resp.status_code == 400

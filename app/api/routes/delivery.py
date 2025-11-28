@@ -428,11 +428,18 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
         sub_id = obj.get("subscription")
         if not sub_id:
             return False
+        price_id: str | None = None
+        if obj.get("price"):
+            price_id = obj["price"].get("id")
+        if not price_id:
+            lines = obj.get("lines", {}).get("data", [])
+            if lines:
+                price_id = (lines[0].get("price") or {}).get("id")
         record = {
             "subscription_id": sub_id,
             "status": obj.get("status", "incomplete"),
             "email": obj.get("customer_email"),
-            "plan_id": obj.get("price", {}).get("id") if obj.get("price") else None,
+            "plan_id": price_id,
             "customer_id": obj.get("customer"),
         }
         if payload.type == "invoice.payment_succeeded":

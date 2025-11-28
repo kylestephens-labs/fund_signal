@@ -50,7 +50,7 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 
 ### Key API Endpoints (backend-only)
 
-- `POST /auth/magic-link` → issue magic link token (verify via `/auth/magic-link/verify`); accepts optional `plan_id` (Stripe price ids when configured, otherwise `starter|pro|team`) and is rate-limited per email. Verification returns a `session_token` for authenticated calls.
+- `POST /auth/magic-link` → issue magic link token (verify via `/auth/magic-link/verify`); accepts optional `plan_id` (Stripe price ids when configured, otherwise `solo|growth|team`) and is rate-limited per email. Verification returns a `session_token` for authenticated calls.
 - `POST /auth/otp` → issue OTP (verify via `/auth/otp/verify`); accepts optional `plan_id` and enforces the same rate limits; verification returns a `session_token`
 - `GET /auth/google/url` → returns Google OAuth consent URL + state (uses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`; optional `plan_id`)
 - `POST /auth/google/callback` → exchanges code for token, fetches user info, and returns a verified session with `session_token`

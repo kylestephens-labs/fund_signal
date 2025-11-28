@@ -185,3 +185,4 @@ Thumbs.db
 fixtures/latest/
 artifacts/
 .uv-cache/
+output/

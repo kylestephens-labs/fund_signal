@@ -137,7 +137,7 @@ class Settings(BaseSettings):
         }
         if configured:
             return configured
-        return {"starter", "pro", "team"}
+        return {"solo", "growth", "team"}
 
     model_config = ConfigDict(env_file=".env", case_sensitive=False)
 
