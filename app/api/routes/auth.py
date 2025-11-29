@@ -541,6 +541,9 @@ def _schedule_unlock_email(session: SessionContext, background_tasks: Background
 def _dispatch_unlock_email(session: SessionContext) -> None:
     """Render and persist a full report email artifact."""
     email_key = session.email.lower()
+    logger.info(
+        "delivery.unlock.dispatch_start", extra={"email_domain": _mask_email(session.email)}
+    )
     try:
         from app.api.routes import delivery as delivery_routes
 
@@ -590,6 +593,7 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
     if not settings.email_smtp_url or not settings.email_from:
         logger.info("delivery.unlock.email_skipped", extra={"reason": "smtp_not_configured"})
         return
+    logger.info("delivery.unlock.email_attempt", extra={"email_domain": _mask_email(recipient)})
     parsed = urlparse(settings.email_smtp_url)
     if parsed.scheme not in {"smtp", "smtps", "smtp+ssl"}:
         logger.warning("delivery.unlock.email_invalid_scheme", extra={"scheme": parsed.scheme})
