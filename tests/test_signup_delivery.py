@@ -492,10 +492,46 @@ def test_cancel_sets_cancel_at_period_end():
     body = cancel.json()
     assert body["status"] == "cancelled"
     assert body["effective_date"]
+    assert "message" in body and "access" in body["message"].lower()
     stored = _get_subscription(sub["subscription_id"])
     assert stored is not None
     assert stored.cancel_at_period_end is True
     assert stored.status in {"cancelled", "canceled"}
+
+
+def test_cancel_allows_email_identifier_and_returns_message():
+    headers = _auth_headers("cancel-email@example.com")
+    client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "solo",
+            "payment_method_id": "pm_cancel_email",
+            "customer_email": "cancel-email@example.com",
+        },
+        headers=headers,
+    )
+    resp = client.post(
+        "/billing/cancel",
+        json={"email": "cancel-email@example.com", "reason": "testing message"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "cancelled"
+    assert "You" in data["message"]
+    assert data["note"] == "testing message"
+
+
+def test_cancel_requires_identifier():
+    headers = _auth_headers("need-id@example.com")
+    resp = client.post("/billing/cancel", json={"reason": "missing"}, headers=headers)
+    assert resp.status_code == 400
+
+
+def test_cancel_returns_404_for_unknown_email():
+    headers = _auth_headers("unknown@example.com")
+    resp = client.post("/billing/cancel", json={"email": "norecord@example.com"}, headers=headers)
+    assert resp.status_code == 404
 
 
 def test_subscribe_requires_payment_method():

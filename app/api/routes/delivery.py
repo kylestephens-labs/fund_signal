@@ -109,6 +109,7 @@ class CancelRequest(BaseModel):
 class CancelResponse(BaseModel):
     status: str
     effective_date: str
+    message: str
     note: str | None = None
 
 
@@ -432,6 +433,24 @@ def _log_subscription_event(
     )
 
 
+def _format_cancel_message(effective_date: str | None) -> str:
+    """Return a user-facing summary describing when access ends."""
+    if not effective_date:
+        return "Your access ends immediately and billing stops right away."
+    try:
+        parsed = datetime.fromisoformat(effective_date)
+    except Exception:
+        parsed = None
+    if parsed:
+        friendly = parsed.strftime("%b %d, %Y")
+        comparison_dt = parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        now_dt = datetime.now(timezone.utc)
+        if comparison_dt > now_dt:
+            return f"You'll retain access until {friendly}, then billing stops."
+        return f"Access ended on {friendly}; billing has stopped."
+    return f"Access ends at {effective_date}; billing stops afterward."
+
+
 async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSession | None) -> bool:
     """Apply webhook updates; return True if duplicate already processed."""
     if db:
@@ -644,6 +663,9 @@ async def cancel_subscription(
     if db is None:
         logger.warning("stripe.cancel.db_missing")
         raise HTTPException(status_code=503, detail="Database not configured")
+    if not payload.subscription_id and not payload.email:
+        logger.warning("stripe.cancel.missing_identifier")
+        raise HTTPException(status_code=400, detail="subscription_id or email is required")
     subscription = await _resolve_subscription(payload, db)
     if settings.stripe_secret_key:
         stripe.api_key = settings.stripe_secret_key
@@ -663,7 +685,16 @@ async def cancel_subscription(
     subscription["reason"] = payload.reason or "unspecified"
     effective_date = subscription.get("current_period_end") or subscription.get("trial_end")
     if not effective_date:
-        effective_date = datetime.now(timezone.utc).isoformat()
+        effective_dt = datetime.now(timezone.utc)
+    elif isinstance(effective_date, datetime):
+        effective_dt = effective_date
+    else:
+        try:
+            effective_dt = datetime.fromisoformat(effective_date)
+        except Exception:
+            effective_dt = datetime.now(timezone.utc)
+    effective_date_str = effective_dt.isoformat()
+    message = _format_cancel_message(effective_date_str)
     await _persist_subscription_record(db, subscription)
     await _mark_event(db, f"cancel-{subscription['subscription_id']}")
     logger.info(
@@ -672,6 +703,12 @@ async def cancel_subscription(
             "subscription_id": subscription["subscription_id"],
             "email_domain": _mask_email(subscription.get("email")),
             "reason": payload.reason,
+            "effective_date": effective_date_str,
         },
     )
-    return CancelResponse(status="cancelled", effective_date=effective_date, note=payload.reason)
+    return CancelResponse(
+        status="cancelled",
+        effective_date=effective_date_str,
+        message=message,
+        note=payload.reason,
+    )

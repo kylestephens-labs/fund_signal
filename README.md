@@ -125,6 +125,26 @@ Expected results:
 
 Re-run `stripe trigger invoice.payment_succeeded` to confirm the API returns `duplicate: true`, proving idempotency. See `docs/prove/prove_v1.md` for the prove gate details, and capture screenshots/log excerpts in incidents.
 
+### Verify Cancel Endpoint UX
+
+```bash
+source .venv/bin/activate
+pytest tests/test_signup_delivery.py -k cancel
+```
+
+Expected API response (manual curl via authenticated session):
+
+```json
+{
+  "status": "cancelled",
+  "effective_date": "2024-05-15T12:00:00+00:00",
+  "message": "You'll retain access until May 15, then billing stops.",
+  "note": "not a fit"
+}
+```
+
+Call `/billing/cancel` with either `subscription_id` or `email`; the endpoint masks emails in logs (`billing.cancelled`) and records the cancellation in `processed_events` with id `cancel-<subscription_id>`. Use Supabase SQL editor to confirm `cancel_at_period_end` flipped to `true`.
+
 ### Quality Gates (Prove)
 
 All engineers and Codex agents run the same lint + test bar before handoff:

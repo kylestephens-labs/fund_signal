@@ -133,6 +133,10 @@ When a prospect adds a card, `POST /billing/subscribe` responds with `trial_star
 
 `POST /billing/stripe/webhook` is registered in Stripe dashboard and verified with the Stripe CLI. Every `checkout.session`, `invoice.payment_*`, and `customer.subscription.*` event lands in our `subscriptions` + `processed_events` tables so operators can trust the billing status shown in-product.
 
+### 8. Self-Serve Cancellation
+
+Users cancel via `/billing/cancel` with either their subscription id or email. The API immediately responds with a friendly summary (“You'll retain access until May 15, then billing stops.”) plus the effective date, and support can confirm via Render logs + Supabase rows.
+
 ## 💰 Pricing Model
 
 | Tier | Price | What's Included |
