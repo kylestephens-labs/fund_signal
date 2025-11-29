@@ -415,6 +415,23 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
         raise HTTPException(status_code=403, detail="Invalid signature")
 
 
+def _log_subscription_event(
+    *, event_id: str, event_type: str, record: dict[str, Any], note: str | None = None
+) -> None:
+    """Emit a structured log for webhook-derived subscription updates."""
+    logger.info(
+        "stripe.webhook.persisted",
+        extra={
+            "event_id": event_id,
+            "type": event_type,
+            "subscription_id": record.get("subscription_id"),
+            "status": record.get("status"),
+            "plan_id": record.get("plan_id"),
+            "note": note,
+        },
+    )
+
+
 async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSession | None) -> bool:
     """Apply webhook updates; return True if duplicate already processed."""
     if db:
@@ -439,6 +456,9 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
             "cancel_at_period_end": False,
         }
         await _persist_subscription_record(db, record)
+        _log_subscription_event(
+            event_id=payload.id, event_type=payload.type, record=record, note="checkout"
+        )
         if db:
             await _mark_event(db, payload.id, sub_id)
         return False
@@ -455,10 +475,11 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
             lines = obj.get("lines", {}).get("data", [])
             if lines:
                 price_id = (lines[0].get("price") or {}).get("id")
+        email = obj.get("customer_email") or obj.get("customer_details", {}).get("email")
         record = {
             "subscription_id": sub_id,
             "status": obj.get("status", "incomplete"),
-            "email": obj.get("customer_email"),
+            "email": email,
             "plan_id": price_id,
             "customer_id": obj.get("customer"),
         }
@@ -472,6 +493,9 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
                 current_period_end, tz=timezone.utc
             ).isoformat()
         await _persist_subscription_record(db, record)
+        _log_subscription_event(
+            event_id=payload.id, event_type=payload.type, record=record, note="invoice"
+        )
         if db:
             await _mark_event(db, payload.id, sub_id)
         return False
@@ -512,6 +536,7 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
             extra={"subscription_id": sub_id, "email_domain": _mask_email(record.get("email"))},
         )
     await _persist_subscription_record(db, record)
+    _log_subscription_event(event_id=payload.id, event_type=payload.type, record=record)
     if db:
         await _mark_event(db, payload.id, sub_id)
     return False

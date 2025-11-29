@@ -212,6 +212,21 @@ class FakeStripe:
         return sub
 
     def _construct_event(self, payload: bytes, sig_header: str | None, secret: str | None):
+        if secret:
+            if not sig_header:
+                raise ValueError("Missing Stripe-Signature header")
+            parts = dict(entry.split("=", 1) for entry in sig_header.split(",") if "=" in entry)
+            timestamp = parts.get("t")
+            provided = parts.get("v1")
+            if not timestamp or not provided:
+                raise ValueError("Invalid Stripe-Signature header")
+            expected = hmac.new(
+                secret.encode(),
+                msg=f"{timestamp}.{payload.decode()}".encode(),
+                digestmod=sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(expected, provided):
+                raise ValueError("Invalid signature")
         return json.loads(payload.decode())
 
 
@@ -617,6 +632,59 @@ def test_trial_will_end_logged_and_deduped():
     )
     assert second.status_code == 200
     assert second.json()["duplicate"] is True
+
+
+def test_invoice_payment_events_update_subscription_and_logs():
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
+    event = {
+        "id": "evt_invoice",
+        "type": "invoice.payment_succeeded",
+        "data": {
+            "object": {
+                "id": "in_123",
+                "subscription": "sub_invoice",
+                "status": "paid",
+                "customer_email": "invoice@example.com",
+                "customer": "cus_invoice",
+                "current_period_end": 5,
+                "lines": {
+                    "data": [
+                        {"price": {"id": "price_invoice"}},
+                    ]
+                },
+            }
+        },
+    }
+    payload = json.dumps(event)
+    timestamp = "123456789"
+    signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
+    resp = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"received": True, "duplicate": False}
+    subscription = _get_subscription("sub_invoice")
+    assert subscription is not None
+    assert subscription.status == "active"
+    assert subscription.customer_id == "cus_invoice"
+    assert subscription.price_id == "price_invoice"
+    processed = _get_processed_event("evt_invoice")
+    assert processed is not None and processed.subscription_id == "sub_invoice"
+
+
+def test_webhook_rejects_invalid_signature():
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
+    event = {"id": "evt_bad_sig", "type": "invoice.payment_failed", "data": {"object": {}}}
+    payload = json.dumps(event)
+    bad_signature = "t=123456789,v1=deadbeef"
+    resp = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": bad_signature, "Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
 
 
 def _seed_subscription(

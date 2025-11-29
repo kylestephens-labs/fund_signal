@@ -108,6 +108,23 @@ pytest tests/test_signup_delivery.py -k subscribe
 
 The response should include `subscription_id`, `plan_id`, `plan_label`, `trial_start`, `trial_end`, `current_period_end`, `payment_behavior`, and `client_secret`, matching what the frontend displays.
 
+### Verify Stripe Webhook Wiring
+
+```bash
+stripe login
+stripe listen --forward-to localhost:8000/billing/stripe/webhook
+STRIPE_SECRET_KEY=sk_test_xxx STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret) uvicorn app.main:app --reload
+# In a new shell:
+stripe trigger invoice.payment_succeeded
+```
+
+Expected results:
+1. FastAPI responds `{"received": true, "duplicate": false}` and logs `stripe.webhook.received` plus `stripe.webhook.persisted` containing the event id/type/status.
+2. `SELECT subscription_id, status FROM subscriptions WHERE subscription_id = 'sub_...'` shows the updated Stripe status.
+3. `SELECT event_id FROM processed_events ORDER BY received_at DESC LIMIT 5;` includes the replayed Stripe event (via Supabase SQL editor or `psql`).
+
+Re-run `stripe trigger invoice.payment_succeeded` to confirm the API returns `duplicate: true`, proving idempotency. See `docs/prove/prove_v1.md` for the prove gate details, and capture screenshots/log excerpts in incidents.
+
 ### Quality Gates (Prove)
 
 All engineers and Codex agents run the same lint + test bar before handoff:

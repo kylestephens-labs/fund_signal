@@ -129,6 +129,10 @@ FUND_SIGNAL_MODE: online (requires Slack/email integrations)
 
 When a prospect adds a card, `POST /billing/subscribe` responds with `trial_start`, `trial_end`, and `current_period_end` plus the Stripe `client_secret`, enabling the frontend to render a 14-day countdown before billing. This clarity boosts conversion while keeping trust high.
 
+### 7. Stripe Webhook Reliability
+
+`POST /billing/stripe/webhook` is registered in Stripe dashboard and verified with the Stripe CLI. Every `checkout.session`, `invoice.payment_*`, and `customer.subscription.*` event lands in our `subscriptions` + `processed_events` tables so operators can trust the billing status shown in-product.
+
 ## 💰 Pricing Model
 
 | Tier | Price | What's Included |
