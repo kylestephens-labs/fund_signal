@@ -607,15 +607,16 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
     password = parsed.password or ""
     use_ssl = parsed.scheme in {"smtps", "smtp+ssl"}
     logger.info(
-        "delivery.unlock.smtp_config",
-        extra={
-            "host": host,
-            "port": port,
-            "use_ssl": use_ssl,
-            "has_username": bool(user),
-            "has_password": bool(password),
-            "disable_tls": bool(settings.email_disable_tls),
-        },
+        (
+            "delivery.unlock.smtp_config host=%s port=%s use_ssl=%s disable_tls=%s "
+            "has_username=%s has_password=%s"
+        ),
+        host,
+        port,
+        use_ssl,
+        bool(settings.email_disable_tls),
+        bool(user),
+        bool(password),
     )
     msg = EmailMessage()
     msg["From"] = settings.email_from
