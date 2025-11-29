@@ -6,12 +6,13 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import secrets
 from datetime import (  # noqa: UP017 - timezone.utc for py3.9 compatibility
     datetime,
     timedelta,
     timezone,
 )
-from hashlib import sha256
+from hashlib import blake2b, sha256
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -19,6 +20,7 @@ from uuid import UUID
 import stripe
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -111,6 +113,29 @@ class CancelResponse(BaseModel):
     effective_date: str
     message: str
     note: str | None = None
+    undo_token: str | None = None
+    undo_expires_at: str | None = None
+
+
+class CancelUndoRequest(BaseModel):
+    undo_token: str
+
+
+class CancelUndoResponse(BaseModel):
+    status: str
+    restored_at: str
+    message: str
+
+
+class SubscriptionStateResponse(BaseModel):
+    subscription_id: str
+    plan_id: str | None
+    status: str
+    trial_start: str | None = None
+    trial_end: str | None = None
+    current_period_end: str | None = None
+    cancel_at_period_end: bool
+    updated_at: str
 
 
 @router.get("/leads", response_model=list[LeadResponse])
@@ -451,6 +476,43 @@ def _format_cancel_message(effective_date: str | None) -> str:
     return f"Access ends at {effective_date}; billing stops afterward."
 
 
+def _hash_undo_token(token: str) -> str:
+    return blake2b(token.encode("utf-8"), digest_size=32).hexdigest()
+
+
+def _undo_event_id(token_hash: str) -> str:
+    return f"undo:{token_hash}"
+
+
+async def _store_undo_token(db: AsyncSession, subscription_id: str, token_hash: str) -> None:
+    event_id = _undo_event_id(token_hash)
+    existing = await db.execute(select(ProcessedEvent).where(ProcessedEvent.event_id == event_id))
+    if existing.scalar_one_or_none():
+        return
+    db.add(ProcessedEvent(event_id=event_id, subscription_id=subscription_id))
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("stripe.cancel.undo.persist_failed")
+        raise HTTPException(status_code=500, detail="Failed to store undo token")
+
+
+async def _get_undo_entry(db: AsyncSession, token_hash: str) -> ProcessedEvent | None:
+    event_id = _undo_event_id(token_hash)
+    result = await db.execute(select(ProcessedEvent).where(ProcessedEvent.event_id == event_id))
+    return result.scalar_one_or_none()
+
+
+async def _consume_undo_token(db: AsyncSession, token_hash: str) -> None:
+    event_id = _undo_event_id(token_hash)
+    await db.execute(delete(ProcessedEvent).where(ProcessedEvent.event_id == event_id))
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
+
 async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSession | None) -> bool:
     """Apply webhook updates; return True if duplicate already processed."""
     if db:
@@ -663,6 +725,7 @@ async def cancel_subscription(
     if db is None:
         logger.warning("stripe.cancel.db_missing")
         raise HTTPException(status_code=503, detail="Database not configured")
+    await _ensure_event_tables(db)
     if not payload.subscription_id and not payload.email:
         logger.warning("stripe.cancel.missing_identifier")
         raise HTTPException(status_code=400, detail="subscription_id or email is required")
@@ -695,6 +758,16 @@ async def cancel_subscription(
             effective_dt = datetime.now(timezone.utc)
     effective_date_str = effective_dt.isoformat()
     message = _format_cancel_message(effective_date_str)
+    undo_token: str | None = None
+    undo_expires_at: str | None = None
+    if settings.cancel_undo_ttl_seconds > 0:
+        undo_token = secrets.token_urlsafe(32)
+        token_hash = _hash_undo_token(undo_token)
+        await _store_undo_token(db, subscription["subscription_id"], token_hash)
+        undo_expires_dt = datetime.now(timezone.utc) + timedelta(
+            seconds=settings.cancel_undo_ttl_seconds
+        )
+        undo_expires_at = undo_expires_dt.isoformat()
     await _persist_subscription_record(db, subscription)
     await _mark_event(db, f"cancel-{subscription['subscription_id']}")
     logger.info(
@@ -704,6 +777,7 @@ async def cancel_subscription(
             "email_domain": _mask_email(subscription.get("email")),
             "reason": payload.reason,
             "effective_date": effective_date_str,
+            "undo_expires_at": undo_expires_at,
         },
     )
     return CancelResponse(
@@ -711,4 +785,137 @@ async def cancel_subscription(
         effective_date=effective_date_str,
         message=message,
         note=payload.reason,
+        undo_token=undo_token,
+        undo_expires_at=undo_expires_at,
     )
+
+
+@router.post("/billing/cancel/undo", response_model=CancelUndoResponse)
+async def cancel_undo(
+    payload: CancelUndoRequest,
+    session: SessionContext = Depends(require_session),
+    db: AsyncSession | None = Depends(get_database),
+) -> CancelUndoResponse:
+    if db is None:
+        logger.warning("stripe.cancel.undo.db_missing")
+        raise HTTPException(status_code=503, detail="Database not configured")
+    await _ensure_event_tables(db)
+    if not payload.undo_token:
+        raise HTTPException(status_code=400, detail="undo_token is required")
+    token_hash = _hash_undo_token(payload.undo_token)
+    entry = await _get_undo_entry(db, token_hash)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Undo token not found")
+    ttl_seconds = max(settings.cancel_undo_ttl_seconds, 0)
+    entry_received = entry.received_at
+    if entry_received.tzinfo is None:
+        entry_received = entry_received.replace(tzinfo=timezone.utc)
+    expires_at = entry_received + timedelta(seconds=ttl_seconds)
+    now_dt = datetime.now(timezone.utc)
+    if now_dt > expires_at:
+        await _consume_undo_token(db, token_hash)
+        logger.info(
+            "billing.cancel.undo_expired",
+            extra={
+                "subscription_id": entry.subscription_id,
+                "email_domain": "*",
+                "expires_at": expires_at.isoformat(),
+            },
+        )
+        raise HTTPException(status_code=410, detail="Undo token expired")
+    stmt = select(Subscription).where(Subscription.subscription_id == entry.subscription_id)
+    result = await db.execute(stmt)
+    subscription = result.scalar_one_or_none()
+    if not subscription:
+        await _consume_undo_token(db, token_hash)
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    record = {
+        "subscription_id": subscription.subscription_id,
+        "customer_id": subscription.customer_id,
+        "email": subscription.email,
+        "plan_id": subscription.price_id,
+        "status": "active",
+        "cancel_at_period_end": False,
+        "payment_method_id": subscription.default_payment_method,
+    }
+    if settings.stripe_secret_key:
+        stripe.api_key = settings.stripe_secret_key
+        try:
+            stripe.Subscription.modify(subscription.subscription_id, cancel_at_period_end=False)
+        except stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+            logger.warning(
+                "stripe.cancel.undo_failed",
+                extra={"subscription_id": subscription.subscription_id, "error": str(exc)},
+            )
+            raise HTTPException(status_code=400, detail="Unable to undo cancellation") from exc
+    await _persist_subscription_record(db, record)
+    await _consume_undo_token(db, token_hash)
+    restored_at = now_dt.isoformat()
+    logger.info(
+        "billing.cancel.undo",
+        extra={
+            "subscription_id": subscription.subscription_id,
+            "email_domain": _mask_email(subscription.email),
+            "restored_at": restored_at,
+        },
+    )
+    return CancelUndoResponse(
+        status="restored",
+        restored_at=restored_at,
+        message="Your subscription has been restored and billing continues.",
+    )
+
+
+def _to_iso(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    if dt.tzinfo:
+        return dt.isoformat()
+    return dt.replace(tzinfo=timezone.utc).isoformat()
+
+
+def _serialize_subscription(record: Subscription) -> SubscriptionStateResponse:
+    return SubscriptionStateResponse(
+        subscription_id=record.subscription_id,
+        plan_id=record.price_id,
+        status=record.status,
+        trial_start=_to_iso(record.trial_start),
+        trial_end=_to_iso(record.trial_end),
+        current_period_end=_to_iso(record.current_period_end),
+        cancel_at_period_end=record.cancel_at_period_end,
+        updated_at=_to_iso(record.updated_at) or datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@router.get("/billing/subscription", response_model=SubscriptionStateResponse)
+async def get_subscription_state(
+    session: SessionContext = Depends(require_session),
+    db: AsyncSession | None = Depends(get_database),
+) -> SubscriptionStateResponse:
+    if db is None:
+        logger.warning("stripe.subscription_state.db_missing")
+        raise HTTPException(status_code=503, detail="Database not configured")
+    stmt = (
+        select(Subscription)
+        .where(Subscription.email == session.email)
+        .order_by(Subscription.updated_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    record = result.scalar_one_or_none()
+    if not record:
+        logger.info(
+            "stripe.subscription_state.missing",
+            extra={"email_domain": _mask_email(session.email)},
+        )
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    logger.info(
+        "stripe.subscription_state.read",
+        extra={
+            "subscription_id": record.subscription_id,
+            "plan_id": record.price_id,
+            "status": record.status,
+            "email_domain": _mask_email(session.email),
+        },
+    )
+    return _serialize_subscription(record)

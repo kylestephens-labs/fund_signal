@@ -2,7 +2,7 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone  # noqa: UP017
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
@@ -208,7 +208,7 @@ class FakeStripe:
         sub = self.subscriptions.get(sub_id)
         if sub:
             sub["cancel_at_period_end"] = cancel_at_period_end
-            sub["status"] = "canceled"
+            sub["status"] = "canceled" if cancel_at_period_end else "active"
         return sub
 
     def _construct_event(self, payload: bytes, sig_header: str | None, secret: str | None):
@@ -493,6 +493,8 @@ def test_cancel_sets_cancel_at_period_end():
     assert body["status"] == "cancelled"
     assert body["effective_date"]
     assert "message" in body and "access" in body["message"].lower()
+    assert body["undo_token"]
+    assert body["undo_expires_at"]
     stored = _get_subscription(sub["subscription_id"])
     assert stored is not None
     assert stored.cancel_at_period_end is True
@@ -531,6 +533,142 @@ def test_cancel_requires_identifier():
 def test_cancel_returns_404_for_unknown_email():
     headers = _auth_headers("unknown@example.com")
     resp = client.post("/billing/cancel", json={"email": "norecord@example.com"}, headers=headers)
+    assert resp.status_code == 404
+
+
+def test_cancel_undo_restores_subscription(monkeypatch):
+    headers = _auth_headers("undo@example.com")
+    sub = client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "solo",
+            "payment_method_id": "pm_undo",
+            "customer_email": "undo@example.com",
+        },
+        headers=headers,
+    ).json()
+    cancel = client.post(
+        "/billing/cancel",
+        json={"subscription_id": sub["subscription_id"], "reason": "try undo"},
+        headers=headers,
+    )
+    data = cancel.json()
+    token = data["undo_token"]
+    assert token
+    undo = client.post("/billing/cancel/undo", json={"undo_token": token}, headers=headers)
+    assert undo.status_code == 200
+    stored = _get_subscription(sub["subscription_id"])
+    assert stored is not None
+    assert stored.cancel_at_period_end is False
+    assert stored.status == "active"
+
+
+def test_cancel_undo_invalid_token():
+    headers = _auth_headers("undo-invalid@example.com")
+    resp = client.post("/billing/cancel/undo", json={"undo_token": "bad"}, headers=headers)
+    assert resp.status_code == 404
+
+
+def test_cancel_undo_expired_token(monkeypatch):
+    headers = _auth_headers("undo-expired@example.com")
+    monkeypatch.setattr(settings, "cancel_undo_ttl_seconds", 1)
+    sub = client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "solo",
+            "payment_method_id": "pm_undo_expired",
+            "customer_email": "undo-expired@example.com",
+        },
+        headers=headers,
+    ).json()
+    cancel = client.post(
+        "/billing/cancel",
+        json={"subscription_id": sub["subscription_id"]},
+        headers=headers,
+    )
+    token = cancel.json()["undo_token"]
+    token_hash = delivery_routes._hash_undo_token(token)
+    if _SYNC_SESSION_FACTORY:
+        with _SYNC_SESSION_FACTORY() as session:
+            event = session.execute(
+                select(ProcessedEvent).where(ProcessedEvent.event_id == f"undo:{token_hash}")
+            ).scalar_one()
+            event.received_at = datetime.now(timezone.utc) - timedelta(seconds=5)  # noqa: UP017
+            session.commit()
+    resp = client.post("/billing/cancel/undo", json={"undo_token": token}, headers=headers)
+    assert resp.status_code == 410
+
+
+def test_subscription_state_endpoint_returns_latest_session_record():
+    headers = _auth_headers("state@example.com")
+    sub = client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "solo",
+            "payment_method_id": "pm_state",
+            "customer_email": "state@example.com",
+        },
+        headers=headers,
+    ).json()
+    resp = client.get("/billing/subscription", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["subscription_id"] == sub["subscription_id"]
+    assert data["plan_id"] == "solo"
+    assert data["status"] == "trialing"
+    assert data["trial_start"]
+    assert data["trial_end"]
+
+
+def test_subscription_state_updates_after_webhook():
+    headers = _auth_headers("statehook@example.com")
+    sub = client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "solo",
+            "payment_method_id": "pm_statehook",
+            "customer_email": "statehook@example.com",
+        },
+        headers=headers,
+    ).json()
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105
+    event = {
+        "id": "evt_statehook",
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "id": sub["subscription_id"],
+                "status": "active",
+                "trial_start": 1,
+                "trial_end": 2,
+                "current_period_end": 3,
+                "cancel_at_period_end": False,
+                "customer_email": "statehook@example.com",
+                "customer": "cus_statehook",
+                "plan": {"id": "price_pro"},
+            }
+        },
+    }
+    payload = json.dumps(event)
+    timestamp = "123456789"
+    signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
+    hook = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert hook.status_code == 200
+    resp = client.get("/billing/subscription", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["plan_id"] == "price_pro"
+    assert data["status"] == "active"
+    assert data["current_period_end"]
+
+
+def test_subscription_state_returns_404_when_missing():
+    headers = _auth_headers("nostate@example.com")
+    resp = client.get("/billing/subscription", headers=headers)
     assert resp.status_code == 404
 
 

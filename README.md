@@ -58,6 +58,7 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 - `GET /leads` → list authenticated leads with optional `score_gte` and `limit` (requires `Authorization: Bearer <session_token>`; returns freshness/proof metadata and upgrade CTA)
 - `POST /billing/subscribe` → create a subscription with 14-day trial (no charge), requires auth + payment method + plan/price id; enforces `payment_behavior=default_incomplete`, saves default payment method, and returns `subscription_id`, `plan_id`, `plan_label`, `trial_start`, `trial_end`, `current_period_end`, and `client_secret` so the UI can render the billing timeline
 - `POST /billing/cancel` → cancel-at-period-end for an existing subscription (requires auth; idempotent)
+- `POST /billing/cancel/undo` → restore a pending cancellation using the `undo_token` returned by `/billing/cancel`
 - `POST /billing/stripe/webhook` → Stripe webhook receiver with idempotency and signature verification (use Stripe-Signature header)
 
 ## Database & Migrations
@@ -144,6 +145,29 @@ Expected API response (manual curl via authenticated session):
 ```
 
 Call `/billing/cancel` with either `subscription_id` or `email`; the endpoint masks emails in logs (`billing.cancelled`) and records the cancellation in `processed_events` with id `cancel-<subscription_id>`. Use Supabase SQL editor to confirm `cancel_at_period_end` flipped to `true`.
+
+To undo a cancellation within the grace window, call:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <session_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"undo_token": "<token from cancel response>"}' \
+  http://localhost:8000/billing/cancel/undo
+```
+
+Expect `{ "status": "restored", "message": "Your subscription has been restored and billing continues." }` and verify Supabase shows `cancel_at_period_end = false`.
+
+### Verify Subscription Persistence
+
+```bash
+curl -H "Authorization: Bearer <session_token>" \
+     http://localhost:8000/billing/subscription | jq
+```
+
+Expected response includes `subscription_id`, `plan_id`, `status`, `trial_start`, `trial_end`, `current_period_end`, and `cancel_at_period_end`. After running `/billing/subscribe` locally, confirm:
+1. Supabase (or local Postgres) has a row in `subscriptions` for the email.
+2. `/billing/subscription` returns the same plan/status after replaying a `customer.subscription.updated` webhook via Stripe CLI.
 
 ### Quality Gates (Prove)
 

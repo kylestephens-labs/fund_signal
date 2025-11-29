@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     # Auth controls
     auth_rate_limit_window_seconds: int = 60
     auth_rate_limit_max_requests: int = 5
+    cancel_undo_ttl_seconds: int = 172800
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

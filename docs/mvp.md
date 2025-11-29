@@ -135,7 +135,7 @@ When a prospect adds a card, `POST /billing/subscribe` responds with `trial_star
 
 ### 8. Self-Serve Cancellation
 
-Users cancel via `/billing/cancel` with either their subscription id or email. The API immediately responds with a friendly summary (“You'll retain access until May 15, then billing stops.”) plus the effective date, and support can confirm via Render logs + Supabase rows.
+Users cancel via `/billing/cancel` with either their subscription id or email. The API immediately responds with a friendly summary ("You'll retain access until May 15, then billing stops.") plus the effective date and an undo link good for 48 hours; support confirms via Render logs + Supabase rows.
 
 ## 💰 Pricing Model
 
