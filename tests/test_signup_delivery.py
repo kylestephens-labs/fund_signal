@@ -426,13 +426,35 @@ def test_subscribe_creates_trial_and_dates():
     data = resp.json()
     assert data["status"] == "trialing"
     assert data["plan_id"] == "solo"
+    assert data["plan_label"] == "Solo plan"
     trial_start = datetime.fromisoformat(data["trial_start"])
     trial_end = datetime.fromisoformat(data["trial_end"])
     assert (trial_end - trial_start).days == 14
+    assert data["current_period_end"] == data["trial_end"]
     assert data["payment_behavior"] == "default_incomplete"
     assert data["client_secret"] == f"pi_secret_{data['subscription_id']}"
     subscription = _get_subscription(data["subscription_id"])
     assert subscription is not None
+    assert subscription.price_id == "solo"
+    assert subscription.default_payment_method == "pm_test"
+
+
+def test_subscribe_maps_price_id_to_plan_label(monkeypatch):
+    monkeypatch.setattr(settings, "stripe_plan_solo", "price_price_solo")
+    headers = _auth_headers("priced@example.com")
+    resp = client.post(
+        "/billing/subscribe",
+        json={
+            "plan_id": "price_price_solo",
+            "payment_method_id": "pm_price",
+            "customer_email": "priced@example.com",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["plan_id"] == "price_price_solo"
+    assert data["plan_label"] == "Solo plan"
 
 
 def test_cancel_sets_cancel_at_period_end():

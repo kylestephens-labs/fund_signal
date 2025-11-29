@@ -125,6 +125,10 @@ No forced Slack adoption—users get value immediately.
 
 FUND_SIGNAL_MODE: online (requires Slack/email integrations)
 
+### 6. Transparent Trial Timeline
+
+When a prospect adds a card, `POST /billing/subscribe` responds with `trial_start`, `trial_end`, and `current_period_end` plus the Stripe `client_secret`, enabling the frontend to render a 14-day countdown before billing. This clarity boosts conversion while keeping trust high.
+
 ## 💰 Pricing Model
 
 | Tier | Price | What's Included |
@@ -457,9 +461,9 @@ FUND_SIGNAL_MODE: fixture (local mock signup)
 Repo: Frontend
 
 ### 3. Set up Stripe checkout (1 hour)
-- Starter: $149/mo
-- Pro: $247/mo
-- Team: $499/mo
+- Solo: $99/mo
+- Team: $149/mo
+- Growth: $249/mo
 - 14-day free trial
 - Cancel anytime
 

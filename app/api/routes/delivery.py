@@ -95,6 +95,7 @@ class SubscribeResponse(BaseModel):
     trial_end: str
     current_period_end: str
     plan_id: str
+    plan_label: str
     payment_behavior: str
     client_secret: str | None = None
 
@@ -166,6 +167,22 @@ def _coerce_dt(value: Any, default: datetime | None = None) -> datetime | None:
         return datetime.fromisoformat(value)
     except Exception:
         return default
+
+
+def _resolve_plan_label(plan_id: str) -> str:
+    """Return a human-friendly plan label aligned with configured price ids."""
+    label_map = {
+        "solo": "Solo plan",
+        "growth": "Growth plan",
+        "team": "Team plan",
+    }
+    if settings.stripe_plan_solo:
+        label_map[settings.stripe_plan_solo] = label_map["solo"]
+    if settings.stripe_plan_growth:
+        label_map[settings.stripe_plan_growth] = label_map["growth"]
+    if settings.stripe_plan_team:
+        label_map[settings.stripe_plan_team] = label_map["team"]
+    return label_map.get(plan_id, plan_id)
 
 
 async def _persist_subscription_record(db: AsyncSession | None, record: dict[str, Any]) -> None:
@@ -266,6 +283,7 @@ async def subscribe(
         raise HTTPException(status_code=503, detail="Stripe not configured")
     stripe.api_key = settings.stripe_secret_key
     plan_id = payload.resolved_plan()
+    plan_label = _resolve_plan_label(plan_id)
     if not payload.payment_method_id:
         logger.warning("stripe.subscribe.missing_payment_method")
         raise HTTPException(status_code=400, detail="payment_method_id is required")
@@ -330,6 +348,7 @@ async def subscribe(
         extra={
             "subscription_id": subscription["id"],
             "plan_id": plan_id,
+            "plan_label": plan_label,
             "trial_end": trial_end,
             "email_domain": _mask_email(payload.customer_email),
             "payment_behavior": record["payment_behavior"],
@@ -342,6 +361,7 @@ async def subscribe(
         trial_end=trial_end,
         current_period_end=current_period_end,
         plan_id=plan_id,
+        plan_label=plan_label,
         payment_behavior=record["payment_behavior"],
         client_secret=client_secret,
     )

@@ -56,7 +56,7 @@ FundSignal delivers curated, explainable lists of B2B SaaS companies recently fu
 - `POST /auth/google/callback` → exchanges code for token, fetches user info, and returns a verified session with `session_token`
 - `POST /auth/opt-out` → set or clear email opt-out for unlock deliveries
 - `GET /leads` → list authenticated leads with optional `score_gte` and `limit` (requires `Authorization: Bearer <session_token>`; returns freshness/proof metadata and upgrade CTA)
-- `POST /billing/subscribe` → create a subscription with 14-day trial (no charge), requires auth + payment method + plan/price id; enforces `payment_behavior=default_incomplete`, saves default payment method, and returns trial_start/trial_end/current_period_end, subscription id, and client secret for confirmation
+- `POST /billing/subscribe` → create a subscription with 14-day trial (no charge), requires auth + payment method + plan/price id; enforces `payment_behavior=default_incomplete`, saves default payment method, and returns `subscription_id`, `plan_id`, `plan_label`, `trial_start`, `trial_end`, `current_period_end`, and `client_secret` so the UI can render the billing timeline
 - `POST /billing/cancel` → cancel-at-period-end for an existing subscription (requires auth; idempotent)
 - `POST /billing/stripe/webhook` → Stripe webhook receiver with idempotency and signature verification (use Stripe-Signature header)
 
@@ -94,6 +94,19 @@ uv pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health     # Ensure you see a 200 response
 ```
+
+### Verify Stripe Trial Flow
+
+Use Stripe test keys and the fake payment method helpers to confirm the 14-day trial metadata before shipping UI changes:
+
+```bash
+export STRIPE_SECRET_KEY=sk_test_xxx
+export STRIPE_PUBLISHABLE_KEY=pk_test_xxx
+export DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/fastapi_db
+pytest tests/test_signup_delivery.py -k subscribe
+```
+
+The response should include `subscription_id`, `plan_id`, `plan_label`, `trial_start`, `trial_end`, `current_period_end`, `payment_behavior`, and `client_secret`, matching what the frontend displays.
 
 ### Quality Gates (Prove)
 
