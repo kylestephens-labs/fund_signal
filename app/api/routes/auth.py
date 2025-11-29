@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import smtplib
 import string
 import time
 from dataclasses import dataclass
@@ -13,9 +14,10 @@ from datetime import (  # noqa: UP017 - timezone.utc for py3.9 compatibility
     timedelta,
     timezone,
 )
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
@@ -572,6 +574,7 @@ def _dispatch_unlock_email(session: SessionContext) -> None:
     artifact = output_dir / f"unlock_email_{session.token}.md"
     artifact.write_text("\n".join(body_lines), encoding="utf-8")
     _unlock_sent.add(email_key)
+    _maybe_email_unlock(session.email, body_lines)
     logger.info(
         "delivery.unlock.sent",
         extra={
@@ -580,6 +583,58 @@ def _dispatch_unlock_email(session: SessionContext) -> None:
             "artifact": str(artifact),
         },
     )
+
+
+def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
+    """Send unlock email via SMTP if configured; skip silently if not."""
+    if not settings.email_smtp_url or not settings.email_from:
+        logger.info("delivery.unlock.email_skipped", extra={"reason": "smtp_not_configured"})
+        return
+    parsed = urlparse(settings.email_smtp_url)
+    if parsed.scheme not in {"smtp", "smtps", "smtp+ssl"}:
+        logger.warning("delivery.unlock.email_invalid_scheme", extra={"scheme": parsed.scheme})
+        return
+    host = parsed.hostname
+    if not host:
+        logger.warning("delivery.unlock.email_missing_host")
+        return
+    port = parsed.port or (465 if parsed.scheme in {"smtps", "smtp+ssl"} else 587)
+    user = parsed.username or ""
+    password = parsed.password or ""
+    use_ssl = parsed.scheme in {"smtps", "smtp+ssl"}
+    msg = EmailMessage()
+    msg["From"] = settings.email_from
+    msg["To"] = recipient
+    msg["Subject"] = "Your FundSignal unlock report"
+    msg.set_content("\n".join(body_lines))
+    try:
+        client = (
+            smtplib.SMTP_SSL(host, port, timeout=15)
+            if use_ssl
+            else smtplib.SMTP(host, port, timeout=15)
+        )
+        try:
+            if not use_ssl and not settings.email_disable_tls:
+                client.starttls()
+            if user or password:
+                client.login(user, password)
+            client.send_message(msg)
+            logger.info(
+                "delivery.unlock.email_sent", extra={"email_domain": _mask_email(recipient)}
+            )
+        finally:
+            try:
+                client.quit()
+            except Exception:  # pragma: no cover - best effort
+                logger.debug(
+                    "delivery.unlock.email_quit_failed",
+                    exc_info=True,
+                    extra={"email_domain": _mask_email(recipient)},
+                )
+    except Exception:
+        logger.exception(
+            "delivery.unlock.email_failed", extra={"email_domain": _mask_email(recipient)}
+        )
 
 
 @router.get("/auth/google/url", response_model=GoogleAuthUrlResponse)
