@@ -282,8 +282,13 @@ async def _mark_event(db: AsyncSession, event_id: str, sub_id: str | None = None
     stmt = select(Subscription).where(Subscription.subscription_id == sub_id)
     sub_result = await db.execute(stmt)
     subscription = sub_result.scalar_one_or_none()
-    if subscription:
-        subscription.last_event_id = event_id
+    if not subscription:
+        logger.warning(
+            "stripe.webhook.event_missing_subscription",
+            extra={"event_id": event_id, "subscription_id": sub_id},
+        )
+        return
+    subscription.last_event_id = event_id
     try:
         await db.commit()
     except Exception:
@@ -626,6 +631,13 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
         )
         if db:
             await _mark_event(db, payload.id, sub_id)
+        return False
+
+    if not payload.type.startswith("customer.subscription"):
+        logger.info(
+            "stripe.webhook.skipped_event",
+            extra={"event_id": payload.id, "type": payload.type},
+        )
         return False
 
     obj = payload.data.get("object") if payload.data else {}
