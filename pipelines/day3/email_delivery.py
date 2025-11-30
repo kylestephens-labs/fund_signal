@@ -485,18 +485,6 @@ def _build_smtp_config(scoring_run_id: str) -> SMTPDeliveryConfig:
     cc = _parse_recipient_list(settings.email_cc)
     bcc = _parse_recipient_list(settings.email_bcc)
     subject = settings.email_subject or f"FundSignal Delivery — {scoring_run_id}"
-    logger.info(
-        (
-            "delivery.email.smtp_config host=%s port=%s use_ssl=%s disable_tls=%s "
-            "has_username=%s has_password=%s"
-        ),
-        host,
-        port,
-        use_ssl,
-        bool(settings.email_disable_tls),
-        bool(username),
-        bool(password),
-    )
     return SMTPDeliveryConfig(
         host=host,
         port=port,

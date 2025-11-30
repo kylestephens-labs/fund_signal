@@ -606,18 +606,6 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
     user = parsed.username or ""
     password = parsed.password or ""
     use_ssl = parsed.scheme in {"smtps", "smtp+ssl"}
-    logger.info(
-        (
-            "delivery.unlock.smtp_config host=%s port=%s use_ssl=%s disable_tls=%s "
-            "has_username=%s has_password=%s"
-        ),
-        host,
-        port,
-        use_ssl,
-        bool(settings.email_disable_tls),
-        bool(user),
-        bool(password),
-    )
     msg = EmailMessage()
     msg["From"] = settings.email_from
     msg["To"] = recipient
@@ -636,7 +624,11 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
                 client.login(user, password)
             client.send_message(msg)
             logger.info(
-                "delivery.unlock.email_sent", extra={"email_domain": _mask_email(recipient)}
+                "delivery.unlock.email_sent",
+                extra={
+                    "email_domain": _mask_email(recipient),
+                    "message_id": msg["Message-ID"],
+                },
             )
         finally:
             try:
@@ -649,7 +641,8 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
                 )
     except Exception:
         logger.exception(
-            "delivery.unlock.email_failed", extra={"email_domain": _mask_email(recipient)}
+            "delivery.unlock.email_failed",
+            extra={"email_domain": _mask_email(recipient)},
         )
 
 
