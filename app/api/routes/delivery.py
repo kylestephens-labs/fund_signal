@@ -220,7 +220,7 @@ async def _persist_subscription_record(db: AsyncSession | None, record: dict[str
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
     if existing:
-        existing.status = record["status"]
+        existing.status = record.get("status", existing.status)
         existing.trial_start = _coerce_dt(record.get("trial_start"), existing.trial_start)
         existing.trial_end = _coerce_dt(record.get("trial_end"), existing.trial_end)
         existing.current_period_end = _coerce_dt(
@@ -234,6 +234,22 @@ async def _persist_subscription_record(db: AsyncSession | None, record: dict[str
         existing.email = record.get("email") or existing.email
         existing.customer_id = record.get("customer_id") or existing.customer_id
     else:
+        required_fields = {
+            "customer_id": record.get("customer_id"),
+            "email": record.get("email"),
+            "plan_id": record.get("plan_id"),
+            "status": record.get("status"),
+        }
+        missing = [field for field, value in required_fields.items() if value is None]
+        if missing:
+            logger.warning(
+                "stripe.subscription.missing_context",
+                extra={
+                    "subscription_id": record.get("subscription_id"),
+                    "missing_fields": ",".join(missing),
+                },
+            )
+            return
         db_obj = Subscription(
             subscription_id=record["subscription_id"],
             customer_id=record["customer_id"],
