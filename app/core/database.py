@@ -38,7 +38,8 @@ async def init_database():
             echo=settings.debug,
             pool_pre_ping=True,
             pool_recycle=300,
-            connect_args={"statement_cache_size": 0},
+            # Disable asyncpg prepared statement caching to stay PgBouncer-safe
+            connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0},
         )
 
         async_session = async_sessionmaker(
