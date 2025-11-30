@@ -39,7 +39,12 @@ async def init_database():
             pool_pre_ping=True,
             pool_recycle=300,
             # Disable asyncpg prepared statement caching to stay PgBouncer-safe
-            connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0},
+            connect_args={
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+                # ensure asyncpg never promotes queries to prepared statements
+                "prepare_threshold": 0,
+            },
         )
 
         async_session = async_sessionmaker(
