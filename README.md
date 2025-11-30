@@ -126,6 +126,13 @@ Expected results:
 
 Re-run `stripe trigger invoice.payment_succeeded` to confirm the API returns `duplicate: true`, proving idempotency. See `docs/prove/prove_v1.md` for the prove gate details, and capture screenshots/log excerpts in incidents.
 
+### Monitoring & Alerts (Unlock Emails + Stripe Webhooks)
+
+- Unlock flows now emit structured metrics/logs: `delivery.unlock.dispatch_start`, `delivery.unlock.artifact_written`, `delivery.unlock.email_sent`, `delivery.unlock.email_skipped`, and `delivery.unlock.email_failed` (which raises a `metrics.alert` with severity `critical`). When SMTP is disabled or misconfigured, look for `delivery.unlock.email_skipped` or `delivery.unlock.email_failed` in Render logs; configure Render log alerts or Supabase dashboards to trigger on those events.
+- Stripe webhook handler emits counters (`stripe.webhook.received`, `stripe.webhook.duplicate`, `stripe.webhook.persisted`, `stripe.webhook.invalid_payload`, `stripe.webhook.signature_*`) plus alerts whenever payload verification fails or the database dependency is unavailable. Use the Stripe CLI replay flow above and verify alerts under Render’s “Events & Alerts” tab or whatever alerting sink is wired to StatsD.
+- All metrics flow through `app.observability.metrics` and respect the `METRICS_*` env vars (see `.env.example`). Set `METRICS_BACKEND=stdout` locally to watch the JSON payloads in logs, or point to a StatsD endpoint in staging/prod. Prometheus-compatible metrics remain available at `/metrics`.
+- Runbooks: search Render logs for `delivery.unlock.email_failed` or `stripe.webhook.invalid_payload` to confirm alert routing; Supabase `processed_events` rows provide double-entry confirmation of webhook persistence; documentation on thresholds lives alongside `METRICS_SCHEMA_VERSION` in `app/observability/metrics.py`.
+
 ### Verify Cancel Endpoint UX
 
 ```bash

@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone  # noqa: UP017
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -237,6 +238,52 @@ def fake_stripe(monkeypatch):
     return client
 
 
+class _StubMetrics:
+    def __init__(self):
+        self.events: list[dict[str, Any]] = []
+        self.alerts: list[dict[str, Any]] = []
+
+    def increment(self, metric: str, value: float = 1.0, *, tags: dict[str, Any] | None = None):
+        self.events.append(
+            {"kind": "increment", "metric": metric, "value": value, "tags": tags or {}}
+        )
+
+    def gauge(self, metric: str, value: float, *, tags: dict[str, Any] | None = None):
+        self.events.append({"kind": "gauge", "metric": metric, "value": value, "tags": tags or {}})
+
+    def timing(self, metric: str, value_ms: float, *, tags: dict[str, Any] | None = None):
+        self.events.append(
+            {"kind": "timing", "metric": metric, "value": value_ms, "tags": tags or {}}
+        )
+
+    def alert(
+        self,
+        metric: str,
+        *,
+        value: float,
+        threshold: float,
+        severity: str,
+        tags: dict[str, Any] | None = None,
+    ):
+        self.alerts.append(
+            {
+                "metric": metric,
+                "value": value,
+                "threshold": threshold,
+                "severity": severity,
+                "tags": tags or {},
+            }
+        )
+
+
+@pytest.fixture
+def metrics_stub(monkeypatch):
+    stub = _StubMetrics()
+    monkeypatch.setattr(auth_routes, "metrics", stub)
+    monkeypatch.setattr(delivery_routes, "metrics", stub)
+    return stub
+
+
 def test_magic_link_flow():
     auth_routes.logger.setLevel(logging.DEBUG)
     auth_routes._rate_limiter.max_requests = 10
@@ -424,6 +471,40 @@ def test_opt_out_blocks_unlock_email(tmp_path):
     assert verify.status_code == 200
     artifacts = list(Path(settings.delivery_output_dir).glob("unlock_email_*.md"))
     assert artifacts == [], "no unlock email should be written when opted out"
+
+
+def test_unlock_email_failure_emits_alert(monkeypatch, metrics_stub):
+    monkeypatch.setattr(settings, "email_smtp_url", "smtp://user:pass@mailtrap.io:2525")
+    monkeypatch.setattr(settings, "email_from", "FundSignal <alerts@example.com>")
+    monkeypatch.setattr(settings, "email_disable_tls", True)
+
+    class FailingSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def starttls(self):
+            return None
+
+        def login(self, *args, **kwargs):
+            return None
+
+        def send_message(self, msg):
+            raise RuntimeError("smtp down")
+
+        def quit(self):
+            return None
+
+    monkeypatch.setattr(auth_routes.smtplib, "SMTP", FailingSMTP)
+    auth_routes.logger.setLevel(logging.DEBUG)
+    resp = client.post("/auth/magic-link", json={"email": "unlockfail@example.com"})
+    token = resp.json()["debug_token"]
+    verify = client.post("/auth/magic-link/verify", json={"token": token})
+    assert verify.status_code == 200
+    failure_events = [
+        evt for evt in metrics_stub.events if evt["metric"] == "delivery.unlock.email_failed"
+    ]
+    assert failure_events, "expected failure metric emitted"
+    assert any(alert["metric"] == "delivery.unlock.email_failed" for alert in metrics_stub.alerts)
 
 
 def test_subscribe_creates_trial_and_dates():
@@ -859,6 +940,56 @@ def test_webhook_rejects_invalid_signature():
         headers={"Stripe-Signature": bad_signature, "Content-Type": "application/json"},
     )
     assert resp.status_code == 400
+
+
+def test_stripe_webhook_invalid_payload_alerts(metrics_stub):
+    settings.stripe_webhook_secret = ""
+    resp = client.post(
+        "/billing/stripe/webhook",
+        content=b"{",
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert any(alert["metric"] == "stripe.webhook.invalid_payload" for alert in metrics_stub.alerts)
+
+
+def test_stripe_webhook_duplicate_metrics(metrics_stub):
+    settings.stripe_webhook_secret = "whsec_test"  # noqa: S105 - test fixture value
+    event = {
+        "id": "evt_metrics",
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "id": "sub_metrics",
+                "status": "trialing",
+                "trial_start": 1,
+                "trial_end": 2,
+                "current_period_end": 2,
+                "customer_email": "metrics@example.com",
+                "customer": "cus_metrics",
+                "plan": {"id": "price_metrics"},
+            }
+        },
+    }
+    payload = json.dumps(event)
+    timestamp = "123456789"
+    signature = _sign_payload(settings.stripe_webhook_secret, payload, timestamp)
+    first = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert first.status_code == 200
+    second = client.post(
+        "/billing/stripe/webhook",
+        content=payload,
+        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
+    )
+    assert second.status_code == 200
+    received = [evt for evt in metrics_stub.events if evt["metric"] == "stripe.webhook.received"]
+    duplicates = [evt for evt in metrics_stub.events if evt["metric"] == "stripe.webhook.duplicate"]
+    assert received, "expected received metric"
+    assert duplicates, "expected duplicate metric"
 
 
 def _seed_subscription(

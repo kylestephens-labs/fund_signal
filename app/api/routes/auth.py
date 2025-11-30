@@ -24,6 +24,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
+from app.observability.metrics import metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -529,12 +530,15 @@ def _schedule_unlock_email(session: SessionContext, background_tasks: Background
         logger.info(
             "delivery.unlock.skipped_opt_out", extra={"email_domain": _mask_email(session.email)}
         )
+        metrics.increment("delivery.unlock.skipped", tags={"reason": "opt_out"})
         return
     if email_key in _unlock_sent:
         logger.info(
             "delivery.unlock.already_sent", extra={"email_domain": _mask_email(session.email)}
         )
+        metrics.increment("delivery.unlock.skipped", tags={"reason": "duplicate"})
         return
+    metrics.increment("delivery.unlock.queued")
     background_tasks.add_task(_dispatch_unlock_email, session)
 
 
@@ -544,12 +548,20 @@ def _dispatch_unlock_email(session: SessionContext) -> None:
     logger.info(
         "delivery.unlock.dispatch_start", extra={"email_domain": _mask_email(session.email)}
     )
+    metrics.increment("delivery.unlock.dispatch_start")
     try:
         from app.api.routes import delivery as delivery_routes
 
         leads = delivery_routes._load_fixture()
     except Exception:  # pragma: no cover - defensive
         logger.exception("delivery.unlock.failed_to_load_leads")
+        metrics.alert(
+            "delivery.unlock.dispatch_failed",
+            value=1.0,
+            threshold=0.0,
+            severity="critical",
+            tags={"reason": "load_fixture"},
+        )
         return
     output_dir = Path(settings.delivery_output_dir or "output")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -577,31 +589,62 @@ def _dispatch_unlock_email(session: SessionContext) -> None:
     artifact = output_dir / f"unlock_email_{session.token}.md"
     artifact.write_text("\n".join(body_lines), encoding="utf-8")
     _unlock_sent.add(email_key)
-    _maybe_email_unlock(session.email, body_lines)
+    lead_count = len(leads)
+    metrics.increment("delivery.unlock.artifact_written", tags={"lead_count": lead_count})
+    delivery_status = _maybe_email_unlock(session.email, body_lines)
     logger.info(
         "delivery.unlock.sent",
         extra={
             "email_domain": _mask_email(session.email),
-            "lead_count": len(leads),
+            "lead_count": lead_count,
             "artifact": str(artifact),
+            "delivery_status": delivery_status,
         },
+    )
+    if lead_count >= 50:
+        bucket = "50+"
+    elif lead_count >= 25:
+        bucket = "25-49"
+    elif lead_count > 0:
+        bucket = "1-24"
+    else:
+        bucket = "0"
+    metrics.increment(
+        "delivery.unlock.completed", tags={"status": delivery_status, "lead_count_bucket": bucket}
     )
 
 
-def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
+def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> str:
     """Send unlock email via SMTP if configured; skip silently if not."""
     if not settings.email_smtp_url or not settings.email_from:
         logger.info("delivery.unlock.email_skipped", extra={"reason": "smtp_not_configured"})
-        return
+        metrics.increment("delivery.unlock.email_skipped", tags={"reason": "smtp_not_configured"})
+        return "skipped"
     logger.info("delivery.unlock.email_attempt", extra={"email_domain": _mask_email(recipient)})
     parsed = urlparse(settings.email_smtp_url)
     if parsed.scheme not in {"smtp", "smtps", "smtp+ssl"}:
         logger.warning("delivery.unlock.email_invalid_scheme", extra={"scheme": parsed.scheme})
-        return
+        metrics.increment("delivery.unlock.email_failed", tags={"reason": "invalid_scheme"})
+        metrics.alert(
+            "delivery.unlock.email_failed",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+            tags={"reason": "invalid_scheme"},
+        )
+        return "failed"
     host = parsed.hostname
     if not host:
         logger.warning("delivery.unlock.email_missing_host")
-        return
+        metrics.increment("delivery.unlock.email_failed", tags={"reason": "missing_host"})
+        metrics.alert(
+            "delivery.unlock.email_failed",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+            tags={"reason": "missing_host"},
+        )
+        return "failed"
     port = parsed.port or (465 if parsed.scheme in {"smtps", "smtp+ssl"} else 587)
     user = parsed.username or ""
     password = parsed.password or ""
@@ -630,7 +673,12 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
                     "message_id": msg["Message-ID"],
                 },
             )
-        finally:
+            metrics.increment(
+                "delivery.unlock.email_sent",
+                tags={"protocol": "ssl" if use_ssl else "starttls"},
+            )
+            return "sent"
+        finally:  # noqa: SIM105 - nested try/finally intentional for quit logging
             try:
                 client.quit()
             except Exception:  # pragma: no cover - best effort
@@ -644,6 +692,16 @@ def _maybe_email_unlock(recipient: str, body_lines: list[str]) -> None:
             "delivery.unlock.email_failed",
             extra={"email_domain": _mask_email(recipient)},
         )
+        metrics.increment("delivery.unlock.email_failed", tags={"reason": "smtp_error"})
+        metrics.alert(
+            "delivery.unlock.email_failed",
+            value=1.0,
+            threshold=0.0,
+            severity="critical",
+            tags={"reason": "smtp_error"},
+        )
+        return "failed"
+    return "sent"
 
 
 @router.get("/auth/google/url", response_model=GoogleAuthUrlResponse)

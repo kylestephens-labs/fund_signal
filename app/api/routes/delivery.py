@@ -28,6 +28,7 @@ from app.api.routes.auth import SessionContext, require_session
 from app.config import settings
 from app.core.database import get_database
 from app.models.subscription import ProcessedEvent, Subscription
+from app.observability.metrics import metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -420,6 +421,13 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
         return
     if not signature_header:
         logger.warning("stripe.webhook.signature_missing")
+        metrics.increment("stripe.webhook.signature_missing")
+        metrics.alert(
+            "stripe.webhook.signature_missing",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+        )
         raise HTTPException(status_code=403, detail="Invalid signature")
     try:
         pairs = dict(entry.split("=", 1) for entry in signature_header.split(","))
@@ -427,9 +435,23 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
         signature = pairs.get("v1")
     except Exception:  # pragma: no cover - defensive
         logger.warning("stripe.webhook.signature_parse_failed")
+        metrics.increment("stripe.webhook.signature_invalid")
+        metrics.alert(
+            "stripe.webhook.signature_invalid",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+        )
         raise HTTPException(status_code=403, detail="Invalid signature")
     if not timestamp or not signature:
         logger.warning("stripe.webhook.signature_parts_missing")
+        metrics.increment("stripe.webhook.signature_invalid")
+        metrics.alert(
+            "stripe.webhook.signature_invalid",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+        )
         raise HTTPException(status_code=403, detail="Invalid signature")
     expected = hmac.new(
         settings.stripe_webhook_secret.encode(),
@@ -438,6 +460,13 @@ def _verify_signature(payload: bytes, signature_header: str | None) -> None:
     ).hexdigest()
     if not hmac.compare_digest(expected, signature):
         logger.warning("stripe.webhook.signature_mismatch")
+        metrics.increment("stripe.webhook.signature_invalid")
+        metrics.alert(
+            "stripe.webhook.signature_invalid",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+        )
         raise HTTPException(status_code=403, detail="Invalid signature")
 
 
@@ -456,6 +485,7 @@ def _log_subscription_event(
             "note": note,
         },
     )
+    metrics.increment("stripe.webhook.persisted", tags={"type": event_type})
 
 
 def _format_cancel_message(effective_date: str | None) -> str:
@@ -519,6 +549,7 @@ async def _apply_subscription_event(payload: StripeWebhookPayload, db: AsyncSess
         stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == payload.id)
         result = await db.execute(stmt)
         if result.scalar_one_or_none():
+            metrics.increment("stripe.webhook.duplicate_event", tags={"type": payload.type})
             return True
 
     if payload.type == "checkout.session.completed":
@@ -693,6 +724,12 @@ async def stripe_webhook(
     body = await request.body()
     if db is None:
         logger.warning("stripe.webhook.db_missing")
+        metrics.alert(
+            "stripe.webhook.db_missing",
+            value=1.0,
+            threshold=0.0,
+            severity="critical",
+        )
         raise HTTPException(status_code=503, detail="Database not configured")
     await _ensure_event_tables(db)
     try:
@@ -705,13 +742,25 @@ async def stripe_webhook(
             event_obj = json.loads(body.decode())
     except Exception:
         logger.warning("stripe.webhook.invalid_payload")
+        metrics.increment(
+            "stripe.webhook.invalid_payload", tags={"has_signature": bool(stripe_signature)}
+        )
+        metrics.alert(
+            "stripe.webhook.invalid_payload",
+            value=1.0,
+            threshold=0.0,
+            severity="warning",
+            tags={"has_signature": bool(stripe_signature)},
+        )
         raise HTTPException(status_code=400, detail="Invalid payload")
     payload = StripeWebhookPayload.model_validate(event_obj)
     duplicate = await _apply_subscription_event(payload, db)
     if duplicate:
         logger.info("stripe.webhook.duplicate", extra={"event_id": payload.id})
+        metrics.increment("stripe.webhook.duplicate", tags={"type": payload.type})
         return WebhookResponse(received=True, duplicate=True)
     logger.info("stripe.webhook.received", extra={"event_id": payload.id, "type": payload.type})
+    metrics.increment("stripe.webhook.received", tags={"type": payload.type})
     return WebhookResponse(received=True, duplicate=False)
 
 
